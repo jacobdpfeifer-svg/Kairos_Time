@@ -72,7 +72,7 @@ export function FirstRun({
   const [accepted, setAccepted] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [session, setSession] = useState<"unknown" | "checking" | "found" | "missing">("unknown");
+  const [session, setSession] = useState<"unknown" | "checking" | "returning" | "found" | "missing">("unknown");
   const [ssoBusy, setSsoBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<SyncProgressCourse[]>(progressCourses ?? []);
@@ -230,6 +230,7 @@ export function FirstRun({
     setError(null);
     try {
       await openCanvasSso();
+      setSession("returning");
       const ok = await checkCanvasSession();
       setSession(ok ? "found" : "missing");
       if (!ok) setError(SIGN_IN_FAILED);
@@ -348,22 +349,29 @@ export function FirstRun({
       {step === "canvas" && (
         <section className="nb-step nb-center" aria-labelledby="canvas-title">
           <h1 id="canvas-title" ref={heading} tabIndex={-1}>
-            {session === "found" ? "You're already signed in" : "Connect Canvas"}
+            {session === "found" ? "Canvas is connected" : session === "returning" ? "Back in Kairos" : "Your Canvas sign-in opens in Chrome"}
           </h1>
           <p className="nb-lede">
-            {schoolName ? `Sign in the way you always do at ${schoolName}.` : "Sign in the way you always do."} Kairos never sees your password.
+            {session === "found"
+              ? "Kairos found your Canvas session. Your classes are next."
+              : session === "returning"
+                ? "Kairos is checking the Canvas session now."
+              : schoolName
+                ? `${schoolName} sign-in happens in Chrome. You type and complete MFA there.`
+                : "School sign-in happens in Chrome. You type and complete MFA there."}
           </p>
           <div className="nb-mark">
             <ConnectCanvasMark reduced={reduced || session === "found"} />
           </div>
+          {session !== "found" && session !== "returning" && <p className="nb-trust">Kairos stays underneath. It never sees your password or MFA code.</p>}
           {error && (
             <p className="error" role="alert">
               {error}
             </p>
           )}
-          {session !== "found" && (
+          {session !== "found" && session !== "returning" && (
             <button type="button" className="primary" disabled={ssoBusy} onClick={() => void signIn()}>
-              {ssoBusy ? "Waiting for Canvas…" : error ? "Try again" : "Sign in to Canvas"}
+              {ssoBusy ? "Chrome sign-in is open…" : error ? "Try again" : "Open Chrome sign-in"}
             </button>
           )}
         </section>

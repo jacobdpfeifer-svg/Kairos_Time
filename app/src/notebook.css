@@ -744,7 +744,14 @@ p.home-statement {
   margin-top: 8px;
 }
 .nb-mark {
-  margin: 24px 0;
+  width: 100%;
+  margin: 24px 0 12px;
+}
+.nb-trust {
+  max-width: 360px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
 }
 .nb-sync {
   list-style: none;
@@ -824,38 +831,132 @@ p.home-statement {
   animation: none;
 }
 
-/* Connect Canvas mark: two pages; classes arrive as course-colored tags. */
-.connect-mark .win {
-  fill: var(--sheet);
-  stroke: var(--fg);
-  stroke-width: 1.5;
+/* Canvas handoff film: Kairos → Chrome → student sign-in → Kairos classes. */
+.connect-mark {
+  width: min(100%, 420px);
+  color: var(--fg);
 }
-.connect-mark .win-bar {
-  fill: var(--sheet-2);
+.handoff-film {
+  position: relative;
+  width: 100%;
+  min-height: 202px;
+  overflow: hidden;
 }
-.connect-mark .win-label {
-  fill: var(--fg);
-  font-weight: 700;
+.handoff-scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: handoff-scene 12s var(--ease) infinite;
 }
-.connect-mark .signin {
-  fill: var(--fg);
+.handoff-scene:nth-child(2) { animation-delay: 3s; }
+.handoff-scene:nth-child(3) { animation-delay: 6s; }
+.handoff-scene:nth-child(4) { animation-delay: 9s; }
+.handoff-window {
+  width: min(100%, 320px);
+  min-height: 112px;
+  background: var(--sheet);
+  border: 1px solid var(--fg);
+  border-radius: var(--radius-control);
+  box-shadow: 3px 3px 0 var(--hl);
+  overflow: hidden;
+  text-align: left;
 }
-.connect-mark .signin-label {
-  fill: var(--sheet);
-  font-weight: 700;
+.handoff-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 27px;
+  padding: 0 10px;
+  background: var(--sheet-2);
+  border-bottom: 1px solid var(--hairline);
+  color: var(--muted);
+  font-size: 11px;
 }
-.connect-mark .cursor {
-  fill: var(--pen);
+.handoff-bar i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
 }
-.connect-mark .card {
-  fill: #4a8fe7;
+.handoff-bar span { margin-left: 5px; }
+.chrome-bar b { color: var(--fg); font-weight: 700; }
+.chrome-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handoff-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 17px 18px;
+  font-size: 14px;
 }
-.connect-mark .card.c2 {
-  fill: #3fb07c;
+.handoff-content strong { font-size: 18px; letter-spacing: -0.02em; }
+.handoff-sub { color: var(--muted); font-size: 13px; }
+.handoff-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+  font-size: 13px;
 }
-.connect-mark .card.c3 {
-  fill: #ef6a4c;
+.handoff-row b,
+.course-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--pen);
 }
+.shield-dot { display: inline-grid; place-items: center; width: 18px !important; height: 18px !important; color: var(--sheet); font-size: 11px; background: var(--success) !important; }
+.course-dot.one { background: #4a8fe7; }
+.course-dot.two { background: #3fb07c; }
+.course-dot.three { background: #ef6a4c; }
+.handoff-label { color: var(--muted); font-size: 13px; text-align: center; }
+.scene-chrome { position: absolute; }
+.behind-window { position: absolute; width: 220px; transform: translate(-38px, 12px) scale(.78); opacity: .62; }
+.chrome-window { position: relative; z-index: 1; width: 290px; transform: translate(28px, -8px); }
+.solo-window { transform: none; }
+@keyframes handoff-scene {
+  0%, 3% { opacity: 0; transform: translateY(6px); }
+  7%, 21% { opacity: 1; transform: none; }
+  25%, 100% { opacity: 0; transform: translateY(-6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .handoff-scene,
+  .handoff-scene:nth-child(2),
+  .handoff-scene:nth-child(3),
+  .handoff-scene:nth-child(4) {
+    position: relative;
+    inset: auto;
+    opacity: 1;
+    transform: none;
+    animation: none;
+    padding: 8px 0 16px;
+    border-top: 1px solid var(--hairline);
+  }
+  .handoff-scene:first-child { border-top: 0; }
+  .handoff-film { overflow: visible; }
+}
+:root[data-motion="reduced"] .handoff-scene,
+:root[data-motion="reduced"] .handoff-scene:nth-child(2),
+:root[data-motion="reduced"] .handoff-scene:nth-child(3),
+:root[data-motion="reduced"] .handoff-scene:nth-child(4) {
+  position: relative;
+  inset: auto;
+  opacity: 1;
+  transform: none;
+  animation: none;
+  padding: 8px 0 16px;
+  border-top: 1px solid var(--hairline);
+}
+:root[data-motion="reduced"] .handoff-scene:first-child { border-top: 0; }
+:root[data-motion="reduced"] .handoff-film { overflow: visible; }
 .first-run input[type="checkbox"],
 .workspace input[type="checkbox"] {
   appearance: auto;

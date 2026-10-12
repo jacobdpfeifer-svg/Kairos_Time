@@ -1,35 +1,48 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 
-/** Stylized Canvas window → click Sign in → cards fly into Kairos. CSS/SVG only. */
+/** A short visual handoff: Kairos → Chrome → student sign-in → Kairos courses. */
 export function ConnectCanvasMark({ reduced }: { reduced: boolean }) {
-  const uid = useId().replace(/:/g, "");
   return (
-    <svg className={`connect-mark${reduced ? " reduced" : ""}`} viewBox="0 0 320 180" role="img" aria-label="Canvas sign-in flowing into Kairos">
-      <defs>
-        <linearGradient id={`g${uid}`} x1="0" x2="1">
-          <stop offset="0" stopColor="var(--accent)" stopOpacity="0.9" />
-          <stop offset="1" stopColor="var(--accent-deep)" />
-        </linearGradient>
-      </defs>
-      <rect className="win canvas-win" x="18" y="28" width="130" height="96" rx="12" />
-      <rect className="win-bar" x="18" y="28" width="130" height="18" rx="12" />
-      <text className="win-label" x="36" y="41">
-        Canvas
-      </text>
-      <rect className="signin" x="48" y="72" width="70" height="22" rx="8" />
-      <text className="signin-label" x="83" y="87">
-        Sign in
-      </text>
-      <circle className="cursor" cx="70" cy="84" r="5" />
-      <rect className="win pn-win" x="172" y="28" width="130" height="96" rx="12" />
-      <rect className="win-bar" x="172" y="28" width="130" height="18" rx="12" />
-      <text className="win-label" x="198" y="41">
-        Kairos
-      </text>
-      <rect className="card c1" x="186" y="56" width="46" height="28" rx="6" />
-      <rect className="card c2" x="238" y="56" width="46" height="28" rx="6" />
-      <rect className="card c3" x="212" y="88" width="46" height="28" rx="6" />
-    </svg>
+    <div
+      className={`connect-mark${reduced ? " reduced" : ""}`}
+      role="img"
+      aria-label="Choose your school in Kairos, sign in and complete MFA in Chrome, then return to Kairos to see your classes"
+    >
+      <div className="handoff-film" aria-hidden="true">
+        <div className="handoff-scene scene-school">
+          <div className="handoff-window kairos-window">
+            <div className="handoff-bar"><i /><i /><i /><span>Kairos</span></div>
+            <div className="handoff-content"><strong>Your school</strong><span className="handoff-row"><b />School selected</span></div>
+          </div>
+          <span className="handoff-label">Choose school</span>
+        </div>
+        <div className="handoff-scene scene-chrome">
+          <div className="handoff-window kairos-window behind-window">
+            <div className="handoff-bar"><i /><i /><i /><span>Kairos</span></div>
+            <div className="handoff-content"><strong>Waiting for Canvas</strong></div>
+          </div>
+          <div className="handoff-window chrome-window">
+            <div className="handoff-bar chrome-bar"><b>Chrome</b><span>canvas.yourschool.edu</span></div>
+            <div className="handoff-content"><strong>Chrome opens on top</strong><span className="handoff-sub">Expected</span></div>
+          </div>
+          <span className="handoff-label">Kairos stays open underneath</span>
+        </div>
+        <div className="handoff-scene scene-login">
+          <div className="handoff-window chrome-window solo-window">
+            <div className="handoff-bar chrome-bar"><b>Chrome</b><span>School sign-in</span></div>
+            <div className="handoff-content"><strong>You sign in here</strong><span className="handoff-row"><b className="shield-dot">✓</b>Complete MFA here</span></div>
+          </div>
+          <span className="handoff-label">Your password stays with your school</span>
+        </div>
+        <div className="handoff-scene scene-done">
+          <div className="handoff-window kairos-window">
+            <div className="handoff-bar"><i /><i /><i /><span>Kairos</span></div>
+            <div className="handoff-content"><strong>Your classes are ready</strong><span className="handoff-row"><b className="course-dot one" />Course name</span><span className="handoff-row"><b className="course-dot two" />Course name</span><span className="handoff-row"><b className="course-dot three" />Course name</span></div>
+          </div>
+          <span className="handoff-label">Back in Kairos</span>
+        </div>
+      </div>
+    </div>
   );
 }
 

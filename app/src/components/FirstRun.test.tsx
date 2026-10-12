@@ -58,7 +58,9 @@ describe("FirstRun", () => {
       false
     );
     expect(vi.mocked(saveOnboarding)).toHaveBeenCalledWith("osu-instructure-com", "", {});
-    expect(await screen.findByRole("heading", { name: "Connect Canvas" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your Canvas sign-in opens in Chrome" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /complete MFA in Chrome/i })).toBeInTheDocument();
+    expect(screen.getByText(/never sees your password or MFA code/i)).toBeInTheDocument();
   });
 
   it("accepts a pasted Canvas address when the school isn't listed", async () => {
@@ -71,17 +73,17 @@ describe("FirstRun", () => {
     expect(vi.mocked(chooseSchool)).toHaveBeenLastCalledWith({ host: "canvas.example.edu", name: "canvas.example.edu" }, true);
   });
 
-  it("keeps the student on Connect Canvas after a failed sign-in", async () => {
+  it("keeps the student on the Canvas handoff after a failed sign-in", async () => {
     vi.mocked(openCanvasSso).mockRejectedValueOnce(new Error("Login window closed or no session found."));
     const user = userEvent.setup();
     render(<FirstRun onDone={() => undefined} />);
     await pickOhioState(user);
     await user.click(screen.getByLabelText("I agree to the beta terms"));
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByRole("heading", { name: "Connect Canvas" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Sign in to Canvas" }));
+    expect(await screen.findByRole("heading", { name: "Your Canvas sign-in opens in Chrome" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open Chrome sign-in" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/Login window closed|no session/i);
-    expect(screen.getByRole("heading", { name: "Connect Canvas" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your Canvas sign-in opens in Chrome" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
   });
@@ -119,7 +121,7 @@ describe("FirstRun", () => {
     vi.mocked(openCanvasSso).mockRejectedValueOnce("open-canvas exited with exit status: 1");
     const user = userEvent.setup();
     render(<FirstRun startStep="canvas" onDone={() => undefined} />);
-    await user.click(await screen.findByRole("button", { name: "Sign in to Canvas" }));
+    await user.click(await screen.findByRole("button", { name: "Open Chrome sign-in" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The sign-in window closed before Canvas finished. Try again.");
     expect(alert).not.toHaveTextContent(/exit status|open-canvas/);

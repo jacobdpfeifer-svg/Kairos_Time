@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kairos first-run handoff mock</title>
+  <style>
+    :root { --bg:#fbfbfa; --sheet:#fff; --ink:#1d1d1f; --muted:#66666b; --rule:#e9e9e7; --hl:#ffe14d; --hl-soft:#fff4b3; --pen:#2f5bea; --success:#2f8f5b; --danger:#c8432b; --ease:cubic-bezier(.22,1,.36,1); }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:500 15px/1.35 Gabarito, ui-sans-serif, system-ui, sans-serif; }
+    .page { min-height:100vh; padding:28px 24px 56px; }
+    .wordmark { font-weight:800; font-size:22px; letter-spacing:-.03em; }
+    .wordmark span { display:inline-block; background:linear-gradient(transparent 58%,var(--hl) 58%,var(--hl) 92%,transparent 92%); }
+    .mark { background:linear-gradient(transparent 58%,var(--hl) 58%,var(--hl) 92%,transparent 92%); padding:0 .06em; }
+    main { max-width:980px; margin:clamp(48px,9vw,96px) auto 0; }
+    h1 { max-width:620px; margin:0; font-size:clamp(34px,5vw,60px); line-height:1.02; letter-spacing:-.045em; }
+    h1 span { background:linear-gradient(transparent 58%,var(--hl) 58%,var(--hl) 92%,transparent 92%); }
+    .lede { max-width:470px; color:var(--muted); font-size:17px; margin:18px 0 36px; }
+    .film { position:relative; min-height:430px; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); overflow:hidden; }
+    .scene { position:absolute; inset:0; display:grid; place-items:center; opacity:0; transform:translateY(8px); animation:scene 16s var(--ease) infinite; }
+    .scene:nth-child(2){animation-delay:4s}.scene:nth-child(3){animation-delay:8s}.scene:nth-child(4){animation-delay:12s}
+    .scene-inner { width:min(860px,100%); display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center; }
+    .scene-copy h2 { font-size:30px; line-height:1.05; letter-spacing:-.03em; margin:0 0 12px; }
+    .scene-copy p { max-width:320px; color:var(--muted); margin:0; }
+    .scene-copy strong { color:var(--ink); }
+    .tag { display:inline-block; margin-bottom:12px; color:var(--muted); font-size:14px; }
+    .tag::before { content:''; display:inline-block; width:9px; height:9px; margin-right:8px; background:var(--hl); border-radius:50%; }
+    .window { background:var(--sheet); border:1px solid var(--ink); border-radius:12px; box-shadow:0 12px 0 var(--hl); overflow:hidden; }
+    .bar { height:32px; padding:0 12px; display:flex; align-items:center; gap:6px; background:#f7f7f5; border-bottom:1px solid var(--rule); font-size:12px; color:var(--muted); }
+    .dot { width:7px; height:7px; border:1px solid var(--muted); border-radius:50%; }
+    .address { margin-left:8px; padding:4px 10px; border:1px solid var(--rule); border-radius:5px; flex:1; }
+    .kairos-window { width:380px; min-height:230px; padding-bottom:18px; }
+    .app-head { padding:18px 20px 8px; font-size:12px; color:var(--muted); }
+    .app-body { padding:8px 20px; }
+    .app-title { font-size:24px; font-weight:800; letter-spacing:-.03em; margin-bottom:18px; }
+    .row { display:flex; align-items:center; gap:10px; padding:11px 0; border-top:1px solid var(--rule); }
+    .row i { width:10px; height:10px; border-radius:50%; background:#4a8fe7; }
+    .row:nth-child(2) i { background:#3fb07c }.row:nth-child(3) i { background:#ef6a4c }
+    .button { display:inline-block; padding:11px 15px; background:var(--ink); color:white; border-radius:9px; box-shadow:3px 3px 0 var(--hl); font-weight:700; }
+    .chrome-window { width:430px; min-height:250px; transform:translate(24px,12px); }
+    .chrome-window .bar { height:38px; }
+    .chrome-brand { font-weight:700; color:var(--ink); margin-right:4px; }
+    .login-panel { min-height:210px; display:grid; place-items:center; text-align:center; padding:30px; }
+    .login-panel h3 { margin:0 0 8px; font-size:24px; letter-spacing:-.03em; }
+    .login-panel p { max-width:260px; margin:0; color:var(--muted); }
+    .shield { width:48px; height:48px; margin-bottom:14px; border:2px solid var(--pen); border-radius:50%; display:grid; place-items:center; color:var(--pen); font-size:20px; }
+    .handoff { display:flex; align-items:center; justify-content:center; gap:18px; }
+    .arrow { width:80px; height:2px; background:var(--pen); position:relative; }
+    .arrow::after { content:''; position:absolute; right:0; top:-4px; width:9px; height:9px; border-top:2px solid var(--pen); border-right:2px solid var(--pen); transform:rotate(45deg); }
+    .note { color:var(--pen); font:700 22px/1 Caveat, cursive; transform:rotate(-4deg); }
+    .motion-note { margin-top:18px; color:var(--muted); font-size:14px; }
+    .motion-note code { font-family:ui-monospace,monospace; font-size:12px; }
+    @keyframes scene { 0%,3%{opacity:0;transform:translateY(8px)} 6%,22%{opacity:1;transform:none} 25%,100%{opacity:0;transform:translateY(-8px)} }
+    @media (prefers-reduced-motion: reduce) { .scene { position:relative; inset:auto; opacity:1; transform:none; animation:none; min-height:0; padding:36px 0; border-top:1px solid var(--rule); } .scene:first-child { border-top:0; } .film { overflow:visible; } .motion-note { display:none; } }
+    @media (max-width:760px) { .scene-inner { grid-template-columns:1fr; gap:20px; } .scene-copy { text-align:center; } .scene-copy p { margin:0 auto; } .window { width:min(100%,430px); } .handoff { transform:scale(.88); } .film { min-height:560px; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="wordmark"><span>kairos</span></div>
+    <main>
+      <h1>One short handoff to <span>your classes.</span></h1>
+      <p class="lede">A motion mock for first run. It shows who acts, which window opens, and what “done” looks like.</p>
+      <section class="film" aria-label="Animated onboarding sequence">
+        <article class="scene"><div class="scene-inner"><div class="scene-copy"><span class="tag">First, in Kairos</span><h2>Choose your school.</h2><p>Search by name. Kairos saves the school before Canvas opens.</p></div><div class="window kairos-window"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="address">Kairos</span></div><div class="app-head">Kairos</div><div class="app-body"><div class="app-title">Your school</div><div class="row"><i></i><strong>Your school</strong><span class="muted">Canvas</span></div><div class="button" style="margin-top:18px">Continue</div></div></div></div></article>
+        <article class="scene"><div class="scene-inner"><div class="scene-copy"><span class="tag">Then, Chrome opens</span><h2>Chrome will open <span class="mark">on top.</span></h2><p>Kairos stays open underneath. The new window is expected.</p></div><div class="handoff"><div class="window kairos-window"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="address">Kairos</span></div><div class="app-head">Kairos</div><div class="app-body"><div class="app-title">Waiting for Canvas</div><p class="muted">Your sign-in window will open next.</p></div></div><div><div class="arrow"></div><div class="note">expected</div></div><div class="window chrome-window"><div class="bar"><span class="chrome-brand">Chrome</span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="address">canvas.yourschool.edu</span></div><div class="login-panel"><div><div class="shield">↗</div><h3>Your school sign-in</h3><p>Sign in and complete MFA in this browser window.</p></div></div></div></div></div></article>
+        <article class="scene"><div class="scene-inner"><div class="scene-copy"><span class="tag">You act in Chrome</span><h2>Your password stays with <span class="mark">your school.</span></h2><p><strong>You type.</strong> You complete MFA. Kairos never sees the password or code.</p></div><div class="window chrome-window" style="transform:none"><div class="bar"><span class="chrome-brand">Chrome</span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="address">school login</span></div><div class="login-panel"><div><div class="shield">✓</div><h3>School verification</h3><p>Credentials and MFA happen here, in the school’s sign-in flow.</p></div></div></div></div></article>
+        <article class="scene"><div class="scene-inner"><div class="scene-copy"><span class="tag">Finally, back in Kairos</span><h2>Classes are the <span class="mark">unlock.</span></h2><p>Close Chrome after Canvas opens. Kairos checks the session, reads your courses, and brings you home.</p></div><div class="window kairos-window"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="address">Kairos</span></div><div class="app-head">Kairos</div><div class="app-body"><div class="app-title">Your classes are ready</div><div class="row"><i></i><strong>Course name</strong><span class="muted">12 items</span></div><div class="row"><i></i><strong>Course name</strong><span class="muted">8 items</span></div><div class="row"><i></i><strong>Course name</strong><span class="muted">5 items</span></div></div></div></div></article>
+      </section>
+      <p class="motion-note">Review mode: the film loops. With <code>prefers-reduced-motion: reduce</code>, the same four scenes become a static storyboard.</p>
+    </main>
+  </div>
+</body>
+</html>
