@@ -10,6 +10,8 @@ import {
   saveOnboarding,
   searchSchools,
   syncStudySourcesIpc,
+  readSyncHealth,
+  readSyncProgress,
   type SchoolMatch,
   type SchoolProfile,
   type SyncProgressCourse,
@@ -42,6 +44,9 @@ function shortName(name: string): string {
  */
 export function plainCanvasError(raw: string, fallback: string): string {
   const msg = raw.trim();
+  if (/login_expired|stale request|used the back button|secure web site/i.test(msg)) {
+    return "The school sign-in page expired. Close that page, then restart sign-in in Kairos.";
+  }
   if (/network|ENOTFOUND|ECONNREFUSED|getaddrinfo|timed? ?out/i.test(msg)) return "Couldn't reach Canvas. Check your connection and try again.";
   if (/chrome/i.test(msg) && /not found|install|executable/i.test(msg)) return "Kairos opens your school's sign-in in Google Chrome. Install Chrome, then try again.";
   if (/not logged in|session/i.test(msg) && /sign|log/i.test(msg) && !/exit/i.test(msg)) return msg;
@@ -65,6 +70,7 @@ export function FirstRun({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SchoolMatch[]>([]);
   const [searching, setSearching] = useState(false);
+  const [schoolSearchError, setSchoolSearchError] = useState<string | null>(null);
   const [picked, setPicked] = useState<SchoolMatch | null>(null);
   const [manual, setManual] = useState(false);
   const [manualHost, setManualHost] = useState("");
@@ -140,14 +146,24 @@ export function FirstRun({
     const q = query.trim();
     if (q.length < 2 || (picked && q === picked.name)) {
       setResults([]);
+      setSchoolSearchError(null);
       return;
     }
     let alive = true;
     setSearching(true);
     const t = window.setTimeout(() => {
       searchSchools(q)
-        .then((rows) => alive && setResults(rows))
-        .catch(() => alive && setResults([]))
+        .then((rows) => {
+          if (!alive) return;
+          setResults(rows);
+          setSchoolSearchError(null);
+        })
+        .catch((e) => {
+          if (!alive) return;
+          setResults([]);
+          setSchoolSearchError("Kairos couldn't search the school catalog. Check your connection and try again.");
+          console.error("school search failed", e);
+        })
         .finally(() => alive && setSearching(false));
     }, 250);
     return () => {
@@ -193,7 +209,20 @@ export function FirstRun({
           fail(res.error || "");
           return;
         }
-        doneRef.current();
+        void Promise.all([readSyncHealth(), readSyncProgress()])
+          .then(([health, progress]) => {
+            if (cancelled) return;
+            const hasFreshProjection = Boolean(health.sync_id && health.as_of && health.state === "fresh_complete");
+            const hasCourses = progress.phase === "done" && progress.courses.length > 0;
+            if (!hasFreshProjection || !hasCourses) {
+              fail("sync verification did not produce a fresh Canvas course projection");
+              return;
+            }
+            doneRef.current();
+          })
+          .catch((e) => {
+            if (!cancelled) fail(e instanceof Error ? e.message : String(e));
+          });
       })
       .catch((e) => {
         if (!cancelled) fail(e instanceof Error ? e.message : String(e));
@@ -231,7 +260,11 @@ export function FirstRun({
     try {
       await openCanvasSso();
       setSession("returning");
-      const ok = await checkCanvasSession();
+      let ok = false;
+      for (let attempt = 0; attempt < 4 && !ok; attempt += 1) {
+        ok = await checkCanvasSession();
+        if (!ok && attempt < 3) await new Promise((resolve) => window.setTimeout(resolve, 750));
+      }
       setSession(ok ? "found" : "missing");
       if (!ok) setError(SIGN_IN_FAILED);
     } catch (e) {
@@ -240,6 +273,19 @@ export function FirstRun({
       setSession("missing");
     } finally {
       setSsoBusy(false);
+    }
+  };
+
+  const checkAgain = async () => {
+    setError(null);
+    setSession("checking");
+    try {
+      const ok = await checkCanvasSession();
+      setSession(ok ? "found" : "missing");
+      if (!ok) setError("Kairos still can't find a Canvas session. Finish the school sign-in, then try again.");
+    } catch (e) {
+      setSession("missing");
+      setError(plainCanvasError(e instanceof Error ? e.message : String(e), SIGN_IN_FAILED));
     }
   };
 
@@ -267,6 +313,7 @@ export function FirstRun({
                   setPicked(null);
                 }}
               />
+              {schoolSearchError && <p className="error" role="alert">{schoolSearchError}</p>}
               <p className="visually-hidden" role="status">
                 {searching ? "Searching" : results.length ? `${results.length} schools found` : ""}
               </p>
@@ -370,9 +417,16 @@ export function FirstRun({
             </p>
           )}
           {session !== "found" && session !== "returning" && (
-            <button type="button" className="primary" disabled={ssoBusy} onClick={() => void signIn()}>
-              {ssoBusy ? "Chrome sign-in is open…" : error ? "Try again" : "Open Chrome sign-in"}
-            </button>
+            <div className="row">
+              <button type="button" className="primary" disabled={ssoBusy || session === "checking"} onClick={() => void signIn()}>
+                {ssoBusy ? "Chrome sign-in is open…" : error ? "Restart sign-in" : "Open Chrome sign-in"}
+              </button>
+              {(session === "missing" || error) && (
+                <button type="button" disabled={ssoBusy} onClick={() => void checkAgain()}>
+                  Check again
+                </button>
+              )}
+            </div>
           )}
         </section>
       )}

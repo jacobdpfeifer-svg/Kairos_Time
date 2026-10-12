@@ -22,6 +22,8 @@ vi.mock("../ipc", () => ({
   syncCanvas: vi.fn().mockResolvedValue({ ok: true }),
   syncStudySourcesIpc: vi.fn().mockResolvedValue({ ok: true }),
   onStudySyncProgress: vi.fn().mockResolvedValue(() => undefined),
+  readSyncHealth: vi.fn().mockResolvedValue({ state: "fresh_complete", sync_id: "sync-test", as_of: "2026-10-12T00:00:00Z" }),
+  readSyncProgress: vi.fn().mockResolvedValue({ phase: "done", courses: [{ id: "1", label: "TEST" }] }),
 }));
 
 vi.mock("../study/api", () => ({ runtimeInfo: vi.fn().mockResolvedValue(null) }));
@@ -84,7 +86,7 @@ describe("FirstRun", () => {
     await user.click(screen.getByRole("button", { name: "Open Chrome sign-in" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/Login window closed|no session/i);
     expect(screen.getByRole("heading", { name: "Your Canvas sign-in opens in Chrome" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Restart sign-in" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
   });
 

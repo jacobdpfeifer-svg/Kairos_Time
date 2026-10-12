@@ -20,10 +20,19 @@ if [[ "$(basename "$APP")" != "Kairos.app" ]]; then
   exit 1
 fi
 
-python3 - "$APP" "$IDENTITY" <<'PY'
+ENTITLEMENTS="$(cd "$(dirname "$0")" && pwd)/macos-codesign/runtime-entitlements.plist"
+if [[ ! -f "$ENTITLEMENTS" ]]; then
+  echo "sign-macos-nested: missing $ENTITLEMENTS" >&2
+  exit 1
+fi
+
+python3 - "$APP" "$IDENTITY" "$ENTITLEMENTS" <<'PY'
 import os, subprocess, sys
 
-app, identity = sys.argv[1], sys.argv[2]
+app, identity, entitlements = sys.argv[1], sys.argv[2], sys.argv[3]
+# V8 (Node) and CPython need MAP_JIT under the hardened runtime. Without
+# these entitlements they die at startup with "Failed to reserve virtual
+# memory for CodeRange", which blanks school search and Canvas sync.
 MAGICS = {
     b"\xfe\xed\xfa\xce",
     b"\xfe\xed\xfa\xcf",
@@ -55,21 +64,27 @@ if not found:
     print(f"sign-macos-nested: no Mach-O files in {app}", file=sys.stderr)
     sys.exit(1)
 
+def needs_jit(path):
+    base = os.path.basename(path)
+    return base == "node" or base.startswith("python")
+
 print(f"sign-macos-nested: signing {len(found)} nested binaries")
 for path in found:
-    print(f"sign-macos-nested: {path}")
-    subprocess.run(
-        [
-            "/usr/bin/codesign",
-            "--force",
-            "--options",
-            "runtime",
-            "--timestamp",
-            "--sign",
-            identity,
-            path,
-        ],
-        check=True,
-    )
+    cmd = [
+        "/usr/bin/codesign",
+        "--force",
+        "--options",
+        "runtime",
+        "--timestamp",
+        "--sign",
+        identity,
+    ]
+    if needs_jit(path):
+        cmd.extend(["--entitlements", entitlements])
+        print(f"sign-macos-nested: {path} (jit)")
+    else:
+        print(f"sign-macos-nested: {path}")
+    cmd.append(path)
+    subprocess.run(cmd, check=True)
 print("sign-macos-nested: nested binaries signed")
 PY
