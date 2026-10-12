@@ -10,12 +10,11 @@ See docs/architecture/school-personalization.md.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
-import json
 from urllib.parse import urlparse
 
 import yaml

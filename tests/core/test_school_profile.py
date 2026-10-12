@@ -2,7 +2,11 @@
 
 import json
 
-from canvas_mcp.core.tenants import curated_slug_for_host, read_school_profile, school_for_user
+from canvas_mcp.core.tenants import (
+    curated_slug_for_host,
+    read_school_profile,
+    school_for_user,
+)
 
 
 def _write_profile(root, **profile):

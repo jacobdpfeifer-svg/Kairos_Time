@@ -141,6 +141,16 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+    # tauri-build requires every bundle resource path to exist. The bundled
+    # runtime (scripts/stage-runtime.sh) is only staged for a real package
+    # build, so give the check empty stand-ins.
+    - name: Stub bundled runtime resources
+      working-directory: app/src-tauri
+      run: |
+        for d in runtime/browser-node_modules runtime/python runtime/node; do
+          mkdir -p "$d" && touch "$d/.ci-placeholder"
+        done
+
     - name: cargo check (Tauri backend)
       working-directory: app/src-tauri
       run: cargo check --locked

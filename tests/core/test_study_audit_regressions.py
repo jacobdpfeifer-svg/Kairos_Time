@@ -12,8 +12,7 @@ from typing import Any
 import pytest
 
 from canvas_mcp.core.study import checkers
-from canvas_mcp.core.study.clock import calendar_add
-from canvas_mcp.core.study.clock import exam_window
+from canvas_mcp.core.study.clock import calendar_add, exam_window
 from canvas_mcp.core.study.model import Event, StudyError
 from canvas_mcp.core.study.packets import validate_packet
 from canvas_mcp.core.study.service import StudyService
