@@ -45,7 +45,16 @@ and release verification.
 
 ## Release
 
-- Commit: pending
-- DMG SHA-256: pending
-- Notarization submission: pending
-- Installed app verification: pending
+- Commits: `4d50d2e`, `256873b`, `54c0395`, `3239c97`, `d5c5ed2`
+- Branch: `main`, pushed to `origin/main`
+- DMG: `app/src-tauri/target/release/bundle/dmg/Kairos_0.1.0_aarch64.dmg`
+- DMG SHA-256: `af5eaed8d34197f658a13ab659e398c107cccbe950916f85bd9c617c5197be1d`
+- `hdiutil verify`: passed.
+- Developer ID signing and deep seal verification: passed.
+- Bundled Node JIT entitlement: present.
+- Notarization: not completed. No Apple notarization credentials or
+  `notarytool` keychain profile were available in the environment; Tauri
+  therefore skipped submission. `spctl` correctly reports
+  `Unnotarized Developer ID`.
+- Installed `/Applications/Kairos.app`: not replaced, because the DMG is not
+  notarized/stapled yet.
