@@ -12,7 +12,7 @@ PYTHON="$APP/Contents/Resources/runtime/python/bin/python3"
 echo "[smoke] Node: $("$NODE" --version)"
 "$NODE" -e 'if (1 + 1 !== 2) process.exit(1); console.log("Node executable-memory smoke test passed")'
 echo "[smoke] Python: $("$PYTHON" --version 2>&1)"
-"$PYTHON" -c 'import sys; assert sys.version_info >= (3, 12); print("Python runtime smoke test passed")'
+PYTHONDONTWRITEBYTECODE=1 "$PYTHON" -c 'import sys; assert sys.version_info >= (3, 12); print("Python runtime smoke test passed")'
 
 if command -v codesign >/dev/null 2>&1; then
   ENTITLEMENTS="$(codesign -d --entitlements :- "$NODE" 2>/dev/null || true)"
