@@ -7,9 +7,10 @@ import { PlanView } from "./views/PlanView";
 import { SettingsView } from "./views/SettingsView";
 import { StudyView } from "./views/StudyView";
 import { IconCalendar, IconHome, IconPlan, IconSettings, IconStudy } from "./components/Icons";
+import { Wordmark } from "./components/Wordmark";
 import { useTheme } from "./theme";
 import { VoiceSheet } from "./voice/VoiceSheet";
-import { setDockMode, type SemesterTick } from "./ipc";
+import { isTauri, readSchoolProfile, setDockMode, type SemesterTick } from "./ipc";
 
 export type Tab = "home" | "plan" | "study" | "calendar" | "settings";
 
@@ -23,8 +24,26 @@ const TABS: { id: Tab; label: string; Icon: typeof IconStudy }[] = [
 
 const TAB_KEY = "pn_tab";
 
+/**
+ * Onboarding is per profile. The webview's localStorage is shared by every
+ * profile, so in the desktop app the flag alone would skip first run for a
+ * newly created profile that has no school or Canvas sign-in yet.
+ */
+export async function resolveOnboarded(): Promise<boolean> {
+  const flag = localStorage.getItem("pn_onboarded") === "1";
+  if (!flag || !isTauri()) return flag;
+  try {
+    return (await readSchoolProfile()) !== null;
+  } catch {
+    return flag;
+  }
+}
+
 export function App() {
-  const [onboarded, setOnboarded] = useState(() => localStorage.getItem("pn_onboarded") === "1");
+  const [onboarded, setOnboarded] = useState<boolean | null>(() =>
+    isTauri() ? null : localStorage.getItem("pn_onboarded") === "1"
+  );
+  const [settingsGroup, setSettingsGroup] = useState<string | undefined>(undefined);
   const [tab, setTab] = useState<Tab>(() => {
     const raw = localStorage.getItem(TAB_KEY);
     return TABS.some((t) => t.id === raw) ? (raw as Tab) : "home";
@@ -42,6 +61,20 @@ export function App() {
   }, [tab]);
 
   useEffect(() => {
+    if (onboarded !== null) return;
+    let alive = true;
+    void resolveOnboarded().then((ok) => {
+      if (!alive) return;
+      if (!ok) localStorage.removeItem("pn_onboarded");
+      setOnboarded(ok);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [onboarded]);
+
+  useEffect(() => {
+    if (onboarded === null) return;
     void setDockMode(onboarded ? "workspace" : "onboarding");
   }, [onboarded]);
 
@@ -58,6 +91,10 @@ export function App() {
       stop();
     };
   }, []);
+
+  if (onboarded === null) {
+    return <div className="workspace" aria-busy="true" />;
+  }
 
   if (!onboarded) {
     return (
@@ -95,7 +132,7 @@ export function App() {
         Skip to content
       </a>
       <nav className="workspace-nav" aria-label="Sections">
-        <span className="instrument-mark" aria-hidden="true" />
+        <Wordmark className="instrument-mark" />
         <ul role="tablist">
           {TABS.map((t) => (
             <li key={t.id} role="presentation">
@@ -106,7 +143,11 @@ export function App() {
                 aria-selected={tab === t.id}
                 aria-controls="main"
                 className={tab === t.id ? "active" : undefined}
-                onClick={() => setTab(t.id)}
+                onClick={() => {
+                  setSettingsGroup(undefined);
+                  if (t.id !== "study") setStudyPreselect(null);
+                  setTab(t.id);
+                }}
                 onKeyDown={(e) => {
                   const idx = TABS.findIndex((x) => x.id === t.id);
                   if (e.key === "ArrowDown" || e.key === "ArrowRight") {
@@ -133,10 +174,16 @@ export function App() {
         {tab === "home" && <HomeView onExamPrep={setExamTick} />}
         {tab === "plan" && <PlanView />}
         {tab === "study" && (
-          <StudyView onGoToSources={() => setTab("settings")} preselect={studyPreselect} />
+          <StudyView
+            onGoToSources={() => {
+              setSettingsGroup("canvas");
+              setTab("settings");
+            }}
+            preselect={studyPreselect}
+          />
         )}
         {tab === "calendar" && <CalendarView />}
-        {tab === "settings" && <SettingsView />}
+        {tab === "settings" && <SettingsView key={settingsGroup ?? "default"} initialGroup={settingsGroup} />}
       </main>
       <VoiceSheet />
     </div>

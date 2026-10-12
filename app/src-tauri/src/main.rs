@@ -73,7 +73,21 @@ fn main() {
         ])
         .setup(|app| {
             // Resolve bundled resources vs dev checkout once; share with every command.
-            let resource_dir = app.path().resource_dir().ok();
+            // Some launch contexts do not give Tauri a usable resource path even
+            // though the app is inside a valid .app bundle. Validate the path and
+            // recover from the executable location before allowing the dev
+            // checkout fallback.
+            let resource_dir = app
+                .path()
+                .resource_dir()
+                .ok()
+                .filter(|dir| dir.join("core").is_dir())
+                .or_else(|| {
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|exe| exe.parent()?.parent().map(|contents| contents.join("Resources")))
+                        .filter(|dir| dir.join("core").is_dir())
+                });
             let rt = Arc::new(runtime::resolve(resource_dir.as_deref()));
             for note in &rt.diagnostics {
                 eprintln!("[kairos-daemon] runtime: {note}");

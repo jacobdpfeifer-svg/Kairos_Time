@@ -244,7 +244,7 @@ export type AskRank = {
 };
 
 export type RuntimeInfo = {
-  mode: "bundled" | "dev";
+  mode: "bundled" | "dev" | "broken";
   core_dir: string;
   python: string;
   node: string | null;

@@ -8,9 +8,11 @@ dev server (DECISIONS D-07). It is not part of the packaged app.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import sys
+import types
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -139,10 +141,29 @@ def run_command(service: StudyService, cmd: str, params: dict[str, Any]) -> dict
     raise StudyError("validation", f"unknown command {cmd!r}")
 
 
+def _connectors_module() -> Any:
+    """``core/connectors.py`` from either import shape.
+
+    The desktop app runs this package as top-level ``study`` (cwd = ``core/``) so
+    the primary journey never imports ``canvas_mcp/__init__``. ``from .. import``
+    fails there, so the connector chain (stdlib-only, relative imports inside
+    ``core/``) is loaded under a bare package alias for ``core/`` instead."""
+    if __package__ and "." in __package__:
+        from .. import connectors
+
+        return connectors
+    alias = "_kairos_core"
+    if alias not in sys.modules:
+        package = types.ModuleType(alias)
+        package.__path__ = [str(Path(__file__).resolve().parents[1])]
+        sys.modules[alias] = package
+    return importlib.import_module(f"{alias}.connectors")
+
+
 def _connector_command(service: StudyService, cmd: str, params: dict[str, Any]) -> dict[str, Any]:
     """Connector commands live outside the study event log; the Google/Microsoft
     modules keep their own per-profile records (core/connectors.py)."""
-    from .. import connectors as c
+    c = _connectors_module()
 
     root = service.user_root
     try:

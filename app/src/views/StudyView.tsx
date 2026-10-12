@@ -184,9 +184,9 @@ function OfferPanel({
         <h2 ref={heading} tabIndex={-1}>
           No practice item is ready
         </h2>
-        <p>{offer.reason} Sync Canvas from Settings if this course has no practice items yet.</p>
+        <p>{offer.reason} Pick which Canvas material to practice from, or start with a practice packet.</p>
         <button type="button" className="primary" onClick={onGoToSources}>
-          Canvas data
+          Choose material
         </button>
       </div>
     );
@@ -206,7 +206,7 @@ function OfferPanel({
             </button>
           ) : (
             <button type="button" className="primary" onClick={onGoToSources}>
-              Canvas data
+              {offer.action === "create" ? "Write a question" : "Choose material"}
             </button>
           )}
         </div>
@@ -222,7 +222,7 @@ function OfferPanel({
         </h2>
         <p>{offer.reason}</p>
         <button type="button" onClick={onGoToSources}>
-          Canvas data
+          Set the exam date
         </button>
       </div>
     );
@@ -495,8 +495,12 @@ function AttemptPanel({
     }
     setBusy(true);
     announce("Checking your answer…");
+    // The submit carries the answer; a pending draft save would land on an
+    // attempt that is already assessed (the core rejects it).
+    if (timer.current) window.clearTimeout(timer.current);
     try {
       const result = await study.submit(attempt.attempt_id, serialized, fields, needsSelf ? selfOutcome : null);
+      dirty.current = false;
       announce(`${OUTCOME_LABEL[result.assessment.outcome]}. ${result.assessment.copy}`);
       onAssessed(result);
     } catch (e) {

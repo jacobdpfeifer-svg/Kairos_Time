@@ -36,6 +36,10 @@ tar -xzf "$NODE_TAR" -C "$RUNTIME/node.tmp" --strip-components=1
 mkdir -p "$RUNTIME/node"
 cp -R "$RUNTIME/node.tmp/bin" "$RUNTIME/node/bin"
 rm -rf "$RUNTIME/node.tmp"
+# Only the Node executable is needed at runtime. The npm/corepack launchers are
+# symlinks into lib/, which is intentionally not bundled; leaving those broken
+# symlinks in the resource tree makes Tauri reject the bundle during packaging.
+rm -f "$RUNTIME/node/bin/npm" "$RUNTIME/node/bin/npx" "$RUNTIME/node/bin/corepack"
 "$RUNTIME/node/bin/node" --version
 
 echo "[stage] browser node_modules (playwright)"

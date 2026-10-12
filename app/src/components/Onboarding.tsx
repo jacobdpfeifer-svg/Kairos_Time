@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { GENERIC_LEGAL, schoolLegalText } from "../legal";
+import { LegalText } from "./LegalText";
 import {
   bootstrapCanvasSync,
   checkCanvasSession,
@@ -180,7 +181,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               Leave your email and we'll write when there's a spot in the beta.
               There's no Canvas sign-in on this path.
             </p>
-            <pre className="legal-sheet">{legalText}</pre>
+            <LegalText text={legalText} />
             <label>
               <input
                 type="checkbox"
@@ -222,7 +223,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           <>
             <p className="onboarding-step-label">Policy</p>
             <p>School policy &amp; local-first notice</p>
-            <pre className="legal-sheet">{legalText}</pre>
+            <LegalText text={legalText} />
             <label>
               <input
                 type="checkbox"

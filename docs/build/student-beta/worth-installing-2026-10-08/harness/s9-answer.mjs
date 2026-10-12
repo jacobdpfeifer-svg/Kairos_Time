@@ -1,0 +1,20 @@
+export default async ({ page, shot, wait }) => {
+  await wait(1200);
+  await page.getByRole("tab", { name: "Study" }).click();
+  await wait(2500);
+  const unnamed = await page.$$eval("main button", (bs) => bs.filter((b) => !(b.textContent || "").trim()).map((b) => ({ html: b.outerHTML.slice(0, 160), label: b.getAttribute("aria-label") })));
+  console.log("unnamed buttons:", JSON.stringify(unnamed));
+  await page.getByRole("button", { name: "Answer now" }).click();
+  await wait(2000);
+  await shot("attempt");
+  const box = page.locator("main textarea, main input[type=text]").first();
+  await box.fill("6(2x+1)^2");
+  await wait(1500);
+  await page.reload();
+  await wait(3500);
+  await shot("after-reload");
+  console.log("draft after reload:", await page.locator("main textarea, main input[type=text]").first().inputValue().catch(() => "(no field)"));
+  await page.getByRole("button", { name: /Check my answer/ }).click();
+  await wait(3000);
+  await shot("feedback");
+};

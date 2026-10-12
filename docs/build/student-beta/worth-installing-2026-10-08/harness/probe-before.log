@@ -1,0 +1,25 @@
+--- 1 study status
+{"ok": true, "now": "2026-10-08T17:55:33+00:00", "zone": "America/Denver", "clock": {"status": "trusted", "note": "no prior sample", "anomalies": 0}, "packets": [], "courses": [], "exams": [], "items": {"active": 0, "due_now": 0, "next_due": null, "stability":
+--- 2 connectors-status
+ImportError: attempted relative import beyond top-level package
+--- 3 import template M
+{"ok": true, "packet_id": "M", "version": 1, "items": 1, "sources": 2}
+--- 4 offer
+{"kind": "offer", "item": {"id": "M-1", "packet_id": "M", "packet_version": 1, "course": "MATH 1300 (synthetic)", "objective_id": "chain-rule", "objective_label": "Apply the chain rule to a power of a function", "kind": "procedural", "stem": "Differentiate (2x
+--- 5 learn_loop (Plan tab)
+{"items": [], "practice": {"state": "idle", "line": "", "obstacle": "", "open_with": "", "recovery": false, "focus_stale": false, "counterfactual": ""}, "coverage": [], "health": {"fragile": 0, "holdi
+--- 6 school choose (node)
+{"ok":true,"profile":{"version":1,"slug":"canvas-example-edu","display_name":"Example","canvas_host":"canvas.example.edu","canvas_base_url":"https://canvas.example.edu","instructure_account_id":null,"
+--- 7 check-session, no downloaded browsers, no channel
+  name: 'Error'
+}
+Node.js v24.21.0
+--- 8 check-session, no downloaded browsers, PLAYWRIGHT_CHANNEL=chrome
+{"loggedIn":false}
+--- 9 reconcile helper the canonical sync spawns
+ls: <scratch>/installed/mnt/Kairos.app/Contents/Resources/core/scripts/py-mirror-run.sh: No such file or directory
+uses reconcile-command.mjs: 0
+--- 10 reconcile as the installed app will run it (bundled python, core/src)
+updated=0 remaps=0 skipped=0
+--- 11 repo checkout referenced anywhere in the bundle's text resources?
+(end)

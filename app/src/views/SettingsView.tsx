@@ -7,7 +7,7 @@ import { Onboarding } from "../components/Onboarding";
 import { ConnectorsPanel } from "./ConnectorsPanel";
 import { SourcesView } from "./SourcesView";
 
-export function SettingsView() {
+export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
   const { theme, setTheme, motion, setMotion } = useTheme();
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [profiles, setProfiles] = useState<{ current: string; profiles: string[]; root: string } | null>(null);
@@ -24,7 +24,7 @@ export function SettingsView() {
   const [relayUrl, setRelayUrl] = useState("");
   const [invite, setInvite] = useState("");
   const [aiNote, setAiNote] = useState("");
-  const [group, setGroup] = useState("appearance");
+  const [group, setGroup] = useState(initialGroup ?? "appearance");
   const refreshAi = () => void aiStudy.status().then(setAi).catch(() => setAi(null));
 
   useEffect(() => {
@@ -149,7 +149,7 @@ export function SettingsView() {
       </div>
       {canvas && <p role="status">{canvas}</p>}
 
-      <SourcesView inspectOnly />
+      <SourcesView embedded />
       <section className="canvas-export" aria-labelledby="canvas-export-heading">
         <h3 id="canvas-export-heading">Export my Canvas data</h3>
         <p className="muted">
@@ -317,7 +317,7 @@ export function SettingsView() {
       {runtime ? (
         <dl className="diag">
           <dt>Runtime</dt>
-          <dd>{runtime.mode === "bundled" ? "bundled (installed app)" : "developer checkout"}</dd>
+          <dd>{runtime.mode === "bundled" ? "bundled (installed app)" : runtime.mode === "broken" ? "incomplete install — the bundled runtime is missing" : "developer checkout"}</dd>
           <dt>Profile</dt>
           <dd>
             {runtime.profile_id} · <code>{runtime.user_root}</code>

@@ -15,6 +15,8 @@ from typing import Any
 _SUPERSCRIPTS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
 _MINUS_VARIANTS = ("−", "–", "—", "‐")
 _NUMBER_RE = re.compile(r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?")
+# One simple fraction ("1/2", "-3 / 4") is one value, not two numbers.
+_FRACTION_RE = re.compile(r"^([-+]?\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)(?=\s|$|[a-z%])", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,8 @@ def normalize_expression(value: str) -> str:
         text = text.replace(variant, "-")
     text = text.casefold()
     text = text.replace("**", "^")
+    # Interval notation as courses print it: ∞/inf/infinity and ∪/U are one spelling.
+    text = text.replace("∞", "inf").replace("infinity", "inf").replace("∪", "u")
     text = re.sub(r"\s+", "", text)
     # Implicit-multiplication signs vanish only next to a symbol or bracket;
     # between two digits they stay, so "2*3" is never read as "23".
@@ -113,6 +117,10 @@ def _check_numeric(spec: dict[str, Any], value: str) -> tuple[bool, str]:
     # Strict grammar: exactly one number, optionally with the declared unit and
     # a leading "x =" / "≈". Two numbers ("not 2; it is 99") is not a pass.
     stripped = re.sub(r"^\s*[a-z]\s*[=≈~]\s*", "", text.strip(), flags=re.IGNORECASE)
+    fraction = _FRACTION_RE.match(stripped)
+    if fraction and float(fraction.group(2)) != 0:
+        value = float(fraction.group(1)) / float(fraction.group(2))
+        stripped = f"{value!r}{stripped[fraction.end():]}"
     matches = _NUMBER_RE.findall(stripped)
     if not matches:
         return False, "no number found"

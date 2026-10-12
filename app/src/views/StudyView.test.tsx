@@ -124,7 +124,7 @@ describe("StudyView journey", () => {
     const user = userEvent.setup();
     render(<StudyView onGoToSources={goto} />);
     expect(await screen.findByRole("heading", { name: "No practice item is ready" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Canvas data" }));
+    await user.click(screen.getByRole("button", { name: "Choose material" }));
     expect(goto).toHaveBeenCalled();
   });
 });
@@ -141,6 +141,24 @@ describe("draft persistence edge cases", () => {
     // Unmount immediately — before the 800ms debounce fires.
     view.unmount();
     await waitFor(() => expect(fake.calls.some((c) => c.cmd === "draft" && String(c.params.text).includes("sin x"))).toBe(true), { timeout: 3000 });
+  });
+
+  it("does not save a draft onto an attempt it just submitted", async () => {
+    const fake = makeFakeStudy();
+    vi.spyOn(transport, "send").mockImplementation(fake.send);
+    const user = userEvent.setup();
+    render(<StudyView onGoToSources={() => undefined} />);
+    await screen.findByRole("heading", { name: "One check" });
+    await user.click(screen.getByRole("button", { name: "Answer now" }));
+    await user.type(await screen.findByLabelText("Inner function"), "sin x");
+    await user.type(screen.getByLabelText("Derivative y′"), "4sin^3x");
+    // Submit inside the 800ms draft debounce, then let the result panel replace the attempt.
+    await user.click(screen.getByRole("button", { name: "Check my answer" }));
+    await screen.findByRole("heading", { name: /Partly right/ });
+    await new Promise((r) => setTimeout(r, 1000));
+    const submitAt = fake.calls.findIndex((c) => c.cmd === "submit");
+    expect(submitAt).toBeGreaterThan(-1);
+    expect(fake.calls.slice(submitAt + 1).some((c) => c.cmd === "draft")).toBe(false);
   });
 
   it("locks session length while an attempt is open", async () => {
@@ -167,5 +185,39 @@ describe("draft persistence edge cases", () => {
     expect(created?.params.content).toMatch(/Differentiate y/);
     expect(created?.params.course_hint).toMatch(/MATH 1300/);
     expect(await screen.findByRole("heading", { name: "The derivative is 2x." })).toBeInTheDocument();
+  });
+});
+
+describe("practice material in Settings", () => {
+  it("offers Canvas import, question authoring, and bundled packets from Settings → Canvas", async () => {
+    const { SettingsView } = await import("./SettingsView");
+    vi.spyOn(transport, "send").mockImplementation(async (cmd) => {
+      if (cmd === "canvas-sources")
+        return {
+          ok: true,
+          status: { state: "ok", line: "Canvas sources are current.", last_sync: "2026-10-08T15:00:00Z", courses: [] },
+          courses: [
+            {
+              course_id: "1300",
+              label: "MATH 1300 — Calculus 1",
+              fetched_at: "2026-10-08T15:00:00Z",
+              sources: [{ id: "syllabus", kind: "syllabus", title: "Syllabus", chars: 900, truncated: false, updated_at: null }],
+              exams: [],
+              errors: [],
+              imported_version: null,
+              imported_source_ids: [],
+            },
+          ],
+        };
+      if (cmd === "templates") return { ok: true, templates: [{ packet_id: "M", title: "Practice-test guide", course: "MATH 1300 (synthetic)", provenance: "synthetic", items: 1, path: "M.json" }] };
+      if (cmd === "packets") return { ok: true, packets: [] };
+      if (cmd === "ai-status") return { ok: true, connected: false };
+      return { ok: true, courses: [], packets: [], exams: [], items: {}, log: {}, clock: {}, open_attempts: [], pending_assessments: [] };
+    });
+    render(<SettingsView initialGroup="canvas" />);
+    expect(await screen.findByRole("heading", { name: "Practice material" })).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Syllabus/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import selected" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import" })).toBeInTheDocument();
   });
 });

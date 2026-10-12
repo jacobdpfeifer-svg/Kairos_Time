@@ -24,7 +24,10 @@ vi.mock("../ipc", () => ({
   onStudySyncProgress: vi.fn().mockResolvedValue(() => undefined),
 }));
 
+vi.mock("../study/api", () => ({ runtimeInfo: vi.fn().mockResolvedValue(null) }));
+
 import { chooseSchool, openCanvasSso, saveOnboarding, syncStudySourcesIpc } from "../ipc";
+import { runtimeInfo } from "../study/api";
 
 async function pickOhioState(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("School"), "ohio");
@@ -42,7 +45,10 @@ describe("FirstRun", () => {
     await pickOhioState(user);
     expect(cont).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Read the terms" }));
-    expect(screen.getByRole("dialog", { name: "Terms" })).toHaveTextContent(/at Ohio State/);
+    const terms = screen.getByRole("dialog", { name: "Terms" });
+    expect(terms).toHaveTextContent(/at Ohio State/);
+    expect(terms).toHaveTextContent(/Privacy/);
+    expect(terms.textContent).not.toMatch(/\*\*|\]\(|^#/m);
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByLabelText("I agree to the beta terms"));
     expect(cont).toBeEnabled();
@@ -92,5 +98,55 @@ describe("FirstRun", () => {
     expect(await screen.findByRole("heading", { name: "Getting your classes" })).toBeInTheDocument();
     expect(screen.getByText("MATH 1300")).toBeInTheDocument();
     expect(screen.getByText(/12 assignments/)).toBeInTheDocument();
+  });
+
+  it("keeps a failed first sync on screen with a plain reason and a working retry", async () => {
+    vi.mocked(syncStudySourcesIpc)
+      .mockResolvedValueOnce({ ok: false, error: "study source sync exited with exit status: 1" })
+      .mockResolvedValueOnce({ ok: true });
+    const onDone = vi.fn();
+    const user = userEvent.setup();
+    render(<FirstRun startStep="sync" onDone={onDone} />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/couldn't read your classes/i);
+    expect(alert).not.toHaveTextContent(/exit status/);
+    expect(onDone).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+  });
+
+  it("replaces process text from a failed sign-in with what to do next", async () => {
+    vi.mocked(openCanvasSso).mockRejectedValueOnce("open-canvas exited with exit status: 1");
+    const user = userEvent.setup();
+    render(<FirstRun startStep="canvas" onDone={() => undefined} />);
+    await user.click(await screen.findByRole("button", { name: "Sign in to Canvas" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The sign-in window closed before Canvas finished. Try again.");
+    expect(alert).not.toHaveTextContent(/exit status|open-canvas/);
+  });
+
+  it("moves focus into the terms dialog and closes it with Escape", async () => {
+    const user = userEvent.setup();
+    render(<FirstRun onDone={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: "Read the terms" }));
+    const dialog = screen.getByRole("dialog", { name: "Terms" });
+    await vi.waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Read the terms" })).toHaveFocus());
+  });
+
+  it("says up front when the installed runtime can't reach Canvas", async () => {
+    vi.mocked(runtimeInfo).mockResolvedValueOnce({
+      mode: "bundled",
+      core_dir: "/Applications/Kairos.app/Contents/Resources/core",
+      python: "/x/python3",
+      node: null,
+      profile_id: "s1",
+      user_root: "/x/s1",
+      diagnostics: ["Node runtime not found: Canvas sync is unavailable until it is installed"],
+    });
+    render(<FirstRun onDone={() => undefined} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/incomplete, so it can't connect to Canvas/);
   });
 });

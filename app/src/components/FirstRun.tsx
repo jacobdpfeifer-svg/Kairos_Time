@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { schoolLegalText } from "../legal";
+import { LegalText } from "./LegalText";
+import { Wordmark } from "./Wordmark";
 import {
   checkCanvasSession,
   chooseSchool,
@@ -12,6 +14,7 @@ import {
   type SchoolProfile,
   type SyncProgressCourse,
 } from "../ipc";
+import { runtimeInfo } from "../study/api";
 import { ConnectCanvasMark, useReducedMotion } from "./ConnectCanvasMark";
 
 /*
@@ -32,6 +35,22 @@ function shortName(name: string): string {
   }
   return name.trim();
 }
+
+/**
+ * Native failures arrive as process text ("open-canvas exited with exit status: 1").
+ * Keep sentences written for students; replace process text with what to do next.
+ */
+export function plainCanvasError(raw: string, fallback: string): string {
+  const msg = raw.trim();
+  if (/network|ENOTFOUND|ECONNREFUSED|getaddrinfo|timed? ?out/i.test(msg)) return "Couldn't reach Canvas. Check your connection and try again.";
+  if (/chrome/i.test(msg) && /not found|install|executable/i.test(msg)) return "Kairos opens your school's sign-in in Google Chrome. Install Chrome, then try again.";
+  if (/not logged in|session/i.test(msg) && /sign|log/i.test(msg) && !/exit/i.test(msg)) return msg;
+  if (!msg || /exit status|exited with|failed to spawn|traceback|runtime not|\bat \S+:\d+/i.test(msg)) return fallback;
+  return msg;
+}
+
+const SIGN_IN_FAILED = "The sign-in window closed before Canvas finished. Try again.";
+const SYNC_FAILED = "Kairos couldn't read your classes from Canvas. Your sign-in may have expired, or Canvas didn't answer.";
 
 export function FirstRun({
   onDone,
@@ -58,6 +77,11 @@ export function FirstRun({
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<SyncProgressCourse[]>(progressCourses ?? []);
   const [syncing, setSyncing] = useState(false);
+  const [syncFailed, setSyncFailed] = useState(false);
+  const [syncAttempt, setSyncAttempt] = useState(0);
+  const [blocker, setBlocker] = useState<string | null>(null);
+  const termsButton = useRef<HTMLButtonElement | null>(null);
+  const termsClose = useRef<HTMLButtonElement | null>(null);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
   const heading = useRef<HTMLHeadingElement | null>(null);
@@ -70,6 +94,41 @@ export function FirstRun({
   useEffect(() => {
     heading.current?.focus();
   }, [step]);
+
+  // An installed copy without its runtime can't reach Canvas; say so before the student starts.
+  useEffect(() => {
+    let alive = true;
+    runtimeInfo()
+      .then((rt) => {
+        if (!alive || !rt) return;
+        const fatal = rt.mode === "broken" || !rt.node;
+        const chrome = rt.diagnostics.find((d) => /chrome/i.test(d));
+        if (fatal) setBlocker("This copy of Kairos is incomplete, so it can't connect to Canvas. Download Kairos again, or send the owner the details in Settings → Diagnostics.");
+        else if (chrome) setBlocker("Kairos opens your school's sign-in in Google Chrome, and Chrome isn't installed. Install Chrome, then reopen Kairos.");
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!termsOpen) return;
+    termsClose.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setTermsOpen(false);
+        window.setTimeout(() => termsButton.current?.focus(), 0);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [termsOpen]);
+
+  const closeTerms = () => {
+    setTermsOpen(false);
+    window.setTimeout(() => termsButton.current?.focus(), 0);
+  };
 
   useEffect(() => {
     if (progressCourses) setCourses(progressCourses);
@@ -111,23 +170,33 @@ export function FirstRun({
     return () => window.clearTimeout(t);
   }, [step, session]);
 
+  // First sync (a full term-wide Canvas read when the profile has none yet). A
+  // failure stays on this screen with a reason and a retry instead of landing
+  // on an empty Home.
   useEffect(() => {
     if (step !== "sync") return;
     let cancelled = false;
     setSyncing(true);
+    setSyncFailed(false);
+    setError(null);
     void onStudySyncProgress((p) => {
       if (!cancelled && p.courses) setCourses(p.courses);
     });
+    const fail = (raw: string) => {
+      setError(plainCanvasError(raw, SYNC_FAILED));
+      setSyncFailed(true);
+    };
     syncStudySourcesIpc()
       .then((res) => {
         if (cancelled) return;
-        if (!res.ok) setError(res.error || "Some classes did not load.");
+        if (!res.ok) {
+          fail(res.error || "");
+          return;
+        }
         doneRef.current();
       })
       .catch((e) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
-        doneRef.current();
+        if (!cancelled) fail(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
         if (!cancelled) setSyncing(false);
@@ -135,7 +204,7 @@ export function FirstRun({
     return () => {
       cancelled = true;
     };
-  }, [step]);
+  }, [step, syncAttempt]);
 
   const confirmSchool = async () => {
     setSaving(true);
@@ -163,10 +232,10 @@ export function FirstRun({
       await openCanvasSso();
       const ok = await checkCanvasSession();
       setSession(ok ? "found" : "missing");
-      if (!ok) setError("The sign-in window closed before Canvas finished. Try again.");
+      if (!ok) setError(SIGN_IN_FAILED);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(/network/i.test(msg) ? "Couldn't reach Canvas. Check your connection and try again." : msg || "The sign-in window closed before Canvas finished. Try again.");
+      setError(plainCanvasError(msg, SIGN_IN_FAILED));
       setSession("missing");
     } finally {
       setSsoBusy(false);
@@ -175,9 +244,7 @@ export function FirstRun({
 
   return (
     <div className="onboarding first-run nb-onboarding">
-      <p className="nb-wordmark" aria-hidden="true">
-        kairos
-      </p>
+      <Wordmark className="nb-wordmark" />
 
       {step === "school" && (
         <section className="nb-step" aria-labelledby="school-title">
@@ -257,11 +324,16 @@ export function FirstRun({
               <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
               I agree to the beta terms
             </label>
-            <button type="button" className="link" onClick={() => setTermsOpen(true)}>
+            <button type="button" className="link" ref={termsButton} onClick={() => setTermsOpen(true)}>
               Read the terms
             </button>
           </div>
 
+          {blocker && (
+            <p className="error" role="alert">
+              {blocker}
+            </p>
+          )}
           {error && (
             <p className="error" role="alert">
               {error}
@@ -314,12 +386,38 @@ export function FirstRun({
             ))}
           </ul>
           {syncing && <p className="visually-hidden">Syncing classes</p>}
-          <TrailDoodle />
+          {syncFailed && (
+            <>
+              <p className="error" role="alert">
+                {error}
+              </p>
+              <div className="row">
+                <button type="button" className="primary" onClick={() => setSyncAttempt((n) => n + 1)}>
+                  Try again
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSyncFailed(false);
+                    setError(null);
+                    setSession("missing");
+                    setStep("canvas");
+                  }}
+                >
+                  Sign in again
+                </button>
+                <button type="button" className="link" onClick={() => doneRef.current()}>
+                  Continue without classes
+                </button>
+              </div>
+            </>
+          )}
+          {!syncFailed && <TrailDoodle />}
         </section>
       )}
 
       {termsOpen && (
-        <div className="sheet-backdrop" role="presentation" onClick={() => setTermsOpen(false)}>
+        <div className="sheet-backdrop" role="presentation" onClick={closeTerms}>
           <div
             className="legal-modal"
             role="dialog"
@@ -328,8 +426,8 @@ export function FirstRun({
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="terms-title">Terms</h2>
-            <pre className="legal-sheet">{legal}</pre>
-            <button type="button" className="primary" onClick={() => setTermsOpen(false)}>
+            <LegalText text={legal} />
+            <button type="button" className="primary" ref={termsClose} onClick={closeTerms}>
               Close
             </button>
           </div>

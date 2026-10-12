@@ -21,7 +21,7 @@ rsync -a --delete \
   --exclude node_modules --exclude target --exclude dist --exclude .venv \
   --exclude __pycache__ --exclude .auth --exclude .git \
   "$REPO/app/" "$MIRROR/app/"
-for d in src browser schools templates skills plugins; do
+for d in src browser schools templates skills plugins design-system; do
   rsync -a --delete --exclude node_modules --exclude __pycache__ --exclude .auth \
     "$REPO/$d/" "$MIRROR/$d/"
 done

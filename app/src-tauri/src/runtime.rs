@@ -153,6 +153,33 @@ fn exe_on_path(name: &str) -> Option<PathBuf> {
     None
 }
 
+/// Browser the Canvas scripts drive. An installed app never has Playwright's
+/// downloaded Chromium (that cache exists only on developer machines), so it
+/// drives the student's installed Google Chrome unless a channel is set
+/// explicitly. Dev runs keep Playwright's default when nothing is set.
+pub fn playwright_channel(mode: &RuntimeMode, configured: Option<&str>) -> String {
+    match configured.map(str::trim) {
+        Some(c) if !c.is_empty() => c.to_string(),
+        _ if *mode == RuntimeMode::Dev => String::new(),
+        _ => "chrome".to_string(),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn chrome_installed() -> bool {
+    [
+        PathBuf::from("/Applications/Google Chrome.app"),
+        home().join("Applications").join("Google Chrome.app"),
+    ]
+    .iter()
+    .any(|p| p.is_dir())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn chrome_installed() -> bool {
+    true
+}
+
 /// Resolve the runtime. `resource_dir` is Tauri's bundled resource directory
 /// when available (None in unit tests).
 pub fn resolve(resource_dir: Option<&Path>) -> Runtime {
@@ -236,6 +263,14 @@ pub fn resolve(resource_dir: Option<&Path>) -> Runtime {
     if node.is_none() {
         diagnostics.push("Node runtime not found: Canvas sync is unavailable until it is installed".into());
     }
+    if mode != RuntimeMode::Dev
+        && playwright_channel(&mode, env::var("PLAYWRIGHT_CHANNEL").ok().as_deref()) == "chrome"
+        && !chrome_installed()
+    {
+        diagnostics.push(
+            "Google Chrome not found: Canvas sign-in and sync open your school's login in Chrome. Install Chrome, then reopen Kairos".into(),
+        );
+    }
     if !core_dir.join("browser").join("scripts").is_dir() {
         diagnostics.push("browser sync scripts missing from core resources".into());
     }
@@ -265,6 +300,11 @@ impl Runtime {
             cmd.env("SCHOOL_SLUG", slug);
         }
         cmd.env("AUTH_DIR", self.user_root.join("auth").join("browser"));
+        // Node sync scripts run `learn_loop reconcile` with this interpreter
+        // (browser/scripts/lib/reconcile-command.mjs), never a developer helper.
+        if !self.python.as_os_str().is_empty() {
+            cmd.env("KAIROS_PYTHON", &self.python);
+        }
         cmd.env(
             "KAIROS_TEMPLATES_DIR",
             self.core_dir.join("templates").join("study-packets"),
@@ -355,8 +395,10 @@ impl Runtime {
         let mut cmd = Command::new(node);
         cmd.arg(&path).current_dir(&browser);
         self.apply_env(&mut cmd);
-        cmd
-            .env("PLAYWRIGHT_CHANNEL", env::var("PLAYWRIGHT_CHANNEL").unwrap_or_default());
+        cmd.env(
+            "PLAYWRIGHT_CHANNEL",
+            playwright_channel(&self.mode, env::var("PLAYWRIGHT_CHANNEL").ok().as_deref()),
+        );
         Ok(cmd)
     }
 
@@ -389,6 +431,16 @@ mod tests {
     }
 
     #[test]
+    fn installed_runs_drive_installed_chrome_not_a_downloaded_chromium() {
+        assert_eq!(playwright_channel(&RuntimeMode::Bundled, None), "chrome");
+        assert_eq!(playwright_channel(&RuntimeMode::Bundled, Some("")), "chrome");
+        assert_eq!(playwright_channel(&RuntimeMode::Broken, None), "chrome");
+        assert_eq!(playwright_channel(&RuntimeMode::Bundled, Some("msedge")), "msedge");
+        assert_eq!(playwright_channel(&RuntimeMode::Dev, None), "");
+        assert_eq!(playwright_channel(&RuntimeMode::Dev, Some("chrome")), "chrome");
+    }
+
+    #[test]
     fn env_overrides_win_and_dev_falls_back_to_checkout() {
         let rt = resolve(None);
         assert!(rt.core_dir.join("src").is_dir(), "dev fallback finds the checkout");
@@ -406,5 +458,30 @@ mod tests {
         assert!(envs.iter().any(|(k, v)| k == "PRODUCT_USER_ID" && v == &rt.profile_id));
         assert!(envs.iter().any(|(k, v)| k == "AUTH_DIR" && v.ends_with("auth/browser")));
         assert!(envs.iter().any(|(k, _)| k == "PYTHONPATH"));
+        if !rt.python.as_os_str().is_empty() {
+            assert!(envs.iter().any(|(k, v)| k == "KAIROS_PYTHON" && v == &rt.python.display().to_string()));
+        }
+    }
+
+    #[test]
+    fn browser_scripts_get_the_app_python_and_an_installed_browser_channel() {
+        let mut rt = resolve(None);
+        rt.mode = RuntimeMode::Bundled;
+        rt.python = PathBuf::from("/Applications/Kairos.app/Contents/Resources/runtime/python/bin/python3");
+        if rt.node.is_none() {
+            rt.node = Some(PathBuf::from("/usr/bin/true"));
+        }
+        let cmd = match rt.browser_script("sync-canvas-canonical") {
+            Ok(cmd) => cmd,
+            Err(_) => return, // checkout without browser scripts
+        };
+        let envs: Vec<(String, String)> = cmd
+            .get_envs()
+            .filter_map(|(k, v)| Some((k.to_string_lossy().to_string(), v?.to_string_lossy().to_string())))
+            .collect();
+        assert!(envs.iter().any(|(k, v)| k == "KAIROS_PYTHON" && v.ends_with("runtime/python/bin/python3")));
+        if env::var("PLAYWRIGHT_CHANNEL").map(|c| c.trim().is_empty()).unwrap_or(true) {
+            assert!(envs.iter().any(|(k, v)| k == "PLAYWRIGHT_CHANNEL" && v == "chrome"));
+        }
     }
 }

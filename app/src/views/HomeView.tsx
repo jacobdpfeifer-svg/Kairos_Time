@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { SemesterSurface, SemesterTick, CourseMap, FreshnessChange, GradeTruth, SyncHealth } from "../ipc";
 import {
   onFreshnessUpdated,
+  onInboxUpdated,
   openExternalUrl,
   readCourseMap,
   readFreshness,
@@ -57,6 +58,16 @@ export function HomeView({
   const [askActive, setAskActive] = useState(false);
   const axis = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(640);
+  // Bumped when a Canvas sync finishes (first-run background read, cadence, tray).
+  const [synced, setSynced] = useState(0);
+
+  useEffect(() => {
+    if (surfaceProp) return;
+    const unlisten = onInboxUpdated(() => setSynced((n) => n + 1));
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [surfaceProp]);
 
   useEffect(() => {
     saveRange(range);
@@ -69,7 +80,7 @@ export function HomeView({
     }
     const today = new Date().toISOString();
     void readSemester(range, today).then(setLoaded);
-  }, [range, surfaceProp]);
+  }, [range, surfaceProp, synced]);
 
   useEffect(() => {
     if (healthProp) {
@@ -78,7 +89,7 @@ export function HomeView({
     }
     if (surfaceProp) return;
     void readSyncHealth().then(setHealth);
-  }, [healthProp, surfaceProp]);
+  }, [healthProp, surfaceProp, synced]);
 
   // What changed in Canvas: refreshed whenever the daemon's freshness tick finds news.
   useEffect(() => {

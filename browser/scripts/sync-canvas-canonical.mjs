@@ -31,6 +31,7 @@ import { writeAdaptersFromProjection } from "./lib/canvas-adapters.mjs";
 import { afterCanonicalSync } from "./lib/freshness-run.mjs";
 import { syncCourseColors } from "./lib/course-colors.mjs";
 import { acquireSyncLock } from "./lib/sync-lock.mjs";
+import { reconcileCommand } from "./lib/reconcile-command.mjs";
 
 const userRoot = resolveUserRoot({ create: true, announce: true });
 const releaseSyncLock = acquireSyncLock(userRoot);
@@ -254,16 +255,13 @@ writeProgress({
 });
 
 {
-  // repoRoot/browser/.. → repo root. "uv run" re-syncs the editable install from
-  // this repo's own (iCloud-backed) source on every call, which intermittently
-  // drops files and breaks the canvas_mcp.core import; py-mirror-run.sh installs
-  // once against a non-iCloud mirror instead. reconcile has no --json flag.
-  const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const proc = spawnSync(
-    path.join(repoRoot, "scripts", "py-mirror-run.sh"),
-    ["-m", "canvas_mcp.core.learn_loop", "reconcile"],
-    { cwd: repoRoot, encoding: "utf8", env: process.env }
-  );
+  // browser/.. → the core root (repo checkout, or Contents/Resources/core in an
+  // installed app). reconcile has no --json flag. See reconcile-command.mjs.
+  const coreRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const plan = reconcileCommand({ coreRoot });
+  const proc = plan
+    ? spawnSync(plan.command, plan.args, plan.options)
+    : { status: null, stderr: "no Python runtime available for learn_loop reconcile" };
   const reconcile = proc.status === 0
     ? { ok: true, status: proc.status }
     : { ok: false, status: proc.status, error: String(proc.stderr || "reconcile failed").slice(-2000) };

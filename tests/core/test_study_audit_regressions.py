@@ -239,3 +239,35 @@ def test_ipc_clock_override_is_gated(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert _bridge_now({"now": "2030-01-01T00:00:00+00:00"}) is None
     monkeypatch.setenv("KAIROS_ALLOW_TEST_CLOCK", "1")
     assert _bridge_now({"now": "2030-01-01T00:00:00+00:00"}) == T("2030-01-01T00:00:00+00:00")
+
+
+def test_live_audit_d8_course_notation_and_fractions_are_not_marked_incorrect() -> None:
+    """2026-10-07 live run: correct answers in the course's own notation were
+    recorded as incorrect evidence."""
+    interval = {"type": "expression", "accept": ["(-inf,2)U(2,inf)"]}
+    for answer in ("(-∞, 2) ∪ (2, ∞)", "(-inf,2)U(2,inf)", "(-infinity, 2) U (2, infinity)"):
+        assert checkers.check_field(interval, answer)[1], answer
+    assert not checkers.check_field(interval, "(-∞, 2)")[1]
+
+    half = {"type": "numeric", "value": 0.5, "tolerance_pct": 2}
+    for answer in ("1/2", "x = 1/2", "0.5", " 1 / 2 "):
+        assert checkers.check_field(half, answer)[1], answer
+    assert checkers.check_field(half, "1/3")[1] is False
+    assert checkers.check_field(half, "not 2; it is 99")[2] == "state one value, not several numbers"
+    assert checkers.check_field(half, "1/0")[1] is False
+
+
+def test_live_audit_d5_long_syllabus_imports_clipped_not_failed(tmp_path: Path) -> None:
+    """2026-10-07 live run: a 31k-character syllabus failed the whole course import."""
+    record = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "study" / "ui-round1" / "1300.json").read_text())
+    record["sources"][0]["text"] = "Core topics: chain rule. " * 1300
+    sources = tmp_path / "inbox" / "study-sources"
+    sources.mkdir(parents=True)
+    (sources / "1300.json").write_text(json.dumps(record))
+    service = StudyService(tmp_path, zone="America/Denver")
+    result = service.canvas_import("1300", None)
+    assert result["sources"] == len(record["sources"])
+    packet = next(p for p in service.packets_view()["packets"] if p["packet_id"] == result["packet_id"])
+    syllabus = next(s for s in packet["sources"] if s["id"] == record["sources"][0]["id"])
+    assert syllabus["chars"] <= 20000
+    assert "first 20,000 characters" in syllabus["locator"]

@@ -4,7 +4,13 @@ import { isTauri } from "../ipc";
 import { STABILITY_LABEL, fmtWhen } from "../study/format";
 import type { ExamView, PacketSummary, Template } from "../study/types";
 
-export function SourcesView({ inspectOnly = false }: { inspectOnly?: boolean }) {
+/**
+ * Practice material: Canvas sources to import, imported packets with question
+ * authoring, exam dates, and bundled packets. `embedded` renders it inside
+ * Settings → Canvas (the destination of Study's "Choose material");
+ * `inspectOnly` lists synced material without import controls.
+ */
+export function SourcesView({ inspectOnly = false, embedded = false }: { inspectOnly?: boolean; embedded?: boolean }) {
   const [packets, setPackets] = useState<PacketSummary[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [exams, setExams] = useState<ExamView[]>([]);
@@ -89,8 +95,8 @@ export function SourcesView({ inspectOnly = false }: { inspectOnly?: boolean }) 
 
   return (
     <section className="sources" aria-labelledby="sources-heading">
-      {inspectOnly ? (
-        <h2 id="sources-heading">Canvas data</h2>
+      {inspectOnly || embedded ? (
+        <h2 id="sources-heading">{embedded ? "Practice material" : "Canvas data"}</h2>
       ) : (
         <h1 id="sources-heading">Sources</h1>
       )}

@@ -17,6 +17,9 @@ export PATH="/opt/homebrew/bin:$HOME/.local/bin:$PATH"
 mkdir -p "$MIRROR"
 rsync -a --delete --exclude node_modules --exclude __pycache__ --exclude .auth \
   "$REPO/src/" "$MIRROR/src/"
+# pyproject.toml force-includes schools/; without it `uv pip install -e .` fails
+# on a fresh mirror and every sync's reconcile is skipped (live run D9).
+rsync -a --delete "$REPO/schools/" "$MIRROR/schools/"
 cp -f "$REPO/pyproject.toml" "$MIRROR/pyproject.toml"
 cp -f "$REPO/LICENSE" "$MIRROR/LICENSE"
 cp -f "$REPO/README.md" "$MIRROR/README.md"

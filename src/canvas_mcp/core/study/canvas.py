@@ -107,6 +107,18 @@ def _exam_from_candidate(candidate: dict[str, Any], *, course_label: str, zone: 
     }
 
 
+# Packet sources are capped (packets._str). A long syllabus keeps its opening
+# text, labelled, instead of failing the whole course import (live run D5).
+SOURCE_TEXT_MAX = 20000
+
+
+def _source_text(s: dict[str, Any]) -> tuple[str, bool]:
+    text = str(s.get("text") or "")
+    if len(text) <= SOURCE_TEXT_MAX:
+        return text, False
+    return text[:SOURCE_TEXT_MAX].rstrip(), True
+
+
 def build_canvas_packet(
     record: dict[str, Any],
     *,
@@ -122,18 +134,23 @@ def build_canvas_packet(
     chosen = [s for s in record.get("sources") or [] if not source_ids or s["id"] in source_ids]
     if not chosen:
         raise StudyError("validation", "choose at least one synced source to import")
-    sources = [
-        {
-            "id": require_id(s["id"], "source id"),
-            "locator": f"{s.get('title') or s['id']} (Canvas {s.get('kind', 'source')})",
-            "text": str(s.get("text") or ""),
-            "permission_scope": "instructor_permitted",
-            "ocr_status": "typed",
-            "captured_at": str(record.get("fetched_at") or ""),
-            "canvas_id": str(s.get("canvas_id") or ""),
-        }
-        for s in chosen
-    ]
+    sources = []
+    for s in chosen:
+        text, clipped = _source_text(s)
+        locator = f"{s.get('title') or s['id']} (Canvas {s.get('kind', 'source')})"
+        if clipped:
+            locator += f" — first {SOURCE_TEXT_MAX:,} characters; open Canvas for the rest"
+        sources.append(
+            {
+                "id": require_id(s["id"], "source id"),
+                "locator": locator,
+                "text": text,
+                "permission_scope": "instructor_permitted",
+                "ocr_status": "typed",
+                "captured_at": str(record.get("fetched_at") or ""),
+                "canvas_id": str(s.get("canvas_id") or ""),
+            }
+        )
     kept_ids = {s["id"] for s in sources}
     items: list[dict[str, Any]] = []
     objectives: list[dict[str, Any]] = []
