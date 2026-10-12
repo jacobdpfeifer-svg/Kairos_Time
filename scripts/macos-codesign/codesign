@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# PATH shim used only while packaging Kairos. Tauri invokes `codesign` on the
+# finished .app; this signs nested Mach-O files first, then runs /usr/bin/codesign
+# so the bundle seal covers those signatures. DMG signing is left to Tauri.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+NESTED="$(cd "$HERE/.." && pwd)/sign-macos-nested.sh"
+
+args=("$@")
+if [[ ${#args[@]} -eq 0 ]]; then
+  exec /usr/bin/codesign
+fi
+
+target="${args[${#args[@]}-1]}"
+identity=""
+i=0
+while [[ $i -lt ${#args[@]} ]]; do
+  case "${args[$i]}" in
+    -s|--sign)
+      if [[ $((i + 1)) -lt ${#args[@]} ]]; then
+        identity="${args[$((i + 1))]}"
+      fi
+      ;;
+  esac
+  i=$((i + 1))
+done
+
+if [[ -d "$target" && "$(basename "$target")" == "Kairos.app" ]]; then
+  if [[ -z "$identity" || "$identity" == "-" ]]; then
+    echo "macos-codesign: refusing to sign Kairos.app without a Developer ID identity" >&2
+    exit 1
+  fi
+  "$NESTED" "$target" "$identity"
+  has_timestamp=0
+  for arg in "${args[@]}"; do
+    if [[ "$arg" == "--timestamp" ]]; then
+      has_timestamp=1
+    fi
+  done
+  if [[ $has_timestamp -eq 0 ]]; then
+    # Insert before the bundle path so the outer signature has a secure timestamp.
+    last=$((${#args[@]} - 1))
+    args=("${args[@]:0:$last}" "--timestamp" "${args[$last]}")
+  fi
+fi
+
+exec /usr/bin/codesign "${args[@]}"

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-choose-school"
+description = "Enables the choose_school command without any pre-configured scope."
+commands.allow = ["choose_school"]
+
+[[permission]]
+identifier = "deny-choose-school"
+description = "Denies the choose_school command without any pre-configured scope."
+commands.deny = ["choose_school"]

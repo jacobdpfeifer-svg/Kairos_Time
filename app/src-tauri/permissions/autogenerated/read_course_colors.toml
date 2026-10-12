@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-course-colors"
+description = "Enables the read_course_colors command without any pre-configured scope."
+commands.allow = ["read_course_colors"]
+
+[[permission]]
+identifier = "deny-read-course-colors"
+description = "Denies the read_course_colors command without any pre-configured scope."
+commands.deny = ["read_course_colors"]
