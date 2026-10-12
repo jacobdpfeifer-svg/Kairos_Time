@@ -108,9 +108,13 @@ def exam_window(raw: dict[str, Any]) -> ExamWindow:
             start = start.astimezone(UTC)
         if end is not None:
             end = end.astimezone(UTC)
-        if end is None:
-            end = start
-        cutoff = start if start is not None else end - timedelta(hours=1)
+        if start is not None:
+            cutoff = start
+            if end is None:
+                end = start
+        else:
+            assert end is not None  # both-None returned above
+            cutoff = end - timedelta(hours=1)
         return ExamWindow(exam_id, value, cutoff, end, starts_at=start,
                           source=str(raw.get("source") or "unknown"),
                           confidence=str(raw.get("confidence") or "unknown"))

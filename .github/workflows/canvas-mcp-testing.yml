@@ -41,11 +41,13 @@ jobs:
         specs = [d for d in groups if isinstance(d, str) and d.startswith("mypy")]
         if len(specs) != 1:
             raise SystemExit(f"expected exactly one mypy spec in dependency-groups.dev, found {specs}")
-        print(specs[0])
+        # Stub packages (types-PyYAML, ...) too, or mypy fails on import-untyped.
+        stubs = [d for d in groups if isinstance(d, str) and d.startswith("types-")]
+        print(" ".join([specs[0], *stubs]))
         PY
         )
         echo "Installing $CONSTRAINT"
-        python -m pip install "$CONSTRAINT"
+        python -m pip install $CONSTRAINT
 
     - name: Run mypy
       run: mypy src/

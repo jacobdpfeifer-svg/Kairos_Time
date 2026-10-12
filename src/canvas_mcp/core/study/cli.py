@@ -170,25 +170,25 @@ def _connector_command(service: StudyService, cmd: str, params: dict[str, Any]) 
         if cmd == "connectors-status":
             return {"ok": True, "connectors": c.status(root)}
         if cmd == "outlook-begin":
-            return c.outlook_begin(root)
+            return dict(c.outlook_begin(root))
         if cmd == "outlook-poll":
-            return c.outlook_poll(root)
+            return dict(c.outlook_poll(root))
         if cmd == "outlook-read":
-            return c.outlook_read(root)
+            return dict(c.outlook_read(root))
         if cmd == "outlook-disconnect":
             return {"ok": True, "connector": c.outlook_disconnect(root)}
         if cmd == "gcal-connect":
             return {"ok": True, "connector": c.gcal_connect(root)}
         if cmd == "gcal-read":
-            return c.gcal_read(root)
+            return dict(c.gcal_read(root))
         if cmd == "gcal-disconnect":
             return {"ok": True, "connector": c.gcal_disconnect(root)}
         if cmd == "gcal-preview-event":
-            return c.gcal_preview_event(root, summary=str(params.get("summary") or ""), start_iso=str(params.get("start") or ""), end_iso=str(params.get("end") or ""), why=str(params.get("why") or ""))
+            return dict(c.gcal_preview_event(root, summary=str(params.get("summary") or ""), start_iso=str(params.get("start") or ""), end_iso=str(params.get("end") or ""), why=str(params.get("why") or "")))
         if cmd == "gcal-confirm-event":
-            return c.gcal_confirm_event(root, summary=str(params.get("summary") or ""), start_iso=str(params.get("start") or ""), end_iso=str(params.get("end") or ""), why=str(params.get("why") or ""), confirmation_token=str(params.get("confirmation_token") or ""))
+            return dict(c.gcal_confirm_event(root, summary=str(params.get("summary") or ""), start_iso=str(params.get("start") or ""), end_iso=str(params.get("end") or ""), why=str(params.get("why") or ""), confirmation_token=str(params.get("confirmation_token") or "")))
         if cmd == "context":
-            return c.relevant_context(root, course_terms=[str(t) for t in (params.get("terms") or [])], days=int(params.get("days") or 7))
+            return dict(c.relevant_context(root, course_terms=[str(t) for t in (params.get("terms") or [])], days=int(params.get("days") or 7)))
     except c.ConnectorError as exc:
         raise StudyError(exc.code, exc.message) from exc
     raise StudyError("validation", f"unknown command {cmd!r}")

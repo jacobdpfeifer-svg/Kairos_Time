@@ -119,8 +119,8 @@ def _check_numeric(spec: dict[str, Any], value: str) -> tuple[bool, str]:
     stripped = re.sub(r"^\s*[a-z]\s*[=≈~]\s*", "", text.strip(), flags=re.IGNORECASE)
     fraction = _FRACTION_RE.match(stripped)
     if fraction and float(fraction.group(2)) != 0:
-        value = float(fraction.group(1)) / float(fraction.group(2))
-        stripped = f"{value!r}{stripped[fraction.end():]}"
+        quotient = float(fraction.group(1)) / float(fraction.group(2))
+        stripped = f"{quotient!r}{stripped[fraction.end():]}"
     matches = _NUMBER_RE.findall(stripped)
     if not matches:
         return False, "no number found"
