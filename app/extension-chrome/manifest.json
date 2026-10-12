@@ -51,7 +51,8 @@
       "resources": [
         "ui/dashboard.css",
         "lib/format.js",
-        "fonts/*.woff2"
+        "fonts/*.woff2",
+        "brand/*.svg"
       ],
       "matches": [
         "https://canvas.colorado.edu/*",

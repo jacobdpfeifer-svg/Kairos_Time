@@ -31,7 +31,7 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'none'"
     },
     "trayIcon": {
-      "iconPath": "icons/icon.png",
+      "iconPath": "icons/trayTemplate.png",
       "iconAsTemplate": true
     }
   },
@@ -40,7 +40,10 @@
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
-      "icons/icon.png"
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
     ],
     "resources": {
       "../../src": "core/src",

@@ -182,10 +182,18 @@ p {
   gap: 24px;
 }
 .wordmark {
-  font: 800 24px/1 var(--font);
-  letter-spacing: -0.02em;
+  display: inline-flex;
+  line-height: 0;
   text-decoration: none;
-  color: var(--fg);
+}
+.wordmark img {
+  display: block;
+  height: 28px;
+  width: auto;
+}
+.wordmark .night,
+.app-mark .night {
+  display: none;
 }
 .nav-links {
   display: flex;
@@ -366,10 +374,14 @@ section h2 {
   font-size: 15px;
 }
 .app-mark {
-  font-weight: 800;
-  font-size: 18px;
-  letter-spacing: -0.02em;
-  padding: 4px 10px 16px;
+  display: block;
+  line-height: 0;
+  padding: 6px 10px 16px;
+}
+.app-mark img {
+  display: block;
+  height: 20px;
+  width: auto;
 }
 .app-nav,
 .app-class {
@@ -793,8 +805,18 @@ section h2 {
   padding-bottom: 40px;
   flex-wrap: wrap;
 }
-.footer .wordmark {
-  font-size: 20px;
+.footer .wordmark img {
+  height: 24px;
+}
+@media (prefers-color-scheme: dark) {
+  .wordmark .day,
+  .app-mark .day {
+    display: none;
+  }
+  .wordmark .night,
+  .app-mark .night {
+    display: block;
+  }
 }
 .fine {
   color: var(--muted);

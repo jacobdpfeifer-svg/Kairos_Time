@@ -97,9 +97,24 @@ main {
   padding: 14px 16px 0;
 }
 .pn-wordmark {
-  font-weight: 800;
-  font-size: 19px;
-  letter-spacing: -0.02em;
+  display: inline-flex;
+  line-height: 0;
+}
+.pn-wordmark img {
+  display: block;
+  height: 22px;
+  width: auto;
+}
+.pn-wordmark .night {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  .pn-wordmark .day {
+    display: none;
+  }
+  .pn-wordmark .night {
+    display: block;
+  }
 }
 
 /* Sentence-case section labels; never uppercase eyebrows. */

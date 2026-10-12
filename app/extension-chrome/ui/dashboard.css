@@ -79,7 +79,9 @@
 }
 
 .pn-mark {
-  color: var(--fg);
+  display: block;
+  height: 20px;
+  width: auto;
 }
 
 .pn-live {

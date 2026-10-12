@@ -107,7 +107,13 @@
     return el(
       "header",
       { class: "pn-meta" },
-      el("span", { class: "pn-mark", text: "Kairos" }),
+      el("img", {
+        class: "pn-mark",
+        src: chrome.runtime.getURL("brand/kairos-wordmark.svg"),
+        alt: "kairos",
+        width: "2552",
+        height: "864",
+      }),
       el("span", { class: "pn-live", "data-state": state, text: liveText }),
       el("span", { class: "pn-spacer" }),
       refresh,
