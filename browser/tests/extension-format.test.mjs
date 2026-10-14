@@ -10,7 +10,8 @@ describe("formatDue", () => {
     const short = new Intl.DateTimeFormat(undefined, { timeZone: zone, timeZoneName: "short" })
       .formatToParts(when)
       .find((part) => part.type === "timeZoneName")?.value;
-    assert.doesNotMatch(text, new RegExp(zone.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    // In UTC the IANA id and the short name are the same string ("UTC").
+    if (zone !== short) assert.doesNotMatch(text, new RegExp(zone.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(text, new RegExp(String(short).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   });
 });
