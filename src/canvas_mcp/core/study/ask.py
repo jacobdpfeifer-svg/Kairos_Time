@@ -882,7 +882,7 @@ def relay_payload(record: dict[str, Any], context: dict[str, Any], plan: dict[st
     if not purpose:
         return None
     banned = list(context.get("banned") or [])
-    passages = []
+    passages: list[dict[str, str]] = []
     for item in context.get("items") or []:
         # "adjacent" repeats a passage already sent; "general" carries no source.
         if item.get("truth_kind") == "general" or item.get("source_kind") == "adjacent":

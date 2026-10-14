@@ -442,7 +442,7 @@ def add_bytes(user_root: Path, name: str, data: bytes, now: datetime) -> dict[st
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
     if text:
-        _atomic_write(_text_path(user_root, entry["id"]), text)
+        _atomic_write(_text_path(user_root, digest[:16]), text)
     entries.append(entry)
     _save_index(user_root, entries)
     return {"status": "added", "entry": entry}

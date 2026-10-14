@@ -185,7 +185,7 @@ def _title(value: Any) -> str:
 # ------------------------------------------------------------------ commands
 
 
-def set_hours(user_root: Path, week: str, hours: Any) -> dict[str, Any]:
+def set_hours(user_root: Path, week: Any, hours: Any) -> dict[str, Any]:
     try:
         value = float(hours)
     except (TypeError, ValueError) as exc:
@@ -200,7 +200,7 @@ def set_hours(user_root: Path, week: str, hours: Any) -> dict[str, Any]:
     return state
 
 
-def set_estimate(user_root: Path, item_id: str, minutes: Any) -> dict[str, Any]:
+def set_estimate(user_root: Path, item_id: Any, minutes: Any) -> dict[str, Any]:
     state = load_state(user_root)
     key = _id(item_id)
     if minutes in (None, ""):
@@ -217,21 +217,21 @@ def set_estimate(user_root: Path, item_id: str, minutes: Any) -> dict[str, Any]:
     return state
 
 
-def defer(user_root: Path, item_id: str, to: str) -> dict[str, Any]:
+def defer(user_root: Path, item_id: Any, to: Any) -> dict[str, Any]:
     state = load_state(user_root)
     state["deferrals"][_id(item_id)] = {"to": _day(to, "to"), "at": _now()}
     _save_state(user_root, state)
     return state
 
 
-def undefer(user_root: Path, item_id: str) -> dict[str, Any]:
+def undefer(user_root: Path, item_id: Any) -> dict[str, Any]:
     state = load_state(user_root)
     state["deferrals"].pop(_id(item_id), None)
     _save_state(user_root, state)
     return state
 
 
-def accept(user_root: Path, week: str, days: Any) -> dict[str, Any]:
+def accept(user_root: Path, week: Any, days: Any) -> dict[str, Any]:
     """The student said yes to a proposed order. It stays as accepted."""
     if not isinstance(days, dict) or len(days) > 500:
         raise PlanError("days must map item ids to days")
@@ -246,7 +246,7 @@ def accept(user_root: Path, week: str, days: Any) -> dict[str, Any]:
     return state
 
 
-def unaccept(user_root: Path, week: str) -> dict[str, Any]:
+def unaccept(user_root: Path, week: Any) -> dict[str, Any]:
     state = load_state(user_root)
     entry = state["weeks"].get(_week(week))
     if entry:
@@ -281,7 +281,7 @@ def capture(user_root: Path, params: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def _item_update(user_root: Path, item_id: str, **fields: Any) -> dict[str, Any]:
+def _item_update(user_root: Path, item_id: Any, **fields: Any) -> dict[str, Any]:
     key = _id(item_id)
     if not key.startswith("cap-") or not any(r["id"] == key for r in _all_items(user_root)):
         raise PlanError("only rows you added can be changed here")
