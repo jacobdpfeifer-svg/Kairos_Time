@@ -58,3 +58,33 @@ and release verification.
   `Unnotarized Developer ID`.
 - Installed `/Applications/Kairos.app`: not replaced, because the DMG is not
   notarized/stapled yet.
+
+## Follow-up audit (same day)
+
+- `login_expired` never reached the student: `run_open_canvas` used
+  `run_status`, which drops stderr, so the UI only saw `exited with exit
+  status: 2` and showed the generic message. It now forwards the
+  `login_expired:` line.
+- `open-canvas.mjs` closed every existing page before opening the new one
+  (closing the last page can end a persistent Chrome context before the
+  `close` handler was attached). It now opens the fresh page first and
+  attaches the handler first. Stale-request detection is limited to
+  non-Canvas hosts so course content can't end a signed-in session.
+- Onboarding sync dead end: `sync-study-sources` re-projected any existing
+  generation without fetching, so a generation older than 24 h always
+  verified as `stale_*` and every retry failed. It now fetches again unless
+  the current generation is within the soft-stale window.
+- Verification accepted only `fresh_complete`; one failed endpoint
+  (`fresh_partial`) blocked onboarding. Both fresh states now pass. The raw
+  "sync verification did not produce…" text was shown to students; failures
+  now use the plain sync message, and zero courses gets its own wording.
+- `scripts/macos-codesign/codesign` refused any call ending in
+  `Kairos.app` without `--sign` (e.g. `codesign --verify`). It now passes
+  non-signing calls through.
+- `package-macos.sh` hardcoded `Kairos_0.1.0_aarch64.dmg`; it now copies any
+  `Kairos_*.dmg`, smokes the mirror build before overwriting the checkout,
+  and re-verifies the seal after the copy.
+- Notarization note: `package-macos.sh` deliberately unsets Apple credentials,
+  so it never notarizes; that is a separate manual step, not a missing
+  credential in this environment.
+- Tests: frontend 80 passed (3 new), browser 316 passed, Rust 20 passed.

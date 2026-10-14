@@ -18,10 +18,22 @@ bash "$REPO/scripts/native-mirror.sh" npm run tauri -- build
 MIRROR="${KAIROS_NATIVE_MIRROR:-$HOME/.cache/kairos-build}"
 SRC="$MIRROR/app/src-tauri/target/release/bundle"
 DEST="$REPO/app/src-tauri/target/release/bundle"
-mkdir -p "$DEST"
+# Smoke the mirror's build before it replaces anything in the repo checkout.
+"$REPO/scripts/smoke-bundled-runtime.sh" "$SRC/macos/Kairos.app"
+mkdir -p "$DEST/dmg"
 rm -rf "$DEST/macos/Kairos.app"
 ditto --norsrc "$SRC/macos/Kairos.app" "$DEST/macos/Kairos.app"
-ditto --norsrc "$SRC/dmg/Kairos_0.1.0_aarch64.dmg" "$DEST/dmg/Kairos_0.1.0_aarch64.dmg"
-APP="$DEST/macos/Kairos.app"
-"$REPO/scripts/smoke-bundled-runtime.sh" "$APP"
+shopt -s nullglob
+dmgs=("$SRC"/dmg/Kairos_*.dmg)
+if (( ${#dmgs[@]} == 0 )); then
+  echo "package-macos: no DMG in $SRC/dmg" >&2
+  exit 1
+fi
+rm -f "$DEST"/dmg/Kairos_*.dmg
+for dmg in "${dmgs[@]}"; do
+  ditto --norsrc "$dmg" "$DEST/dmg/$(basename "$dmg")"
+done
+# Re-check after the copy: the iCloud checkout can attach xattrs that break the seal.
+"$REPO/scripts/smoke-bundled-runtime.sh" "$DEST/macos/Kairos.app"
+/usr/bin/codesign --verify --deep --strict "$DEST/macos/Kairos.app"
 echo "package-macos: copied signed bundle to $DEST"

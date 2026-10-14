@@ -26,8 +26,10 @@ while [[ $i -lt ${#args[@]} ]]; do
   i=$((i + 1))
 done
 
-if [[ -d "$target" && "$(basename "$target")" == "Kairos.app" ]]; then
-  if [[ -z "$identity" || "$identity" == "-" ]]; then
+# Only signing calls get the nested pass; --verify/--display on the bundle
+# pass straight through.
+if [[ -n "$identity" && -d "$target" && "$(basename "$target")" == "Kairos.app" ]]; then
+  if [[ "$identity" == "-" ]]; then
     echo "macos-codesign: refusing to sign Kairos.app without a Developer ID identity" >&2
     exit 1
   fi
