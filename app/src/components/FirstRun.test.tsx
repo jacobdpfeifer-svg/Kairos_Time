@@ -59,7 +59,7 @@ describe("FirstRun", () => {
       { host: "osu.instructure.com", name: "Ohio State – CarmenCanvas", account_id: 132008 },
       false
     );
-    expect(vi.mocked(saveOnboarding)).toHaveBeenCalledWith("osu-instructure-com", "", {});
+    expect(vi.mocked(saveOnboarding)).toHaveBeenCalledWith("osu-instructure-com");
     expect(await screen.findByRole("heading", { name: "Your Canvas sign-in opens in Chrome" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /complete MFA in Chrome/i })).toBeInTheDocument();
     expect(screen.getByText(/never sees your password or MFA code/i)).toBeInTheDocument();

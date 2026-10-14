@@ -36,25 +36,6 @@ pub struct CalendarSuggestion {
     pub dismissed: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub struct CommitmentState {
-    #[serde(default)]
-    pub commitment: Option<serde_json::Value>,
-    #[serde(default)]
-    pub check_in: Option<serde_json::Value>,
-    #[serde(default)]
-    pub line: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[allow(dead_code)]
-pub struct CalendarSurface {
-    pub events: Vec<CalendarEvent>,
-    pub suggestions: Vec<CalendarSuggestion>,
-    pub commitment: serde_json::Value,
-}
-
 fn read_jsonl<T: for<'de> Deserialize<'de>>(path: &Path) -> Vec<T> {
     let Ok(file) = fs::File::open(path) else {
         return Vec::new();

@@ -126,43 +126,12 @@ pub fn read_school_profile(rt: Rt<'_>) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-pub fn save_onboarding(
-    rt: Rt<'_>,
-    school_slug: String,
-    cloud_key: String,
-    priorities: Option<String>,
-    sentry_opt_in: Option<bool>,
-    waitlist_email: Option<String>,
-) -> Result<(), String> {
-    if school_slug.trim().is_empty() {
+pub fn save_onboarding(rt: Rt<'_>, school_slug: String) -> Result<(), String> {
+    let slug = school_slug.trim();
+    if slug.is_empty() {
         return Err("school slug is required".into());
     }
-    let slug = school_slug.trim();
-    if slug == "waitlist" {
-        let email = waitlist_email.as_deref().unwrap_or("").trim();
-        if email.is_empty() {
-            return Err("waitlist email is required when your school is not listed".into());
-        }
-        inbox::save_waitlist_email(&rt.user_root, email)?;
-        inbox::save_school_slug(&rt.user_root, "waitlist")?;
-        if let Some(opt_in) = sentry_opt_in {
-            inbox::save_sentry_opt_in(&rt.user_root, opt_in)?;
-        }
-        return Ok(());
-    }
     inbox::save_school_slug(&rt.user_root, slug)?;
-    // Cloud key is optional. A blank key stores nothing — there is no local-model path.
-    if !cloud_key.trim().is_empty() {
-        inbox::save_cloud_key(&rt.user_root, &cloud_key)?;
-    }
-    if let Some(text) = priorities.as_deref() {
-        if !text.trim().is_empty() {
-            inbox::save_priorities(&rt.user_root, text)?;
-        }
-    }
-    if let Some(opt_in) = sentry_opt_in {
-        inbox::save_sentry_opt_in(&rt.user_root, opt_in)?;
-    }
     // Honor school for subsequent sync shells in this process.
     std::env::set_var("SCHOOL_SLUG", slug);
     Ok(())
@@ -303,14 +272,10 @@ pub fn read_sync_progress(rt: Rt<'_>) -> serde_json::Value {
 
 #[tauri::command]
 pub fn read_calendar_surface(rt: Rt<'_>) -> Result<serde_json::Value, String> {
-    let commitment = daemon::run_read_commitment(&rt).unwrap_or_else(|_| {
-        serde_json::json!({ "commitment": null, "check_in": null, "line": "" })
-    });
     Ok(serde_json::json!({
         "events": calendar::read_events(&rt.user_root),
         "canvas_events": canvas::canvas_calendar_items(&rt.user_root),
         "suggestions": calendar::read_suggestions(&rt.user_root),
-        "commitment": commitment,
         "sync_health": canvas::read_sync_health(&rt.user_root),
     }))
 }

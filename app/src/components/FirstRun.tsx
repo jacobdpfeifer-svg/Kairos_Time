@@ -251,7 +251,7 @@ export function FirstRun({
         manual
       );
       setProfile(chosen);
-      await saveOnboarding(chosen.slug, "", {});
+      await saveOnboarding(chosen.slug);
       setStep("canvas");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

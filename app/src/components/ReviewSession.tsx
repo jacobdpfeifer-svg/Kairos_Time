@@ -23,12 +23,11 @@ function nextLine(scored: ScoredReview): string {
   return "Saved.";
 }
 
-export function ReviewsStep({ payload: payloadProp }: { payload?: DueReviewsPayload }) {
-  const [payload, setPayload] = useState<DueReviewsPayload | null>(payloadProp ?? null);
+export function ReviewsStep() {
+  const [payload, setPayload] = useState<DueReviewsPayload | null>(null);
   const [session, setSession] = useState(false);
 
   useEffect(() => {
-    if (payloadProp) return;
     let alive = true;
     readDueReviews()
       .then((p) => alive && setPayload(p))
@@ -36,7 +35,7 @@ export function ReviewsStep({ payload: payloadProp }: { payload?: DueReviewsPayl
     return () => {
       alive = false;
     };
-  }, [payloadProp, session]);
+  }, [session]);
 
   const items = payload?.items ?? [];
   if (!payload || (items.length === 0 && !session)) return null;

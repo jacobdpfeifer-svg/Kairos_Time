@@ -175,36 +175,12 @@ export async function checkCanvasSession(): Promise<boolean> {
   return invoke<boolean>("check_canvas_session");
 }
 
-export async function saveOnboarding(
-  schoolSlug: string,
-  cloudKey: string,
-  options?: {
-    priorities?: string;
-    sentryOptIn?: boolean;
-    waitlistEmail?: string;
-  }
-): Promise<void> {
+export async function saveOnboarding(schoolSlug: string): Promise<void> {
   if (!isTauri()) {
     localStorage.setItem("pn_school", schoolSlug);
-    localStorage.setItem("pn_cloud_key", cloudKey);
-    if (options?.priorities) {
-      localStorage.setItem("pn_priorities", options.priorities);
-    }
-    if (options?.sentryOptIn !== undefined) {
-      localStorage.setItem("pn_sentry_opt_in", options.sentryOptIn ? "1" : "0");
-    }
-    if (options?.waitlistEmail) {
-      localStorage.setItem("pn_waitlist_email", options.waitlistEmail);
-    }
     return;
   }
-  await invoke("save_onboarding", {
-    schoolSlug,
-    cloudKey,
-    priorities: options?.priorities ?? null,
-    sentryOptIn: options?.sentryOptIn ?? null,
-    waitlistEmail: options?.waitlistEmail ?? null,
-  });
+  await invoke("save_onboarding", { schoolSlug });
 }
 
 export type LearningProfileAnswers = {
@@ -230,34 +206,6 @@ export type DueReview = {
   counterfactual?: string;
 };
 
-export type KnowledgeHealth = {
-  fragile: number;
-  holding: number;
-  durable: number;
-  attempt_only: number;
-  delayed_hit_signal: number;
-  next_review_at: string | null;
-  next_checkpoint_due: string | null;
-  line: string;
-};
-
-export type PracticeState =
-  | "due_now"
-  | "in_the_gap"
-  | "unextracted"
-  | "recovery"
-  | "idle";
-
-export type PracticeSurface = {
-  state: PracticeState;
-  line: string;
-  obstacle?: string;
-  open_with?: string;
-  recovery?: boolean;
-  focus_stale?: boolean;
-  counterfactual?: string;
-};
-
 export type ReviewBudget = {
   now: number;
   later: number;
@@ -265,72 +213,10 @@ export type ReviewBudget = {
   line: string;
 };
 
-export type TrailEvent = {
-  kind: string;
-  course: string;
-  ref: string;
-  label: string;
-  ts: string;
-};
-
-export type Trail = {
-  line: string;
-  learning: TrailEvent[];
-  workflow: TrailEvent[];
-};
-
-export type GardenCourse = {
-  course: string;
-  delayed_retrieval: number;
-  corrected_miss: number;
-  path: number;
-  checkpoint_passed: boolean;
-  line: string;
-};
-
-export type Garden = {
-  note: string;
-  courses: GardenCourse[];
-};
-
-export type CommitmentRecord = {
-  id: string;
-  text: string;
-  course: string;
-  deadline: string;
-  linked_item_id: string;
-  created_at: string;
-  status: string;
-  resolved_at: string | null;
-};
-
-export type CommitmentState = {
-  commitment: CommitmentRecord | null;
-  check_in: CommitmentRecord | null;
-  line: string;
-};
-
-export type CoverageRow = {
-  course: string;
-  label: string;
-  due: string | null;
-  state: "due_now" | "in_the_gap" | "unextracted";
-  fragile: number;
-  holding: number;
-  durable: number;
-  next_check: string | null;
-  line: string;
-};
-
+/** What the Study path reads from `learn_loop --json due` (the core sends more for agents). */
 export type DueReviewsPayload = {
   items: DueReview[];
-  practice: PracticeSurface;
-  coverage: CoverageRow[];
-  health: KnowledgeHealth;
   budget: ReviewBudget;
-  trail: Trail;
-  garden: Garden;
-  commitment: CommitmentState;
 };
 
 export type ReviewOutcome = "miss" | "partial" | "hit" | "skipped";
@@ -357,17 +243,6 @@ export async function saveLearningProfile(
   });
 }
 
-export type ProgressClaim = { claim: string; stability: string };
-
-export type CourseProgress = {
-  course: string;
-  fragile: number;
-  holding: number;
-  durable: number;
-  total: number;
-  claims: ProgressClaim[];
-};
-
 const EMPTY_BUDGET: ReviewBudget = {
   now: 0,
   later: 0,
@@ -375,58 +250,12 @@ const EMPTY_BUDGET: ReviewBudget = {
   line: "",
 };
 
-const EMPTY_TRAIL: Trail = { line: "", learning: [], workflow: [] };
-
-const EMPTY_GARDEN: Garden = { note: "", courses: [] };
-
-const EMPTY_COMMITMENT: CommitmentState = {
-  commitment: null,
-  check_in: null,
-  line: "",
-};
-
-const EMPTY_HEALTH: KnowledgeHealth = {
-  fragile: 0,
-  holding: 0,
-  durable: 0,
-  attempt_only: 0,
-  delayed_hit_signal: 0,
-  next_review_at: null,
-  next_checkpoint_due: null,
-  line: "",
-};
-
 export async function readDueReviews(): Promise<DueReviewsPayload> {
-  const empty: DueReviewsPayload = {
-    items: [],
-    practice: { state: "idle", line: "", obstacle: "", open_with: "" },
-    coverage: [],
-    health: EMPTY_HEALTH,
-    budget: EMPTY_BUDGET,
-    trail: EMPTY_TRAIL,
-    garden: EMPTY_GARDEN,
-    commitment: EMPTY_COMMITMENT,
-  };
-  if (!isTauri()) return empty;
-  const payload = await invoke<{
-    items?: DueReview[];
-    practice?: PracticeSurface;
-    coverage?: CoverageRow[];
-    health?: KnowledgeHealth;
-    budget?: ReviewBudget;
-    trail?: Trail;
-    garden?: Garden;
-    commitment?: CommitmentState;
-  }>("read_due_reviews");
+  if (!isTauri()) return { items: [], budget: EMPTY_BUDGET };
+  const payload = await invoke<Partial<DueReviewsPayload> | null>("read_due_reviews");
   return {
     items: Array.isArray(payload?.items) ? payload.items : [],
-    practice: payload?.practice ?? empty.practice,
-    coverage: Array.isArray(payload?.coverage) ? payload.coverage : [],
-    health: payload?.health ?? empty.health,
-    budget: payload?.budget ?? empty.budget,
-    trail: payload?.trail ?? empty.trail,
-    garden: payload?.garden ?? empty.garden,
-    commitment: payload?.commitment ?? empty.commitment,
+    budget: payload?.budget ?? EMPTY_BUDGET,
   };
 }
 
@@ -655,7 +484,6 @@ export type CalendarSurface = {
   events: CalendarEvent[];
   canvas_events?: CalendarEvent[];
   suggestions: CalendarSuggestion[];
-  commitment: CommitmentState;
   sync_health?: SyncHealth;
 };
 
@@ -664,7 +492,6 @@ export async function readCalendarSurface(): Promise<CalendarSurface> {
     events: [],
     canvas_events: [],
     suggestions: [],
-    commitment: EMPTY_COMMITMENT,
   };
   if (!isTauri()) return empty;
   try {
@@ -673,7 +500,6 @@ export async function readCalendarSurface(): Promise<CalendarSurface> {
       events: payload?.events ?? [],
       canvas_events: payload?.canvas_events ?? [],
       suggestions: payload?.suggestions ?? [],
-      commitment: payload?.commitment ?? EMPTY_COMMITMENT,
       sync_health: payload?.sync_health,
     };
   } catch {

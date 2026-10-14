@@ -25,24 +25,6 @@ pub const SYNC_FLOOR: Duration = Duration::from_secs(5 * 60);
 /// feed cadence (10 min announcements, 60 min course/calendar) lives in the tick.
 pub const FRESHNESS_TICK: Duration = Duration::from_secs(2 * 60);
 
-#[allow(dead_code)]
-pub struct DaemonConfig {
-    pub user_id: String,
-    pub school_slug: String,
-    pub sentry_opt_in: bool,
-}
-
-impl Default for DaemonConfig {
-    fn default() -> Self {
-        Self {
-            user_id: "dev".into(),
-            // No default school: it is chosen at onboarding (school/profile.json).
-            school_slug: env::var("SCHOOL_SLUG").unwrap_or_default(),
-            sentry_opt_in: false,
-        }
-    }
-}
-
 pub fn next_sync_interval(is_weekend: bool) -> Duration {
     let candidate = if is_weekend {
         SYNC_WEEKEND
@@ -248,12 +230,6 @@ fn python_json(rt: &Runtime, module: &str, args: &[&str]) -> Result<Value, Strin
 pub fn run_due_reviews(rt: &Runtime) -> Result<Value, String> {
     tick_log("due-reviews");
     python_json(rt, "canvas_mcp.core.learn_loop", &["--json", "due"])
-}
-
-/// Current commitment. Does not create or resolve one.
-pub fn run_read_commitment(rt: &Runtime) -> Result<Value, String> {
-    tick_log("read-commitment");
-    python_json(rt, "canvas_mcp.core.commitment", &["--json", "status"])
 }
 
 /// Record a retrieval score. `same_session` must stay false for a scheduled dock check.
