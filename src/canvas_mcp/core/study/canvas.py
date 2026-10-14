@@ -14,7 +14,7 @@ Exam records inferred from titles carry ``provenance: canvas_inferred``.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -267,5 +267,3 @@ def _slug(text: str) -> str:
     return out or "objective"
 
 
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)

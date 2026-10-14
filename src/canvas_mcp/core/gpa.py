@@ -123,23 +123,6 @@ def _norm_code(code: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", raw)
 
 
-def resolve_credits(
-    course: CourseGrade,
-    credit_hours: Mapping[str, float],
-) -> float | None:
-    if course.credits is not None:
-        # An explicit 0 (a recorded zero-credit course) is a known value,
-        # not a missing one — only fall through to the lookup when the
-        # course simply has no credits recorded at all.
-        try:
-            return float(course.credits)
-        except (TypeError, ValueError):
-            return None
-    key = _norm_code(course.code)
-    lookup = _build_credit_lookup(credit_hours)
-    return lookup.get(key)
-
-
 def term_gpa(
     courses: list[CourseGrade],
     credit_hours: Mapping[str, float] | None = None,

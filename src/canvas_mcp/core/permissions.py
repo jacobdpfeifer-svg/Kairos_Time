@@ -352,32 +352,6 @@ def bump_k_success(
     return state
 
 
-def record_veto(
-    state: PermissionsState,
-    category: str,
-    note: str,
-    *,
-    course_id: str | None = None,
-) -> PermissionsState:
-    """Zero the counter and attach a veto note."""
-    state = deepcopy(state)
-    if course_id:
-        course_cats = state.courses.setdefault(course_id, {})
-        cat = course_cats.get(category) or deepcopy(state.categories[category])
-        cat.k_success = 0
-        cat.veto_notes.append(note)
-        if category not in NEVER_AUTO:
-            cat.posture = "gated"
-        course_cats[category] = cat
-    else:
-        cat = state.categories[category]
-        cat.k_success = 0
-        cat.veto_notes.append(note)
-        if category not in NEVER_AUTO:
-            cat.posture = "gated"
-    return state
-
-
 def refuse_proctoring_tool(tool_name: str) -> bool:
     """True when the tool name matches a hard-refuse proctoring adapter."""
     lowered = tool_name.lower()

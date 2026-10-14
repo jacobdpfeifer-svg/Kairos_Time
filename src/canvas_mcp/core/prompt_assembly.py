@@ -482,28 +482,6 @@ def chat_assembled(provider: _ChatProvider, turn: AssembledTurn) -> Any:
     return provider.chat(turn.messages, turn.tools)
 
 
-def chat_synthesis(
-    *,
-    system: str,
-    user: str,
-    provider: _ChatProvider | None = None,
-    tier: str = "fast",
-) -> Any:
-    """Read-only one-shot synthesis (no tools).
-
-    Builds messages here so call sites never hand-assemble ``ChatMessage``.
-    """
-    from .llm_provider import get_provider
-
-    if provider is None:
-        provider = get_provider(tier)
-    messages = [
-        ChatMessage(role="system", content=system),
-        ChatMessage(role="user", content=user),
-    ]
-    return provider.chat(messages, None)
-
-
 def chat_skill(skill: SkillMeta, turn: AssembledTurn) -> Any:
     """Resolve the provider once for this skill call. Do not re-resolve mid-turn."""
     provider = provider_for_skill(skill)

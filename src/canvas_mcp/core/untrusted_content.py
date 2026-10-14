@@ -217,17 +217,6 @@ _FENCE_LINE = re.compile(
 )
 
 
-def strip_fence_markers(text: str) -> str:
-    """Remove our provenance marker lines, leaving the wrapped content intact.
-
-    For the rare case where a *tool* (not the model) must consume text that a
-    read path already fenced — e.g. one accessibility tool parses the JSON
-    another produced. Only whole marker lines are removed; the content between
-    them is untouched.
-    """
-    return _FENCE_LINE.sub("", _coerce_text(text))
-
-
 def contains_fence_markers(text: str) -> bool:
     """True if ``text`` carries one of our provenance markers.
 

@@ -35,16 +35,6 @@ DUE_REVIEW_LIMIT = 2
 PRE_EXAM_DAYS = 2
 NEAR_CHECKPOINT_DAYS = 3
 
-_WORKFLOW_MARKERS = (
-    "sign up",
-    "signup",
-    "calendar",
-    "dinner",
-    "workshop",
-    "syllabus video",
-    "playlist",
-)
-_PROCEDURAL_MARKERS = ("lab", "pre lab", "pre-lab", "coding", "project build")
 _LIST_MARKERS = ("vocab", "vocabulary", "names and faces", "name list")
 _CONFUSABLE_MARKERS = (
     "problem set",
@@ -121,20 +111,6 @@ class LearnItem:
 
 def items_path(user_root: Path) -> Path:
     return Path(user_root) / "inbox" / "learn" / "items.yaml"
-
-
-def infer_kind(text: str) -> str:
-    """Guess a learn-item kind from a title. Workflow is never stored."""
-    blob = (text or "").lower()
-    if any(marker in blob for marker in _WORKFLOW_MARKERS):
-        return "workflow"
-    if any(marker in blob for marker in _PROCEDURAL_MARKERS):
-        return "procedural"
-    if any(marker in blob for marker in _LIST_MARKERS):
-        return "list"
-    if any(marker in blob for marker in _CONFUSABLE_MARKERS):
-        return "confusable"
-    return "declarative"
 
 
 def _utcnow() -> datetime:
