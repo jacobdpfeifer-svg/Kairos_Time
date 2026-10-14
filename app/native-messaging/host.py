@@ -14,6 +14,7 @@ The host only moves data between the extension and ``{user_root}``:
   get_dashboard / get_assignment_context → read the brain's view model
   queue_calendar_suggestion         → the app's suggestion list (student approves there)
   queue_ask                         → a private Ask intake the app classifies later
+  get_school                        → the Canvas origin chosen at sign-up
   ping                              → beta funnel markers
 It never talks to Canvas and never writes anywhere a student didn't ask for.
 """
@@ -354,6 +355,17 @@ def handle_ping(root: Path, msg: dict) -> dict:
     }
 
 
+def handle_get_school(root: Path, _msg: dict) -> dict:
+    """The Canvas origin the app found at sign-up, so the extension can offer to turn on there."""
+    profile = _read_json(root / "school" / "profile.json")
+    if not isinstance(profile, dict):
+        return {"ok": False, "error": "no_school"}
+    base = str(profile.get("canvas_base_url") or "")
+    if not re.match(r"^https://[a-z0-9.-]+\.[a-z]{2,63}/?$", base, re.IGNORECASE):
+        return {"ok": False, "error": "no_school"}
+    return {"ok": True, "canvas_base_url": base.rstrip("/") + "/", "name": str(profile.get("display_name") or "")[:120]}
+
+
 def handle_legacy_sensor(root: Path, msg: dict) -> dict:
     path = _append_sensor(root, {k: msg.get(k) for k in ("type", "url", "ts")})
     return {"ok": True, "path": str(path)}
@@ -367,6 +379,7 @@ HANDLERS = {
     "queue_calendar_suggestion": handle_calendar_suggestion,
     "queue_ask": handle_queue_ask,
     "ping": handle_ping,
+    "get_school": handle_get_school,
     "canvas_focus": handle_legacy_sensor,
     "canvas_visible": handle_legacy_sensor,
 }

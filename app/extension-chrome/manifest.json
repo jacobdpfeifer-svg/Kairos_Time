@@ -8,11 +8,15 @@
     "alarms",
     "storage",
     "nativeMessaging",
-    "sidePanel"
+    "sidePanel",
+    "scripting"
   ],
   "host_permissions": [
     "https://canvas.colorado.edu/*",
     "https://*.instructure.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
   ],
   "background": {
     "service_worker": "sw.js",
@@ -55,8 +59,7 @@
         "brand/*.svg"
       ],
       "matches": [
-        "https://canvas.colorado.edu/*",
-        "https://*.instructure.com/*"
+        "https://*/*"
       ]
     }
   ],

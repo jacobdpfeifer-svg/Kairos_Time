@@ -127,11 +127,11 @@
       button.disabled = true;
       const reply = await send({ type: "queue_suggestion", suggestion });
       if (reply?.ok) {
-        button.textContent = reply.queued ? "Queued. Approve it in the app." : "Already queued";
+        button.textContent = reply.queued ? "Sent. Say yes to it in Kairos, on Week." : "Already in Kairos";
         if (row) row.dataset.state = "queued";
       } else {
         button.disabled = false;
-        button.textContent = "Couldn't queue. Is the Kairos app installed?";
+        button.textContent = "Couldn't send it. Open the Kairos app on this Mac first.";
       }
     });
     return button;
@@ -152,8 +152,8 @@
         "div",
         { class: "pn-subject" },
         el("p", { class: "pn-label", text: "Next" }),
-        el("h2", { class: "pn-title", text: "Connect the Kairos app" }),
-        el("p", { class: "pn-note", text: "It adds your next step and what skipping costs. Changes below still update here." })
+        el("h2", { class: "pn-title", text: "Open the Kairos app on this Mac" }),
+        el("p", { class: "pn-note", text: "Once it's open, your next step and what skipping costs show here. Changes below keep updating either way." })
       );
     }
     if (!next) {
@@ -171,6 +171,7 @@
     const slot = fmt.blockBefore(next.due_at);
     const actions = el("div", { class: "pn-actions" });
     if (safeHref(next.url)) actions.append(el("a", { class: "pn-primary", href: safeHref(next.url), text: "Open in Canvas" }));
+    if (view.mode === "full") actions.append(el("a", { class: "pn-quiet", href: fmt.kairosItemLink(next.course_id, next.assignment_id), text: "Open in Kairos" }));
     if (slot) {
       actions.append(
         queueButton("Block 90 min", {
@@ -182,9 +183,13 @@
         })
       );
     }
+    // The extension checks Canvas every 5 minutes, but the next step comes from the app's last run.
+    const generated = Date.parse(view.dashboard?.generated_at || "");
+    const stale = Number.isFinite(generated) && Date.now() - generated > 6 * 60 * 60 * 1000;
     return el(
       "div",
       { class: "pn-subject" },
+      stale ? el("p", { class: "pn-note", text: `Kairos last worked this out ${fmt.relTime(view.dashboard.generated_at)}. Open the app to bring it up to date.` }) : null,
       el("p", { class: "pn-label", text: next.why === "missing" ? "Missing" : "Next" }),
       el("h2", { class: "pn-title" }, link(next.title, next.url)),
       el("p", { class: "pn-sub", text: sub }),
@@ -208,13 +213,13 @@
   function ledger(view) {
     const changes = view.dashboard?.changes || [];
     const section = el("section", { class: "pn-ledger", "aria-label": "What changed" });
-    section.append(el("p", { class: "pn-label", text: changes.length ? `What changed · ${changes.length}` : "What changed" }));
+    section.append(el("p", { class: "pn-label", text: changes.length ? `What changed, ${changes.length}` : "What changed" }));
     if (!changes.length) {
       section.append(el("p", { class: "pn-empty", text: "Nothing new since you last looked." }));
       return section;
     }
     const list = el("ol");
-    changes.forEach((c, i) => {
+    changes.forEach((c) => {
       const detail =
         c.kind === "due_changed" && c.detail?.to
           ? `now ${fmt.formatDue(c.detail.to)}`
@@ -225,13 +230,12 @@
         el(
           "li",
           {},
-          el("span", { class: "pn-idx", text: String(i + 1).padStart(2, "0") }),
           el(
             "span",
             { class: "pn-row-main" },
             el("span", { class: "pn-kind", text: c.label }),
             link(c.title || c.label, c.url, "pn-row-title"),
-            el("span", { class: "pn-row-meta", text: [c.course, detail].filter(Boolean).join(" · ") })
+            el("span", { class: "pn-row-meta", text: [c.course, detail].filter(Boolean).join(", ") })
           ),
           el("span", { class: "pn-when", text: fmt.relTime(c.at || c.detected_at) })
         )
@@ -249,7 +253,7 @@
     d.append(
       el("p", {
         class: "pn-label",
-        text: digest.announcements_7d ? `Professors said · ${digest.with_actions} of ${digest.announcements_7d} need you` : "Professors said",
+        text: digest.announcements_7d ? `What professors said, ${digest.with_actions} of ${digest.announcements_7d} need you` : "What professors said",
       })
     );
     if (!digest.items.length) d.append(el("p", { class: "pn-empty", text: "No announcements with action items this week." }));
@@ -259,18 +263,19 @@
           "article",
           {},
           link(item.title, item.url, "pn-row-title"),
-          el("span", { class: "pn-row-meta", text: [item.course, fmt.relTime(item.at)].filter(Boolean).join(" · ") }),
+          el("span", { class: "pn-row-meta", text: [item.course, fmt.relTime(item.at)].filter(Boolean).join(", ") }),
           el("ul", {}, (item.actions || []).map((a) => el("li", { "data-kind": a.kind, text: a.text })))
         )
       );
     }
     railEl.append(d);
     if (agent.length) {
-      const a = el("section", { class: "pn-agent", "aria-label": "What the agent can do" });
-      a.append(el("p", { class: "pn-label", text: "Agent can do" }));
+      const a = el("section", { class: "pn-agent", "aria-label": "Suggested for your calendar" });
+      a.append(el("p", { class: "pn-label", text: "Suggested for your calendar" }));
+      a.append(el("p", { class: "pn-note", text: "Nothing goes on your calendar until you say yes in Kairos." }));
       for (const item of agent) {
         const row = el("div", { class: "pn-agent-row" }, el("span", { text: item.label }));
-        row.append(queueButton("Queue", item.suggestion, row));
+        row.append(queueButton("Send to Kairos", item.suggestion, row));
         a.append(row);
       }
       railEl.append(a);

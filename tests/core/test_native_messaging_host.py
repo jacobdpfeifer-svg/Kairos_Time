@@ -193,3 +193,16 @@ def test_unknown_and_malformed_messages_get_errors(tmp_path):
     assert unknown["error"] == "unknown_type"
     assert notdict["error"] == "invalid_message"
     shutil.rmtree(tmp_path, ignore_errors=True)
+
+
+def test_get_school_returns_only_an_https_canvas_origin(tmp_path):
+    [missing] = _run([{"type": "get_school"}], {"DEV_USER_ROOT": str(tmp_path)})
+    assert missing == {"ok": False, "error": "no_school"}
+    school = tmp_path / "school"
+    school.mkdir()
+    (school / "profile.json").write_text(json.dumps({"canvas_base_url": "https://canvas.example.edu", "display_name": "Example U"}), encoding="utf-8")
+    [reply] = _run([{"type": "get_school"}], {"DEV_USER_ROOT": str(tmp_path)})
+    assert reply == {"ok": True, "canvas_base_url": "https://canvas.example.edu/", "name": "Example U"}
+    (school / "profile.json").write_text(json.dumps({"canvas_base_url": "javascript:alert(1)"}), encoding="utf-8")
+    [bad] = _run([{"type": "get_school"}], {"DEV_USER_ROOT": str(tmp_path)})
+    assert bad["ok"] is False

@@ -34,12 +34,17 @@ describe("extension: read-only Canvas access", () => {
     }
   });
 
-  it("allows only https Canvas origins", () => {
+  it("accepts only clean https origins, and reads one only after Chrome grants it", () => {
     assert.equal(isAllowedBase("https://canvas.colorado.edu/"), true);
     assert.equal(isAllowedBase("https://cuboulder.instructure.com/"), true);
-    for (const bad of ["http://canvas.colorado.edu/", "https://evil.example/", "https://canvas.colorado.edu/x", "https://a.b.instructure.com.evil.io/"]) {
+    // Any school's Canvas has this shape; Chrome's per-origin grant is the gate.
+    assert.equal(isAllowedBase("https://canvas.myschool.edu/"), true);
+    for (const bad of ["http://canvas.colorado.edu/", "https://canvas.colorado.edu/x", "https://10.0.0.1/", "https://localhost/", "https://canvas.colorado.edu:444/", "javascript:alert(1)"]) {
       assert.equal(isAllowedBase(bad), false, bad);
     }
+    const sw = fs.readFileSync(path.join(EXT, "sw.js"), "utf8");
+    assert.match(sw, /chrome\.permissions\.contains\(\{ origins: \[originPattern\(base\)\] \}\)/, "reads require a Chrome host grant");
+    assert.match(sw, /async function canvasBase\(\) \{\n  const \{ base \} = await get\("base"\);\n  return \(await canRead\(base\)\) \? base : null;/);
   });
 
   it("sends a plain credentialed GET and parses Canvas's JSON guard", async () => {
@@ -75,8 +80,12 @@ describe("extension: read-only Canvas access", () => {
 
   it("asks Chrome for the minimum permissions", () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(EXT, "manifest.json"), "utf8"));
-    assert.deepEqual([...manifest.permissions].sort(), ["alarms", "nativeMessaging", "sidePanel", "storage"]);
+    // scripting: run the dashboard stage on a school Canvas the student granted at runtime.
+    assert.deepEqual([...manifest.permissions].sort(), ["alarms", "nativeMessaging", "scripting", "sidePanel", "storage"]);
     assert.deepEqual(manifest.host_permissions, ["https://canvas.colorado.edu/*", "https://*.instructure.com/*"]);
+    // Any other school is asked for one origin at a time, https only, never granted up front.
+    assert.deepEqual(manifest.optional_host_permissions, ["https://*/*"]);
+    assert.deepEqual(manifest.content_scripts[0].matches, manifest.host_permissions);
     assert.equal(manifest.background.type, "module");
   });
 

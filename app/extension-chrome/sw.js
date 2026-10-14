@@ -10,7 +10,7 @@
  * Reads Canvas only (lib/canvas-read.js). Writes go to the student's own
  * machine: chrome.storage and, via the native host, {user_root}.
  */
-import { SUMMARY_PATH, canvasGet, isAllowedBase, trimPlannerItem, trimStreamItem } from "./lib/canvas-read.js";
+import { SUMMARY_PATH, canvasGet, isAllowedBase, isBuiltInHost, originPattern, trimPlannerItem, trimStreamItem } from "./lib/canvas-read.js";
 import { callHost } from "./lib/native.js";
 import { classifyDelta, summarySignature } from "./shared/classify.js";
 import { buildDigest, recentChanges } from "./shared/view.js";
@@ -24,14 +24,49 @@ const DAY = 24 * 60 * 60 * 1000;
 const get = (keys) => chrome.storage.local.get(keys);
 const set = (values) => chrome.storage.local.set(values);
 
+/** Chrome lets the extension read this Canvas: built into the manifest, or granted by the student. */
+async function canRead(base) {
+  if (!isAllowedBase(base)) return false;
+  try {
+    return await chrome.permissions.contains({ origins: [originPattern(base)] });
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The student's Canvas origin. There is no default school: it is learned the first
- * time the student opens their own Canvas (the content script says "hello").
+ * time the student opens their own Canvas (the content script says "hello"), or
+ * when they turn Kairos on for their school's Canvas from the side panel.
  */
 async function canvasBase() {
   const { base } = await get("base");
-  return isAllowedBase(base) ? base : null;
+  return (await canRead(base)) ? base : null;
 }
+
+/** Run the dashboard stage on a granted school Canvas that isn't in the manifest. */
+async function registerSchoolScript(base) {
+  if (isBuiltInHost(base) || !chrome.scripting?.registerContentScripts) return;
+  const id = `kairos-${new URL(base).hostname}`;
+  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+  if (existing.length) return;
+  await chrome.scripting.registerContentScripts([
+    { id, matches: [originPattern(base)], js: ["ui/dashboard.js"], runAt: "document_idle", persistAcrossSessions: true },
+  ]);
+}
+
+chrome.permissions?.onRemoved?.addListener(async ({ origins = [] }) => {
+  const { base } = await get("base");
+  for (const pattern of origins) {
+    try {
+      const host = new URL(pattern.replace("/*", "/")).hostname;
+      await chrome.scripting?.unregisterContentScripts?.({ ids: [`kairos-${host}`] }).catch(() => {});
+      if (base && new URL(base).hostname === host) await set({ base: null });
+    } catch {
+      /* not an origin we registered */
+    }
+  }
+});
 
 function ensureSetup() {
   chrome.alarms.create("poll", { periodInMinutes: POLL_MINUTES, delayInMinutes: 0.1 });
@@ -81,11 +116,24 @@ async function maybePing() {
 
 // ------------------------------------------------------------ polling
 
-function setBadge(signedIn) {
-  chrome.action.setBadgeText({ text: signedIn ? "" : "!" });
-  chrome.action.setBadgeBackgroundColor({ color: "#f35b57" });
+const NEEDS_YOU = new Set(["due_changed", "assignment_added", "comment"]);
+
+/** Badge: "!" when signed out, else how many things need the student since they last opened the panel. */
+async function setBadge(signedIn) {
+  const { localEvents = [], panelSeenAt = 0 } = await get(["localEvents", "panelSeenAt"]);
+  const count = localEvents.filter((e) => NEEDS_YOU.has(e.kind) && Date.parse(e.detected_at || 0) > panelSeenAt).length;
+  const text = signedIn === false ? "!" : count ? String(Math.min(count, 9)) : "";
+  chrome.action.setBadgeText({ text });
+  // Ink on paper (MASTER §03), not an alarm red.
+  chrome.action.setBadgeBackgroundColor({ color: "#1d1d1f" });
+  chrome.action.setBadgeTextColor?.({ color: "#ffffff" });
   chrome.action.setTitle({
-    title: signedIn ? "Kairos — open the side panel" : "Kairos — sign in to Canvas to keep this fresh",
+    title:
+      signedIn === false
+        ? "Kairos: sign in to Canvas to keep this fresh"
+        : count
+          ? `Kairos: ${count === 1 ? "1 thing needs" : `${count} things need`} you`
+          : "Kairos: open the side panel",
   });
 }
 
@@ -137,7 +185,7 @@ async function poll(trigger) {
       await bumpFunnel({ count: "signed_out_polls" });
       if (last.signedIn !== false) await callHost({ type: "canvas_signed_out", ts: status.lastPollAt });
       await set({ last: { ...last, ...status, signedIn: false }, viewStamp: now });
-      setBadge(false);
+      await setBadge(false);
       return { ...status, signedIn: false };
     }
     if (!res.ok) {
@@ -147,15 +195,20 @@ async function poll(trigger) {
     await bumpFunnel({ mark: "first_signed_in_at", count: "polls" });
     const sig = summarySignature(res.json);
     const changed = sig !== last.sig;
+    // The signature only advances once the change reached the app, or there is
+    // no app to reach. A full backlog or a host error retries on the next poll
+    // instead of silently dropping that change.
+    let delivered = true;
     if (changed) {
       const delta = await fetchDelta(base, res.json, now);
       await classifyLocally(delta);
       const reply = await callHost({ type: "canvas_delta", delta });
-      await noteHost(reply);
+      const hostState = await noteHost(reply);
       if (reply.ok) await bumpFunnel({ mark: "first_delta_at" });
+      delivered = Boolean(reply.ok) || hostState === "missing";
     }
-    await set({ last: { ...last, ...status, signedIn: true, sig, summary: res.json }, viewStamp: now });
-    setBadge(true);
+    await set({ last: { ...last, ...status, signedIn: true, sig: delivered ? sig : last.sig, summary: res.json }, viewStamp: now });
+    await setBadge(true);
     await maybePing();
     return { ...status, signedIn: true, changed };
   })().finally(() => {
@@ -220,10 +273,23 @@ function pickAssignment(a) {
   };
 }
 
-async function assignmentContext({ courseId, assignmentId }) {
-  if (!/^\d+$/.test(String(courseId)) || !/^\d+$/.test(String(assignmentId))) return { ok: false, error: "invalid_ids" };
+/** A quiz or graded discussion page → the assignment behind it (read-only GETs). */
+async function resolveAssignmentId(base, courseId, kind, id) {
+  if (kind === "assignment") return String(id);
+  const path = kind === "quiz" ? `/api/v1/courses/${courseId}/quizzes/${id}` : `/api/v1/courses/${courseId}/discussion_topics/${id}`;
+  const res = await canvasGet(base, path);
+  const assignmentId = res.ok ? res.json?.assignment_id : null;
+  return assignmentId != null && /^\d+$/.test(String(assignmentId)) ? String(assignmentId) : null;
+}
+
+async function assignmentContext({ courseId, assignmentId, kind = "assignment", id }) {
+  const workId = id ?? assignmentId;
+  if (!/^\d+$/.test(String(courseId)) || !/^\d+$/.test(String(workId))) return { ok: false, error: "invalid_ids" };
+  if (!["assignment", "quiz", "discussion"].includes(kind)) return { ok: false, error: "invalid_ids" };
   const base = await canvasBase();
   if (!base) return { ok: false, error: "no_school" };
+  assignmentId = await resolveAssignmentId(base, courseId, kind, workId);
+  if (!assignmentId) return { ok: false, error: kind === "assignment" ? "not_found" : "ungraded" };
   const res = await canvasGet(base, `/api/v1/courses/${courseId}/assignments/${assignmentId}`);
   if (!res.ok || !res.json) return { ok: false, status: res.status, error: res.status === 401 ? "signed_out" : "not_found" };
   const assignment = pickAssignment(res.json);
@@ -265,9 +331,30 @@ async function handleMessage(msg, sender) {
   switch (msg?.type) {
     case "hello": {
       const origin = sender.url ? new URL(sender.url).origin + "/" : null;
-      if (origin && isAllowedBase(origin)) await set({ base: origin });
+      if (origin && (await canRead(origin))) await set({ base: origin });
       return { ok: true };
     }
+    case "get_school": {
+      // The school the Mac app found at sign-up, so the panel can offer to turn Kairos on there.
+      const reply = await callHost({ type: "get_school" });
+      await noteHost(reply);
+      const base = reply?.ok && isAllowedBase(reply.canvas_base_url) ? reply.canvas_base_url : null;
+      const { base: current } = await get("base");
+      return { ok: true, base, name: reply?.ok ? String(reply.name || "").slice(0, 120) : "", enabled: Boolean(base && (await canRead(base))), current: current || null };
+    }
+    case "enable_school": {
+      // Called by the panel right after the student granted this origin in Chrome's prompt.
+      const base = String(msg.base || "");
+      if (!(await canRead(base))) return { ok: false, error: "not_granted" };
+      await registerSchoolScript(base);
+      await set({ base });
+      poll("enabled");
+      return { ok: true };
+    }
+    case "panel_seen":
+      await set({ panelSeenAt: Date.now() });
+      await setBadge((await get("last")).last?.signedIn ?? null);
+      return { ok: true };
     case "get_view":
       return buildView();
     case "poll_now":

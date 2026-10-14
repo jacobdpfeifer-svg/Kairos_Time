@@ -15,17 +15,41 @@ const ALLOWED_PATHS = [
   /^\/api\/v1\/users\/self\/activity_stream$/,
   /^\/api\/v1\/planner\/items$/,
   /^\/api\/v1\/courses\/\d+\/assignments\/\d+$/,
+  // A quiz or graded discussion page names its assignment; these two find it.
+  /^\/api\/v1\/courses\/\d+\/quizzes\/\d+$/,
+  /^\/api\/v1\/courses\/\d+\/discussion_topics\/\d+$/,
 ];
 
-const ALLOWED_HOSTS = [/^canvas\.colorado\.edu$/, /^[a-z0-9-]+\.instructure\.com$/];
+/** Canvas hosts the manifest grants up front. Any other school is granted by the student at runtime. */
+export const BUILT_IN_HOSTS = [/^canvas\.colorado\.edu$/, /^[a-z0-9-]+\.instructure\.com$/];
 
+const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
+/**
+ * A Canvas origin Kairos may read: https, a real domain name (no IPs, no
+ * localhost, no port), nothing after the slash. Whether Chrome actually lets
+ * the extension read it is the host permission the student granted.
+ */
 export function isAllowedBase(base) {
   try {
     const u = new URL(base);
-    return u.protocol === "https:" && u.pathname === "/" && !u.search && ALLOWED_HOSTS.some((re) => re.test(u.hostname));
+    return u.protocol === "https:" && u.pathname === "/" && !u.search && !u.port && !u.username && HOSTNAME.test(u.hostname);
   } catch {
     return false;
   }
+}
+
+export function isBuiltInHost(base) {
+  try {
+    return BUILT_IN_HOSTS.some((re) => re.test(new URL(base).hostname));
+  } catch {
+    return false;
+  }
+}
+
+/** The match pattern Chrome uses for one Canvas origin. */
+export function originPattern(base) {
+  return `${new URL(base).origin}/*`;
 }
 
 /** Path (with optional query) → true only for the read endpoints above. */

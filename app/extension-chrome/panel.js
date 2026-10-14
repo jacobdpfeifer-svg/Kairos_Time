@@ -7,7 +7,8 @@
  * "path" is an order of attack built from the rubric, not an answer.
  * Canvas-authored text is inserted with textContent only.
  */
-import { assignmentFromUrl, blockBefore, costLine, formatDue, relTime } from "./lib/format.js";
+import { blockBefore, costLine, formatDue, kairosItemLink, relTime, workFromUrl } from "./lib/format.js";
+import { originPattern } from "./lib/canvas-read.js";
 import { checklistItems, honestPath } from "./lib/assignment-plan.js";
 
 const main = document.getElementById("panel");
@@ -73,17 +74,26 @@ async function checklist(assignment) {
   return el("div", {}, wrap, el("p", { class: "pn-note", text: `${source} Checks stay in this browser.` }));
 }
 
-async function assignmentView(ids) {
-  const ctx = await send({ type: "assignment_context", ...ids });
+async function signInLink() {
+  const { base } = await chrome.storage.local.get("base");
+  return base ? el("p", {}, link("Sign in to Canvas", base)) : null;
+}
+
+async function assignmentView(work) {
+  const ctx = await send({ type: "assignment_context", courseId: work.courseId, kind: work.kind, id: work.id });
   if (!ctx?.ok) {
-    return [
-      el("p", { class: "pn-label", text: "Assignment" }),
-      el("h1", { class: "pn-title", text: ctx?.error === "signed_out" ? "Sign in to Canvas" : "Couldn't load this assignment" }),
-    ];
+    const title =
+      ctx?.error === "signed_out"
+        ? "Sign in to Canvas"
+        : ctx?.error === "ungraded"
+          ? "This one isn't graded"
+          : `Couldn't load this ${work.kind}`;
+    return [el("p", { class: "pn-label", text: work.kind === "assignment" ? "Assignment" : work.kind === "quiz" ? "Quiz" : "Discussion" }), el("h1", { class: "pn-title", text: title }), ctx?.error === "signed_out" ? await signInLink() : null];
   }
   const a = ctx.assignment;
   const sub = [a.due_at ? `due ${formatDue(a.due_at)}` : "no due date", a.points_possible ? `${a.points_possible} pts` : null].filter(Boolean).join(", ");
-  const out = [el("p", { class: "pn-label", text: "Assignment" }), el("h1", { class: "pn-title", text: a.name }), el("p", { class: "pn-sub", text: sub })];
+  const out = [el("p", { class: "pn-label", text: a.is_quiz_assignment ? "Quiz" : "Assignment" }), el("h1", { class: "pn-title", text: a.name }), el("p", { class: "pn-sub", text: sub })];
+  if (ctx.hostState === "ok") out.push(el("p", {}, el("a", { class: "pn-quiet", href: kairosItemLink(a.course_id, a.id), text: "Open in Kairos" })));
   for (const c of ctx.changes || []) {
     const text =
       c.kind === "due_changed" && c.detail?.to
@@ -168,8 +178,8 @@ async function assignmentView(ids) {
         proctored: Boolean(a.proctored),
       },
     });
-    if (reply?.ok) ask.textContent = "Saved. Open Kairos to answer it.";
-    else if (!reply || reply.error === "host_missing") ask.textContent = "Connect the Kairos app, then try again";
+    if (reply?.ok) ask.replaceChildren("Saved. ", el("a", { href: "kairos://ask", text: "Open Kairos to answer it" }));
+    else if (!reply || reply.error === "host_missing") ask.textContent = "Open the Kairos app on this Mac, then try again";
     else ask.textContent = "Couldn't save the question";
     if (!reply?.ok) ask.disabled = false;
   });
@@ -182,7 +192,7 @@ async function assignmentView(ids) {
         type: "queue_suggestion",
         suggestion: { key: `${a.course_id}:${a.id}`, title: `Work on ${a.name}`, start: slot.start, end: slot.end, why: `Due ${formatDue(a.due_at)}` },
       });
-      button.textContent = reply?.ok ? (reply.queued ? "Queued. Approve it in the app's Calendar." : "Already queued") : "Couldn't queue";
+      button.textContent = reply?.ok ? (reply.queued ? "Sent. Say yes to it in Kairos, on Week." : "Already in Kairos") : "Couldn't send it";
       if (!reply?.ok) button.disabled = false;
     });
     pathSection.append(button);
@@ -191,36 +201,58 @@ async function assignmentView(ids) {
   return out;
 }
 
+/** Kairos runs on the student's own school Canvas only after they say so in Chrome's prompt. */
+async function schoolOffer() {
+  const school = await send({ type: "get_school" });
+  if (!school?.ok || !school.base || school.enabled) return null;
+  const host = new URL(school.base).hostname;
+  const button = el("button", { class: "pn-primary", type: "button", text: `Use Kairos on ${host}` });
+  const note = el("p", { class: "pn-note", text: "Chrome will ask once. Kairos reads that Canvas with your own sign-in and never posts or submits anything." });
+  button.addEventListener("click", async () => {
+    const granted = await chrome.permissions.request({ origins: [originPattern(school.base)] }).catch(() => false);
+    if (!granted) {
+      note.textContent = "Chrome didn't allow it. You can try again any time.";
+      return;
+    }
+    const reply = await send({ type: "enable_school", base: school.base });
+    note.textContent = reply?.ok ? "Done. Open Canvas and Kairos starts keeping an eye on it." : "That didn't take. Try again.";
+    button.remove();
+  });
+  return el("section", {}, el("p", { class: "pn-label", text: school.name || "Your school" }), button, note);
+}
+
 async function homeView() {
   const view = await send({ type: "get_view" });
   const next = view?.dashboard?.next_step;
-  const out = [el("p", { class: "pn-label", text: "Next up" })];
+  const offer = await schoolOffer();
+  const out = [offer, el("p", { class: "pn-label", text: "Next up" })];
   if (next) {
     out.push(el("h1", { class: "pn-title" }, link(next.title, next.url)));
     out.push(el("p", { class: "pn-sub", text: [next.course, next.due_at ? `due ${formatDue(next.due_at)}` : null].filter(Boolean).join(", ") }));
   } else {
     const title = view?.status?.needsSchool
-      ? "Open Canvas once"
+      ? "Open your school's Canvas once"
       : view?.mode === "local"
-        ? "Connect the Kairos app"
+        ? "Open the Kairos app on this Mac"
         : view?.mode === "pending"
           ? "Syncing your semester"
           : "Nothing due this week";
     out.push(el("h1", { class: "pn-title", text: title }));
   }
-  out.push(el("p", { class: "pn-note", text: "Open an assignment in Canvas to see its checklist, what changed, and the cost of skipping." }));
-  return out;
+  if (next && view?.mode === "full") out.push(el("p", {}, el("a", { class: "pn-quiet", href: kairosItemLink(next.course_id, next.assignment_id), text: "Open in Kairos" })));
+  out.push(el("p", { class: "pn-note", text: "Open an assignment, quiz, or graded discussion in Canvas to see its checklist, what changed, and the cost of skipping." }));
+  return out.filter(Boolean);
 }
 
 let lastUrl = null;
-async function refresh() {
+async function refresh({ force = false } = {}) {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const url = tab?.url || "";
-  if (url === lastUrl) return;
+  if (url === lastUrl && !force) return;
   lastUrl = url;
-  const ids = assignmentFromUrl(url);
-  main.replaceChildren(el("p", { class: "pn-note", text: "Loading…" }));
-  main.replaceChildren(...(ids ? await assignmentView(ids) : await homeView()));
+  const work = workFromUrl(url);
+  if (!force) main.replaceChildren(el("p", { class: "pn-note", text: "Loading…" }));
+  main.replaceChildren(...(work ? await assignmentView(work) : await homeView()).filter(Boolean));
   const { last = {} } = await chrome.storage.local.get("last");
   statusEl.textContent = last.needsSchool
     ? "Open your school's Canvas in a tab"
@@ -231,16 +263,18 @@ async function refresh() {
         : "";
 }
 
-document.getElementById("pn-readout").addEventListener("click", async (event) => {
-  const reply = await send({ type: "beta_readout" });
-  await navigator.clipboard.writeText(JSON.stringify(reply?.readout || {}, null, 2));
-  event.target.textContent = "Copied";
-  setTimeout(() => (event.target.textContent = "Copy beta readout"), 1500);
-});
 
 chrome.tabs.onActivated.addListener(() => refresh());
 chrome.tabs.onUpdated.addListener((_id, info) => {
   if (info.url || info.status === "complete") refresh();
 });
+// A poll finished: show the new data without waiting for a tab change.
+let pending = null;
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes.viewStamp) return;
+  clearTimeout(pending);
+  pending = setTimeout(() => refresh({ force: true }), 300);
+});
 send({ type: "funnel", event: "panel_open" });
+send({ type: "panel_seen" });
 refresh();

@@ -15,20 +15,14 @@ export function relTime(iso, now = Date.now()) {
   return new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(Math.sign(diff) * n, unit[0]);
 }
 
+/** "Thu, Oct 9 at 11:59 PM MDT" (MASTER §02): the short zone, never the IANA name. */
 export function formatDue(iso) {
   const t = Date.parse(iso || "");
   if (!Number.isFinite(t)) return "";
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const formatted = new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: zone,
-    timeZoneName: "short",
-  }).format(new Date(t));
-  return `${formatted} (${zone})`;
+  const d = new Date(t);
+  const day = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+  return `${day} at ${time}`;
 }
 
 function pct(v) {
@@ -56,12 +50,30 @@ export function blockBefore(dueIso, { minutes = 90, hoursBefore = 26 } = {}) {
   return { start: new Date(start).toISOString(), end: new Date(start + minutes * MINUTE).toISOString() };
 }
 
-/** Pull course + assignment ids from a Canvas URL path. */
-export function assignmentFromUrl(url) {
+/**
+ * The graded thing a Canvas page is about: an assignment, a quiz, or a
+ * discussion, by course and id. Quizzes and discussions are resolved to their
+ * assignment by the worker.
+ */
+export function workFromUrl(url) {
   try {
-    const m = new URL(url).pathname.match(/^\/courses\/(\d+)\/assignments\/(\d+)(?:\/|$)/);
-    return m ? { courseId: m[1], assignmentId: m[2] } : null;
+    const m = new URL(url).pathname.match(/^\/courses\/(\d+)\/(assignments|quizzes|discussion_topics)\/(\d+)(?:\/|$)/);
+    if (!m) return null;
+    const kind = m[2] === "assignments" ? "assignment" : m[2] === "quizzes" ? "quiz" : "discussion";
+    return { courseId: m[1], kind, id: m[3] };
   } catch {
     return null;
   }
+}
+
+/** Kept for callers that only care about assignment pages. */
+export function assignmentFromUrl(url) {
+  const w = workFromUrl(url);
+  return w && w.kind === "assignment" ? { courseId: w.courseId, assignmentId: w.id } : null;
+}
+
+/** The Kairos app route for a Canvas assignment (`kairos://` opens the Mac app). */
+export function kairosItemLink(courseId, assignmentId) {
+  if (!/^\d+$/.test(String(courseId)) || !/^\d+$/.test(String(assignmentId))) return "kairos://today";
+  return `kairos://item/${courseId}/item-a${assignmentId}`;
 }
