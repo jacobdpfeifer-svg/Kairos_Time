@@ -1,35 +1,41 @@
-"""Core utilities for Canvas MCP server."""
+"""Core utilities for Canvas MCP server.
 
-from .cache import get_course_code, get_course_id, refresh_course_cache
-from .client import (
-    cleanup_http_client,
-    fetch_all_paginated_results,
-    make_canvas_request,
-)
-from .config import get_config, reset_config, validate_config
-from .dates import format_date, parse_date, truncate_text
-from .validation import (
-    format_error,
-    is_error_response,
-    validate_parameter,
-    validate_params,
-)
+Re-exports load on first use: the desktop app runs local-file cores
+(`canvas_mcp.core.week_plan`, `.study`, `.commitment`, ...) as short
+subprocesses, and importing the HTTP client here slowed every one of them.
+"""
 
-__all__ = [
-    'make_canvas_request',
-    'fetch_all_paginated_results',
-    'cleanup_http_client',
-    'get_course_id',
-    'get_course_code',
-    'refresh_course_cache',
-    'validate_params',
-    'validate_parameter',
-    'format_error',
-    'is_error_response',
-    'format_date',
-    'parse_date',
-    'truncate_text',
-    'get_config',
-    'reset_config',
-    'validate_config'
-]
+from importlib import import_module
+from typing import Any
+
+_EXPORTS = {
+    'make_canvas_request': '.client',
+    'fetch_all_paginated_results': '.client',
+    'cleanup_http_client': '.client',
+    'get_course_id': '.cache',
+    'get_course_code': '.cache',
+    'refresh_course_cache': '.cache',
+    'validate_params': '.validation',
+    'validate_parameter': '.validation',
+    'format_error': '.validation',
+    'is_error_response': '.validation',
+    'format_date': '.dates',
+    'parse_date': '.dates',
+    'truncate_text': '.dates',
+    'get_config': '.config',
+    'reset_config': '.config',
+    'validate_config': '.config',
+}
+
+__all__ = list(_EXPORTS)
+
+
+def __getattr__(name: str) -> Any:
+    module = _EXPORTS.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    # The module is selected exclusively from the constant _EXPORTS whitelist;
+    # no user-controlled import path reaches this call.
+    value = getattr(import_module(module, __name__), name)  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
+    globals()[name] = value
+    return value
