@@ -312,7 +312,7 @@ mod tests {
         });
         let course = course_from_json(&raw).unwrap();
         assert_eq!(course.counts.exams, 1);
-        let (start, end) = window_for(RangeKind::Month1, "2026-09-20T00:00:00Z", &[course.clone()]);
+        let (start, end) = window_for(RangeKind::Month1, "2026-09-20T00:00:00Z", std::slice::from_ref(&course));
         assert!(in_window("2026-09-25T00:00:00Z", &start, &end));
         assert!(!in_window("2026-12-10T00:00:00Z", &start, &end));
     }
