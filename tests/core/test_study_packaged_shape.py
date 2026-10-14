@@ -32,7 +32,7 @@ def _run(root: Path, cmd: str, params: dict | None = None) -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("cmd", ["connectors-status", "status", "templates", "canvas-sources"])
+@pytest.mark.parametrize("cmd", ["connectors-status", "status", "templates", "canvas-sources", "library-list", "library-ingest"])
 def test_packaged_shape_answers_settings_and_study_commands(tmp_path: Path, cmd: str) -> None:
     reply = _run(tmp_path, cmd)
     assert reply.get("ok") is True, reply

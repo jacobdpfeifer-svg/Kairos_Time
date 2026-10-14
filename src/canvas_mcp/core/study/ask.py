@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import canvas, checkers
+from . import canvas, checkers, library
 from .model import StudyError, iso, require_choice, require_id
 from .packets import find_item
 from .store import study_dir
@@ -50,8 +50,18 @@ _POWER_RE = re.compile(
     r"(?:d\s*/\s*dx|derivative\s+of|differentiate)\s+\(?\s*([+-]?\d*\s*)?x\s*(?:\^|\*\*)\s*(\d+)\s*\)?",
     re.IGNORECASE,
 )
+_ASSESS = r"(?:quiz|exam|test|midterm|final)"
 _LIVE_WORDS_RE = re.compile(
-    r"\b(proctored|honorlock|lockdown browser|respondus|during the exam|on the quiz right now)\b",
+    r"\b(?:proctored|honorlock|lockdown browser|respondus|during the exam|on the quiz right now)\b"
+    # "taking the quiz right now", "in my exam rn"
+    rf"|\b(?:taking|doing|in|on|during)\s+(?:the|my|a|an|this)\s+{_ASSESS}\b[^.?!]{{0,40}}\b(?:right now|rn|now)\b"
+    # "the midterm is live", "my exam is open in another tab" (not "open book" / "open-note")
+    rf"|\b{_ASSESS}\s+is\s+(?:live|open(?![- ]?(?:book|note)))\b"
+    # "mid-quiz", "mid exam"
+    rf"|\bmid[- ]?{_ASSESS}\b"
+    # "10 minutes left", "time left on the quiz"
+    rf"|\b{_ASSESS}\b[^.?!]{{0,60}}\b\d+\s*(?:min|mins|minutes|sec|seconds)\s+left\b"
+    rf"|\btime left (?:on|in) (?:the|my|this) {_ASSESS}\b",
     re.IGNORECASE,
 )
 _EXTERNAL_RE = re.compile(r"\b(webassign|zybooks|playposit|external tool|lti)\b", re.IGNORECASE)
@@ -343,6 +353,28 @@ def _item(
     }
 
 
+def _library_items(service: Any, text: str, course_id: str | None) -> list[dict[str, Any]]:
+    """Passages from files the student added (inbox/library), best match first."""
+    try:
+        hits = library.search(service.user_root, text, course_id=course_id, limit=2)
+    except (OSError, ValueError):
+        return []
+    return [
+        _item(
+            source_kind="student_file",
+            locator=f"Your file: {hit['entry']['name']}",
+            local_reference=f"inbox/library/text/{hit['entry']['id']}.txt",
+            at=str(hit["entry"].get("added_at") or ""),
+            freshness="current",
+            confidence="high" if course_id and hit["entry"].get("course_id") == course_id else "medium",
+            reason="A file you added to Kairos that matches this question",
+            truth_kind="student_file",
+            text=hit["text"],
+        )
+        for hit in hits
+    ]
+
+
 def select_context(service: Any, record: dict[str, Any]) -> dict[str, Any]:
     text = str(record.get("content") or "")
     overrides = record.get("overrides") or {}
@@ -403,6 +435,7 @@ def select_context(service: Any, record: dict[str, Any]) -> dict[str, Any]:
                     text=str(assignment.get("text") or ""),
                 )
             )
+        items.extend(_library_items(service, text, str(course.get("id") or "") or None))
         for source in sources:
             if assignment is not None and source.get("id") == assignment.get("id"):
                 continue
@@ -445,6 +478,8 @@ def select_context(service: Any, record: dict[str, Any]) -> dict[str, Any]:
         for token in (str(course.get("id") or ""), str((assignment or {}).get("canvas_id") or "")):
             if token:
                 banned.append(token)
+    else:
+        items.extend(_library_items(service, text, None))
     if record.get("student_attempt"):
         items.append(
             _item(
@@ -476,6 +511,7 @@ def select_context(service: Any, record: dict[str, Any]) -> dict[str, Any]:
                 )
             )
     canvas_items = [i for i in items if i["truth_kind"] == "canvas"]
+    file_items = [i for i in items if i["truth_kind"] == "student_file"]
     if canvas_items:
         items.append(
             _item(
@@ -490,7 +526,8 @@ def select_context(service: Any, record: dict[str, Any]) -> dict[str, Any]:
                 text=canvas_items[0]["text"][:400],
             )
         )
-    else:
+    elif not file_items:
+        # The student's own file counts as course evidence; general knowledge is the last resort.
         items.append(
             _item(
                 source_kind="general",
@@ -670,7 +707,9 @@ def build_plan(record: dict[str, Any], classification: dict[str, Any], context: 
     boundary = classification["boundary"]
     job = classification["job"]
     blocked = None
-    if boundary == "live_assessment" and goal in {"answer_now", "make_handle"}:
+    # Every mode: a live item's text never reaches the relay (AI-eval F4). Walkthrough
+    # and mastery still get the local parallel-problem guidance from compose_response.
+    if boundary == "live_assessment":
         blocked = "live_assessment"
     elif boundary == "external_tool" and goal == "answer_now":
         blocked = "external_tool"
@@ -844,9 +883,12 @@ def relay_payload(record: dict[str, Any], context: dict[str, Any], plan: dict[st
         return None
     banned = list(context.get("banned") or [])
     passages = []
-    for item in (context.get("items") or [])[:6]:
-        if item.get("truth_kind") == "general":
+    for item in context.get("items") or []:
+        # "adjacent" repeats a passage already sent; "general" carries no source.
+        if item.get("truth_kind") == "general" or item.get("source_kind") == "adjacent":
             continue
+        if len(passages) >= 6:
+            break
         passages.append({"locator": scrub(str(item.get("locator") or "source"), banned)[:200], "text": scrub(str(item.get("text") or ""), banned)[:6000]})
     return {
         "request_id": f"ask:{record['input_id']}:{plan['response_mode']}",
@@ -862,24 +904,27 @@ def relay_payload(record: dict[str, Any], context: dict[str, Any], plan: dict[st
 
 
 def _maybe_relay(service: Any, record: dict[str, Any], context: dict[str, Any], plan: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
+    # `relay` tells the UI why the answer is local-only: not_needed, not_connected, unavailable or used.
     payload = relay_payload(record, context, plan)
     if payload is None:
-        return response
+        return {**response, "relay": "not_needed"}
     from . import ai
 
     if ai.load_relay(service.user_root) is None:
-        return response
+        return {**response, "relay": "not_connected"}
     try:
         result = ai.dispatch(service.user_root, payload)
     except StudyError:
-        return response
+        return {**response, "relay": "unavailable"}
     proposal = result.get("assessment_proposal") if isinstance(result, dict) else None
     if isinstance(proposal, dict) and proposal.get("feedback"):
         response = dict(response)
         response["explanation"] = str(proposal.get("feedback"))[:2000]
         response["prose"] = "relay"
+        response["relay"] = "used"
         response["check_status"] = response["check_status"] if response["check_status"] == "checked" else "abstained"
-    return response
+        return response
+    return {**response, "relay": "unavailable"}
 
 
 def _recompute(service: Any, record: dict[str, Any]) -> dict[str, Any]:

@@ -104,8 +104,13 @@ def _normalize_section_key(label: str) -> str:
     return "unmet"
 
 
+# Template hints like "(optional number — e.g. `Remaining credits: 42`)" are
+# examples, not the student's total.
+_EXAMPLE_HINT_RE = re.compile(r"\([^()]*\be\.g\.[^()]*\)", re.IGNORECASE)
+
+
 def extract_remaining_credits(text: str) -> float | None:
-    match = _CREDITS_RE.search(text or "")
+    match = _CREDITS_RE.search(_EXAMPLE_HINT_RE.sub("", text or ""))
     if not match:
         return None
     try:

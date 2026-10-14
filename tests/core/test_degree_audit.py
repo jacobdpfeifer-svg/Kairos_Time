@@ -70,6 +70,15 @@ def test_extract_remaining_credits():
     assert extract_remaining_credits("no numbers here") is None
 
 
+def test_template_example_is_not_a_remaining_total():
+    template = Path(__file__).resolve().parents[2] / "templates" / "inbox" / "degree-audit.md"
+    audit = load_degree_audit(template, today=date(2026, 10, 13))
+    assert audit is not None
+    assert audit.imported_on is None
+    assert audit.remaining_credits is None
+    assert extract_remaining_credits("Remaining credits needed: 96 (e.g. `Remaining credits: 42`)") == 96.0
+
+
 def test_split_sections_appends_repeated_headings():
     text = (
         "## Unmet\n\nBlock A: 3 credits needed\n\n"

@@ -138,6 +138,44 @@ def run_command(service: StudyService, cmd: str, params: dict[str, Any]) -> dict
         if template is None:
             raise StudyError("not_found", f"no bundled packet {params.get('packet_id')!r}")
         return service.import_path(template["path"])
+    if cmd.startswith("library-"):
+        return _library_command(service, cmd, params)
+    if cmd == "audit-import":
+        from .audit_copy import write_audit
+
+        return {"ok": True, **write_audit(service.user_root, params, today=service.now.date())}
+    if cmd == "profile-fields":
+        from .audit_copy import update_profile_fields
+
+        return {"ok": True, **update_profile_fields(service.user_root, params)}
+    raise StudyError("validation", f"unknown command {cmd!r}")
+
+
+def _library_command(service: StudyService, cmd: str, params: dict[str, Any]) -> dict[str, Any]:
+    from . import library
+
+    root = service.user_root
+    if cmd == "library-list":
+        return {"ok": True, "library": library.list_view(root)}
+    if cmd == "library-ingest":
+        return library.ingest_incoming(root, service.now)
+    if cmd == "library-add":
+        # Small files from the dev bridge; the desktop app stages bytes in incoming/.
+        import base64
+        import binascii
+
+        try:
+            data = base64.b64decode(str(params.get("data_base64") or ""), validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise StudyError("validation", "data_base64 is not valid base64") from exc
+        result = library.add_bytes(root, str(params.get("name") or "file"), data, service.now)
+        return {"ok": True, **result, "library": library.list_view(root)}
+    if cmd == "library-update":
+        return library.update_entry(root, str(params.get("id") or ""), params)
+    if cmd == "library-remove":
+        return library.remove_entry(root, str(params.get("id") or ""))
+    if cmd == "library-resort":
+        return library.resort(root)
     raise StudyError("validation", f"unknown command {cmd!r}")
 
 
