@@ -27,20 +27,3 @@ export function rankOpenWork<T extends Rankable>(items: T[]): { recommendation: 
   });
   return { recommendation: pool[0] ?? null, alternatives: pool.slice(1, 3) };
 }
-
-export function dueWithZone(iso: string, now = new Date()): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const formatted = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-    timeZone: zone,
-  }).format(date);
-  const days = Math.round((date.getTime() - now.getTime()) / 86_400_000);
-  const relative = days < 0 ? `${-days}d overdue` : days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
-  return `${relative} · ${formatted} (${zone})`;
-}

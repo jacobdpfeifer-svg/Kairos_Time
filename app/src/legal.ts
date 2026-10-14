@@ -3,9 +3,7 @@
 import termsMd from "./legalDocs/terms.md?raw";
 import privacyMd from "./legalDocs/privacy.md?raw";
 
-export const TERMS_MD = termsMd;
-export const PRIVACY_MD = privacyMd;
-export const FULL_LEGAL = `${termsMd.trim()}\n\n---\n\n${privacyMd.trim()}\n`;
+const FULL_LEGAL = `${termsMd.trim()}\n\n---\n\n${privacyMd.trim()}\n`;
 
 function preamble(schoolName?: string): string {
   const where = schoolName?.trim() ? ` at ${schoolName.trim()}` : "";
@@ -16,8 +14,3 @@ function preamble(schoolName?: string): string {
 export function schoolLegalText(schoolName?: string): string {
   return `${preamble(schoolName)}${FULL_LEGAL}`;
 }
-
-export const GENERIC_LEGAL = schoolLegalText();
-
-/** @deprecated kept for Settings' preferences sheet; every school now gets the same text. */
-export const LEGAL_BY_SCHOOL: Record<string, string> = {};

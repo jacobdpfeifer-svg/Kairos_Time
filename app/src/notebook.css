@@ -3,8 +3,7 @@
    this layer owns how things look. Tokens come from styles.css :root. */
 
 /* ---------- scenes and glass: one page, no material switching ---------- */
-.scene-paper,
-.scene-ink {
+.scene-paper {
   --bg: var(--nb-desk);
   --fg: var(--nb-ink);
   --muted: var(--nb-pencil);
@@ -36,8 +35,7 @@
   font-weight: 800;
   letter-spacing: -0.02em;
 }
-.workspace-main h1,
-.workspace .plan-heading {
+.workspace-main h1 {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 34px;
@@ -115,8 +113,7 @@ a:hover {
 
 /* ---------- buttons ---------- */
 .workspace button,
-.first-run button,
-.palette-actions button {
+.first-run button {
   font-family: var(--font-ui);
   font-weight: 600;
   border: 1px solid var(--hairline);
@@ -143,8 +140,7 @@ a:hover {
 
 /* Primary: ink with a hard highlighter shadow that snaps flat on press. */
 .workspace button.primary,
-.first-run button.primary,
-.btn-primary {
+.first-run button.primary {
   background: var(--fg);
   color: var(--sheet);
   border-color: var(--fg);
@@ -152,8 +148,7 @@ a:hover {
   box-shadow: 3px 3px 0 var(--hl);
 }
 .workspace button.primary:hover:not(:disabled),
-.first-run button.primary:hover:not(:disabled),
-.btn-primary:hover:not(:disabled) {
+.first-run button.primary:hover:not(:disabled) {
   background: var(--fg);
   color: var(--sheet);
   border-color: var(--fg);
@@ -161,8 +156,7 @@ a:hover {
   box-shadow: 4px 4px 0 var(--hl);
 }
 .workspace button.primary:active:not(:disabled),
-.first-run button.primary:active:not(:disabled),
-.btn-primary:active:not(:disabled) {
+.first-run button.primary:active:not(:disabled) {
   background: var(--fg);
   transform: translate(3px, 3px);
   box-shadow: 0 0 0 var(--hl);
@@ -174,7 +168,6 @@ a:hover {
 
 .workspace button.ghost,
 .first-run button.ghost,
-.btn-ghost,
 .workspace button.link,
 .first-run button.link {
   background: transparent;
@@ -1702,12 +1695,6 @@ ul.rows > li:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.cmd-preview {
-  display: block;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
 }
 .cmd-empty {
   margin: 0;

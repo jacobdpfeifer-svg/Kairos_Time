@@ -125,12 +125,6 @@ export function attachAnalyserLevel(analyser: AnalyserNode): () => void {
   };
 }
 
-/** For engines that report raw RMS themselves (native audio, a TTS SDK callback). */
-export function createRmsFeeder(): (rms: number, dtSeconds: number) => void {
-  const meter = createLevelMeter();
-  return (rms, dt) => voicePresence.setLevel(meter.push(rms, dt));
-}
-
 /** Fill in each item's colour from the student's Canvas course colours. */
 export function withCourseColors(items: VoiceItem[], colors: Record<string, string>): VoiceItem[] {
   return items.map((it) => (it.color || !it.courseId || !colors[it.courseId] ? it : { ...it, color: colors[it.courseId] }));

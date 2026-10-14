@@ -1,6 +1,5 @@
 import type { SemesterTick } from "./ipc";
 
-export const TICK_HIT = 12;
 const HEIGHT_FLOOR = 14;
 const HEIGHT_CAP = 40;
 

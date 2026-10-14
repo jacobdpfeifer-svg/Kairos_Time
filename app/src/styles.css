@@ -246,14 +246,11 @@ button.ghost.stop {
   pointer-events: none;
 }
 
-.top3,
-.narrate,
 .onboarding {
   padding: 0;
   margin: 0;
 }
 
-.commitment-form input,
 .palette input,
 .onboarding input,
 .onboarding textarea,
@@ -279,7 +276,6 @@ button.ghost.stop {
   padding-right: 1.75rem;
 }
 
-.commitment-form input:focus,
 .palette input:focus,
 .onboarding input:focus,
 .onboarding textarea:focus,
@@ -294,9 +290,7 @@ button.ghost.stop {
 }
 
 .retention h2,
-.narrate h2,
-.sheet h2,
-.palette-label {
+.sheet h2 {
   font-family: var(--font-display);
   font-size: 0.95rem;
   font-weight: 600;
@@ -345,9 +339,6 @@ button.ghost.stop {
 }
 
 .review-progress,
-.review-course,
-.review-hint,
-.review-why,
 .review-result {
   margin: 0;
   color: var(--muted);
@@ -411,7 +402,6 @@ button.ghost.stop {
   font-family: var(--font-mono);
 }
 
-.palette-backdrop,
 .sheet-backdrop {
   position: absolute;
   inset: 0;
@@ -539,15 +529,12 @@ button.skip {
 
 @media (prefers-reduced-transparency: reduce) {
   .dock,
-  .dock-expanded,
   .onboarding {
     background: var(--surface-solid);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
 
-  .top3,
-  .narrate,
   .palette,
   .sheet {
     background: var(--surface-solid);

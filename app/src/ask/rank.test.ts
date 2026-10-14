@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueWithZone, rankOpenWork } from "./rank";
+import { rankOpenWork } from "./rank";
 
 describe("rankOpenWork", () => {
   it("drops completed rows and keeps one recommendation plus two alternatives", () => {
@@ -12,14 +12,5 @@ describe("rankOpenWork", () => {
     ]);
     expect(ranked.recommendation?.title).toBe("Homework 1");
     expect(ranked.alternatives.map((item) => item.title)).toEqual(["Midterm", "Final"]);
-  });
-});
-
-describe("dueWithZone", () => {
-  it("includes the IANA zone label", () => {
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const label = dueWithZone("2026-09-22T16:00:00Z", new Date("2026-09-20T00:00:00Z"));
-    expect(label).toContain(`(${zone})`);
-    expect(label).toMatch(/AM|PM|UTC|GMT|[A-Z]{2,5}/);
   });
 });

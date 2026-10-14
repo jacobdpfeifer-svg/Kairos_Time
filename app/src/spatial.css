@@ -1,10 +1,7 @@
 
 
-:root[data-theme="contrast"] .glass,
 :root[data-theme="contrast"] .workspace-nav,
-:root[data-theme="contrast"] .palette,
-:root[data-theme="contrast"] .now-playing,
-:root[data-theme="contrast"] .thinking-capsule {
+:root[data-theme="contrast"] .palette {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: none;
@@ -34,8 +31,7 @@
 }
 
 .workspace button,
-.first-run button,
-.palette-actions button {
+.first-run button {
   min-height: 44px;
   padding: 12px 18px;
   border-radius: var(--radius-control);
@@ -54,8 +50,7 @@
 }
 
 .workspace button.primary,
-.first-run button.primary,
-.btn-primary {
+.first-run button.primary {
   background: var(--accent);
   color: var(--on-accent);
   border-color: transparent;
@@ -63,8 +58,7 @@
 }
 
 .workspace button.primary:hover:not(:disabled),
-.first-run button.primary:hover:not(:disabled),
-.btn-primary:hover:not(:disabled) {
+.first-run button.primary:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 94%, white);
   color: var(--on-accent);
 }
@@ -75,8 +69,7 @@
   transform: translateY(1px);
 }
 
-.workspace button.ghost,
-.btn-ghost {
+.workspace button.ghost {
   background: transparent;
   border-color: transparent;
   min-height: 0;
@@ -84,15 +77,13 @@
   font-size: 15px;
 }
 
-.workspace button.ghost.stop,
-.btn-destructive-ghost {
+.workspace button.ghost.stop {
   color: var(--danger);
   letter-spacing: 0;
   font-weight: 600;
   font-size: 15px;
 }
 
-.workspace button.icon-btn,
 .btn-icon {
   width: 44px;
   height: 44px;
@@ -244,7 +235,6 @@
   box-shadow: inset 0 0.5px 0 var(--hairline);
 }
 
-.grouped-row,
 .grouped li {
   min-height: 44px;
   display: flex;
@@ -288,8 +278,7 @@
   -webkit-app-region: no-drag;
 }
 
-.instrument-mark,
-.squircle-mark {
+.instrument-mark {
   width: 18px;
   height: 18px;
   border-radius: var(--radius-row);
@@ -578,14 +567,6 @@
   to { opacity: 1; transform: none; }
 }
 
-.field-mic-seam {
-  width: 44px;
-  height: 44px;
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-}
-
 @keyframes skeleton-pulse {
   0%,
   100% {
@@ -631,8 +612,7 @@
     border-radius: 0;
     background: var(--surface-0);
   }
-  .workspace-nav .instrument-mark,
-  .workspace-nav .squircle-mark {
+  .workspace-nav .instrument-mark {
     display: none;
   }
   .workspace-nav ul {
@@ -686,8 +666,6 @@
 }
 
 .settings h1,
-.home h1,
-.calendar-tab h1,
 .exam-prep h1.display {
   font-size: clamp(40px, 6vw, 84px);
 }
@@ -724,7 +702,6 @@
   fill: var(--accent);
   opacity: 0.9;
 }
-.connect-mark.reduced .cursor,
 .connect-mark.reduced .card {
   animation: none;
 }
@@ -741,23 +718,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .connect-mark .cursor,
   .connect-mark .card { animation: none !important; }
-}
-
-.sync-cards { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.sync-card {
-  display: grid;
-  grid-template-columns: 12px 1fr;
-  gap: 4px 12px;
-  padding: 12px 0;
-  border-top: var(--hairline-width) solid var(--divider);
-}
-.sync-swatch {
-  grid-row: 1 / span 2;
-  width: 12px;
-  border-radius: 6px;
-  background: var(--course);
 }
 
 .sheet-backdrop {
@@ -1328,7 +1289,6 @@ button.home-statement:hover:not(:disabled) {
 }
 
 @media (max-width: 899px) {
-  .calendar-stage,
   .settings-stage {
     display: flex;
     flex-direction: column;
@@ -1355,7 +1315,7 @@ button.home-statement:hover:not(:disabled) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tick, .bubble, .item-popup, .tape-head, .home-statement, .next-rail button { transition: none; }
+  .tick, .bubble, .item-popup, .tape-head, .home-statement { transition: none; }
 }
 :root[data-motion="reduced"] .tape-head {
   transition: none;
