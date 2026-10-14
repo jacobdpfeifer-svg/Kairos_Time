@@ -49,6 +49,13 @@ async function call<T>(cmd: string, params: Record<string, unknown> = {}): Promi
   return envelope as unknown as T;
 }
 
+/** Student-entered planning facts for Advisor (study/audit_copy.py). Never a portal login. */
+export const advisorWrites = {
+  auditImport: (p: { taken_on?: string; catalog_year?: string; complete?: string; in_progress?: string; still_needed?: string; remaining_credits?: string }) =>
+    call<{ saved: string; imported_on: string; counts: { complete: number; in_progress: number; still_needed: number } }>("audit-import", p),
+  profileFields: (p: { program?: string; catalog_year?: string; target_term?: string }) => call<{ saved: Record<string, string> }>("profile-fields", p),
+};
+
 export const study = {
   status: () => call<Status>("status"),
   packets: () => call<{ packets: PacketSummary[] }>("packets"),
@@ -145,6 +152,88 @@ export const connectors = {
   gcalConfirm: (summary: string, start: string, end: string, why: string, token: string) =>
     call<{ created: { id: string; summary: string }; mode: string }>("gcal-confirm-event", { summary, start, end, why, confirmation_token: token }),
   context: (terms: string[], days = 7) => call<{ events: { id: string; summary: string; start: string | null }[]; emails: { id: string; subject: string; from: string; received: string | null; web_link: string | null }[] }>("context", { terms, days }),
+};
+
+export type LibraryEntry = {
+  id: string;
+  name: string;
+  ext: string;
+  kind: "pdf" | "image" | "document" | "slides" | "spreadsheet" | "text" | "other";
+  bytes: number;
+  added_at: string;
+  course_id: string | null;
+  course_label: string | null;
+  course_source: "matched" | "student" | "none";
+  category: string;
+  category_source: "matched" | "student";
+  text_status: "full" | "partial" | "none";
+  chars: number;
+  summary: string;
+};
+export type Library = { entries: LibraryEntry[]; courses: { id: string; label: string }[]; categories: string[]; total_bytes: number };
+export type LibraryIngest = { added: LibraryEntry[]; duplicates: LibraryEntry[]; errors: { name: string; message: string }[]; library: Library };
+
+/** Matches MAX_FILE_BYTES in study/library.py and MAX_UPLOAD_BYTES in library.rs. */
+export const LIBRARY_MAX_BYTES = 50 * 1024 * 1024;
+
+async function readBytes(file: Blob): Promise<Uint8Array> {
+  if (typeof file.arrayBuffer === "function") return await readBytes(file);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(reader.error ?? new Error("could not read the file"));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+export const library = {
+  list: () => call<{ library: Library }>("library-list"),
+  update: (id: string, change: { course_id?: string | null; category?: string }) => call<{ entry: LibraryEntry }>("library-update", { id, ...change }),
+  remove: (id: string) => call<{ removed: string }>("library-remove", { id }),
+  /**
+   * Desktop: each file's bytes go to `library_stage_file` (raw IPC body, not the
+   * 256 KB JSON bridge), then one `library-ingest` sorts and indexes the batch.
+   * Dev bridge: small files go inline as base64.
+   */
+  async add(files: File[]): Promise<LibraryIngest> {
+    const errors: LibraryIngest["errors"] = [];
+    if (isTauri()) {
+      for (const file of files) {
+        if (file.size > LIBRARY_MAX_BYTES) {
+          errors.push({ name: file.name, message: "is larger than 50 MB" });
+          continue;
+        }
+        try {
+          const bytes = await readBytes(file);
+          await invoke("library_stage_file", bytes, { headers: { "x-file-name": encodeURIComponent(file.name) } });
+        } catch (e) {
+          errors.push({ name: file.name, message: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      const result = await call<LibraryIngest>("library-ingest");
+      return { ...result, errors: [...errors, ...result.errors] };
+    }
+    const added: LibraryEntry[] = [];
+    const duplicates: LibraryEntry[] = [];
+    let latest: Library | null = null;
+    for (const file of files) {
+      try {
+        const data_base64 = toBase64(await readBytes(file));
+        const res = await call<{ status: "added" | "duplicate"; entry: LibraryEntry; library: Library }>("library-add", { name: file.name, data_base64 });
+        (res.status === "added" ? added : duplicates).push(res.entry);
+        latest = res.library;
+      } catch (e) {
+        errors.push({ name: file.name, message: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return { added, duplicates, errors, library: latest ?? (await call<{ library: Library }>("library-list")).library };
+  },
 };
 
 export async function syncStudySources(): Promise<{ ok: boolean; error?: string | null }> {

@@ -352,6 +352,11 @@ impl Runtime {
     /// in a packaged run. `--user-root` is always passed: the core never has to
     /// resolve identity itself on this path.
     pub fn study_command(&self, args: &[&str]) -> Command {
+        self.core_module_command("study", args)
+    }
+
+    /// A stdlib-only core module run the same way as the study core (`week_plan`).
+    pub fn core_module_command(&self, module: &str, args: &[&str]) -> Command {
         let mut cmd = Command::new(if self.python.as_os_str().is_empty() {
             Path::new("/nonexistent/kairos-python-missing")
         } else {
@@ -360,7 +365,7 @@ impl Runtime {
         let root = self.user_root.display().to_string();
         cmd.arg("-s")
             .arg("-m")
-            .arg("study")
+            .arg(module)
             .arg("--user-root")
             .arg(root)
             .args(args)

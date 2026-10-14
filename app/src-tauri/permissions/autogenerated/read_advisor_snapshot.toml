@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-advisor-snapshot"
+description = "Enables the read_advisor_snapshot command without any pre-configured scope."
+commands.allow = ["read_advisor_snapshot"]
+
+[[permission]]
+identifier = "deny-read-advisor-snapshot"
+description = "Denies the read_advisor_snapshot command without any pre-configured scope."
+commands.deny = ["read_advisor_snapshot"]

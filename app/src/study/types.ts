@@ -219,6 +219,8 @@ export type AskResponse = {
   next_action: AskAction;
   modes: string[];
   prose: string;
+  /** Why the answer is local-only, when it is. Older stored asks have no value. */
+  relay?: "not_needed" | "not_connected" | "unavailable" | "used";
   response_mode: string;
 };
 

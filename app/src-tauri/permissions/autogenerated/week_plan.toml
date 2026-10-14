@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-week-plan"
+description = "Enables the week_plan command without any pre-configured scope."
+commands.allow = ["week_plan"]
+
+[[permission]]
+identifier = "deny-week-plan"
+description = "Denies the week_plan command without any pre-configured scope."
+commands.deny = ["week_plan"]

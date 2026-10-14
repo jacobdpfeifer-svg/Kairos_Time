@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-stage-file"
+description = "Enables the library_stage_file command without any pre-configured scope."
+commands.allow = ["library_stage_file"]
+
+[[permission]]
+identifier = "deny-library-stage-file"
+description = "Denies the library_stage_file command without any pre-configured scope."
+commands.deny = ["library_stage_file"]

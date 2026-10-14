@@ -12,6 +12,7 @@
     "windows": [
       {
         "label": "main",
+        "dragDropEnabled": false,
         "title": "Kairos",
         "width": 1080,
         "height": 740,
@@ -55,12 +56,21 @@
       "../../plugins": "core/plugins",
       "runtime/browser-node_modules": "core/browser/node_modules",
       "runtime/python": "runtime/python",
-      "runtime/node": "runtime/node"
+      "runtime/node": "runtime/node",
+      "../native-messaging/host.py": "core/native-messaging/host.py"
     },
     "macOS": {
       "minimumSystemVersion": "12.0",
       "signingIdentity": "Developer ID Application: Jacob Pfeifer (BHFNTM69P2)"
     }
   },
-  "plugins": {}
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "kairos"
+        ]
+      }
+    }
+  }
 }

@@ -4,17 +4,17 @@ import type { AskEnvelope, AskResponse } from "../study/types";
 
 const MODES = [
   ["answer_now", "Answer now"],
-  ["walkthrough", "Walkthrough"],
-  ["mastery", "Mastery"],
-  ["make_handle", "Make / handle"],
+  ["walkthrough", "Walk me through it"],
+  ["mastery", "Help me learn it"],
+  ["make_handle", "Draft or checklist"],
 ] as const;
 
 const BOUNDARIES = [
-  ["open_practice", "Open practice"],
-  ["open_homework", "Open homework"],
-  ["live_assessment", "Live assessment"],
-  ["administration", "Administration"],
-  ["external_tool", "External tool"],
+  ["open_practice", "Practice"],
+  ["open_homework", "Homework"],
+  ["live_assessment", "A quiz or exam I'm taking"],
+  ["administration", "A form or admin task"],
+  ["external_tool", "Work in an outside tool"],
 ] as const;
 
 export function AskPanel({
@@ -23,14 +23,26 @@ export function AskPanel({
   seed,
   label = "Ask",
   initial = null,
+  onConnectAi,
+  startOpen = false,
+  onCancel,
+  onNextStep,
 }: {
   onResult?: (result: AskEnvelope | null) => void;
   onActive?: (active: boolean) => void;
   seed?: { content: string; courseHint?: string; assignmentHint?: string };
   label?: string;
   initial?: AskEnvelope | null;
+  /** Opens Settings → AI help; shown when an answer stayed local because AI help isn't connected. */
+  onConnectAi?: () => void;
+  /** Start on the question form (the Ask sheet). */
+  startOpen?: boolean;
+  /** Leave Ask without asking; shown as Cancel next to the submit button. */
+  onCancel?: () => void;
+  /** Turn the answer's next step into a row the student keeps. */
+  onNextStep?: (title: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [content, setContent] = useState(seed?.content ?? "");
   const [result, setResult] = useState<AskEnvelope | null>(initial);
   const [error, setError] = useState("");
@@ -108,18 +120,47 @@ export function AskPanel({
           }}
         >
           <label>
-            <span className="index-label">Question</span>
-            <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={4} required />
+            <span className="index-label">What do you need help with?</span>
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+              rows={4}
+              required
+              data-autofocus
+            />
           </label>
-          <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Working" : "Get a next step"}
-          </button>
+          <div className="row ask-actions">
+            <button type="submit" className="primary" disabled={busy}>
+              {busy ? "Working" : "Get a next step"}
+            </button>
+            {(onCancel || !startOpen) && (
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  setOpen(false);
+                  onCancel?.();
+                }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </form>
       )}
       {response && result?.input_id && (
         <article className="ask-result" aria-live="polite">
-          <p className="index-label">{response.question_type}</p>
-          <p className="mono ask-chip">{response.context_chip}</p>
+          <h2>{response.one_sentence}</h2>
+          <p>{response.explanation}</p>
+          <p className="muted ask-chip">{response.context_chip}</p>
+          <details className="ask-correct">
+            <summary>Not the right class or assignment?</summary>
           <div className="ask-chip-fields">
             <label>
               Course
@@ -130,7 +171,7 @@ export function AskPanel({
               <input value={assignment} onChange={(event) => setAssignment(event.target.value)} />
             </label>
             <label>
-              Boundary
+              What kind of work it is
               <select value={boundary} onChange={(event) => setBoundary(event.target.value)}>
                 {BOUNDARIES.map(([id, name]) => (
                   <option key={id} value={id}>
@@ -144,9 +185,10 @@ export function AskPanel({
               <input value={due} onChange={(event) => setDue(event.target.value)} />
             </label>
             <button type="button" onClick={saveChip} disabled={busy}>
-              Update chip
+              Use these
             </button>
           </div>
+          </details>
           {result.context?.conflicts?.length ? (
             <ul className="ask-conflicts">
               {result.context.conflicts.map((conflict) => (
@@ -156,16 +198,34 @@ export function AskPanel({
               ))}
             </ul>
           ) : null}
-          <h2>{response.one_sentence}</h2>
-          <p>{response.explanation}</p>
           <p className="muted">
             {response.check_status === "checked" ? "Checked." : response.check_status === "blocked" ? "Blocked." : "Not independently checked."}{" "}
             {response.assumptions}
           </p>
           {response.prose === "not_generated" && <p className="muted">Prose was not generated.</p>}
-          <p>
-            <strong>Next:</strong> {response.next_action.title}
-          </p>
+          {response.relay === "not_connected" && (
+            <p className="muted ask-relay-note">
+              This answer comes from your Canvas material and files only. AI help isn't connected.{" "}
+              {onConnectAi && (
+                <button type="button" className="link" onClick={onConnectAi}>
+                  Connect AI help
+                </button>
+              )}
+            </p>
+          )}
+          {response.relay === "unavailable" && (
+            <p className="muted ask-relay-note">AI help didn't answer this time, so this comes from your Canvas material and files only.</p>
+          )}
+          <div className="ask-next">
+            <p>
+              <strong>Next step:</strong> {response.next_action.title}
+            </p>
+            {onNextStep && response.next_action.title && (
+              <button type="button" onClick={() => onNextStep(response.next_action.title)}>
+                Add to today
+              </button>
+            )}
+          </div>
           <div className="row" role="group" aria-label="Answer mode">
             {MODES.map(([id, modeLabel]) => (
               <button
@@ -199,7 +259,11 @@ export function AskPanel({
           </button>
         </article>
       )}
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert" className="ask-error">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

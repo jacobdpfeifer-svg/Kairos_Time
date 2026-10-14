@@ -27,11 +27,15 @@ describe("ExamPrepView", () => {
       <ExamPrepView tick={tick} sources={[{ title: "Chain rule" }]} hasPractice onBack={() => undefined} onTest={onTest} />
     );
     expect(screen.getByRole("heading", { name: "Midterm 1" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Let’s test your knowledge" }));
+    await user.click(screen.getByRole("button", { name: "Practice for it" }));
     expect(onTest).toHaveBeenCalled();
+    const onAddMaterial = vi.fn();
     view.rerender(
-      <ExamPrepView tick={tick} sources={[{ title: "Chain rule" }]} hasPractice={false} onBack={() => undefined} onTest={onTest} />
+      <ExamPrepView tick={tick} sources={[{ title: "Chain rule" }]} hasPractice={false} onBack={() => undefined} onTest={onTest} onAddMaterial={onAddMaterial} />
     );
-    expect(screen.getByText("No practice items for this exam yet")).toBeInTheDocument();
+    expect(screen.getByText(/No practice questions for this course yet/)).toBeInTheDocument();
+    // The empty state leads somewhere: the course page, where material is added.
+    await user.click(screen.getByRole("button", { name: "Add material" }));
+    expect(onAddMaterial).toHaveBeenCalled();
   });
 });

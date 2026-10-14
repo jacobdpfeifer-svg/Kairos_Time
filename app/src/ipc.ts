@@ -1,18 +1,81 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { fixtureEnabled, fixtureHealth, fixtureSchools, fixtureSemester } from "./dev/fixtures";
-
-export type Top3Item = { id: string; title: string; due: string };
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
+import {
+  fixtureAdvisor,
+  fixtureCourseMap,
+  fixtureEnabled,
+  fixtureFreshness,
+  fixtureGradeTruth,
+  fixtureHealth,
+  fixtureSchools,
+  fixtureSemester,
+  fixtureSkipCosts,
+} from "./dev/fixtures";
+import type { SkipCosts } from "./consequence";
 
 export type SyncResult = { ok: boolean; error?: string | null };
 
-export type RouteResult = {
-  skill_id: string | null;
-  method: string;
-  ambiguous: boolean;
-  model_tier: string | null;
-  raw: string;
+/** Read-only advisor projection (`advisor.rs`). Requirement facts come only
+ * from the student's dated audit copy; `audit.present` is false for an
+ * untouched template. */
+export type AdvisorSnapshot = {
+  mode: "planning" | "stale_audit" | "tier2_dated_audit";
+  as_of: string;
+  program: string;
+  catalog_year: string;
+  target_grad_term: string;
+  official_url: string | null;
+  audit: {
+    present: boolean;
+    dated: boolean;
+    imported_on: string | null;
+    stale_days: number | null;
+    catalog_year: string | null;
+    stale: boolean;
+    label: string;
+    remaining_credits: number | null;
+    complete_count: number;
+    in_progress_count: number;
+    unmet_count: number;
+    in_progress_items: string[];
+    unmet_items: string[];
+  };
+  courses: string[];
+  sources: { canvas: string; audit: string; profile: string };
+  questions: string[];
 };
+
+export const EMPTY_ADVISOR: AdvisorSnapshot = {
+  mode: "planning",
+  as_of: "",
+  program: "",
+  catalog_year: "",
+  target_grad_term: "",
+  official_url: null,
+  audit: {
+    present: false,
+    dated: false,
+    imported_on: null,
+    stale_days: null,
+    catalog_year: null,
+    stale: false,
+    label: "No degree audit imported yet",
+    remaining_credits: null,
+    complete_count: 0,
+    in_progress_count: 0,
+    unmet_count: 0,
+    in_progress_items: [],
+    unmet_items: [],
+  },
+  courses: [],
+  sources: { canvas: "Canvas not synced yet", audit: "No audit copy", profile: "Not in your profile yet" },
+  questions: [],
+};
+
+export async function readAdvisorSnapshot(): Promise<AdvisorSnapshot> {
+  if (!isTauri()) return fixtureEnabled() ? fixtureAdvisor() : EMPTY_ADVISOR;
+  return invoke<AdvisorSnapshot>("read_advisor_snapshot");
+}
 
 export type DockMode = "onboarding" | "peek" | "expanded" | "workspace";
 
@@ -20,16 +83,6 @@ export type DockMode = "onboarding" | "peek" | "expanded" | "workspace";
 export async function setDockMode(mode: DockMode): Promise<void> {
   if (!isTauri()) return;
   await invoke("set_dock_mode", { mode });
-}
-
-export async function showDock(): Promise<void> {
-  if (!isTauri()) return;
-  await invoke("show_dock");
-}
-
-export async function hideDock(): Promise<void> {
-  if (!isTauri()) return;
-  await invoke("hide_dock");
 }
 
 /** True when running inside the Tauri webview (not plain Vite browser). */
@@ -53,11 +106,6 @@ export type CanvasExportResult = {
 export async function exportCanvas(includeGrades = false): Promise<CanvasExportResult> {
   if (!isTauri()) return { ok: false, export_dir: "", zip: "", courses: 0, grades_included: false };
   return invoke<CanvasExportResult>("export_canvas", { includeGrades });
-}
-
-export async function readTop3(): Promise<Top3Item[]> {
-  if (!isTauri()) return [];
-  return invoke<Top3Item[]>("read_top3");
 }
 
 export async function openCanvasSso(): Promise<void> {
@@ -127,19 +175,6 @@ export async function checkCanvasSession(): Promise<boolean> {
   return invoke<boolean>("check_canvas_session");
 }
 
-/**
- * Fire-and-forget: kick off the deep, full-term first sync as soon as
- * onboarding confirms a Canvas session. Runs in the background while the
- * student finishes the rest of the wizard — never awaited, never blocks
- * onboarding progress.
- */
-export function bootstrapCanvasSync(): void {
-  if (!isTauri()) return;
-  void invoke("bootstrap_canvas_sync").catch((e) => {
-    console.error("bootstrap sync failed to launch", e);
-  });
-}
-
 export async function saveOnboarding(
   schoolSlug: string,
   cloudKey: string,
@@ -169,49 +204,6 @@ export async function saveOnboarding(
     priorities: options?.priorities ?? null,
     sentryOptIn: options?.sentryOptIn ?? null,
     waitlistEmail: options?.waitlistEmail ?? null,
-  });
-}
-
-export type OnboardingIdentity = {
-  name: string;
-  institution: string;
-  schoolSlug: string;
-  major: string;
-  minor: string;
-  catalogYear: string;
-  targetGradTerm: string;
-  interests: string[];
-  goodStandingGpa: string;
-  scholarshipMinGpa: string;
-  careerPriorities: string[];
-  values: string[];
-  transferNotes: string;
-};
-
-/** Write the onboarding "Profile" step's answers into USER.md (see
- * canvas_mcp.core.user_profile). Web preview has no USER.md to write to, so
- * it stashes the answers in localStorage for the record only. */
-export async function saveUserProfile(
-  identity: OnboardingIdentity
-): Promise<void> {
-  if (!isTauri()) {
-    localStorage.setItem("pn_user_profile", JSON.stringify(identity));
-    return;
-  }
-  await invoke("save_user_profile", {
-    name: identity.name,
-    institution: identity.institution,
-    schoolSlug: identity.schoolSlug,
-    major: identity.major,
-    minor: identity.minor,
-    catalogYear: identity.catalogYear,
-    targetGradTerm: identity.targetGradTerm,
-    interests: identity.interests,
-    goodStandingGpa: identity.goodStandingGpa,
-    scholarshipMinGpa: identity.scholarshipMinGpa,
-    careerPriorities: identity.careerPriorities,
-    values: identity.values,
-    transferNotes: identity.transferNotes,
   });
 }
 
@@ -365,13 +357,6 @@ export async function saveLearningProfile(
   });
 }
 
-export type BriefStreak = {
-  streak: number;
-  last_brief_date: string | null;
-  briefed_today: boolean;
-  line: string;
-};
-
 export type ProgressClaim = { claim: string; stability: string };
 
 export type CourseProgress = {
@@ -382,43 +367,6 @@ export type CourseProgress = {
   total: number;
   claims: ProgressClaim[];
 };
-
-export type LearnProgress = {
-  courses: CourseProgress[];
-  totals: {
-    fragile: number;
-    holding: number;
-    durable: number;
-    total: number;
-  };
-};
-
-export async function readBriefStreak(): Promise<BriefStreak> {
-  if (!isTauri()) {
-    return { streak: 0, last_brief_date: null, briefed_today: false, line: "" };
-  }
-  const payload = await invoke<BriefStreak>("read_brief_streak");
-  return {
-    streak: payload?.streak ?? 0,
-    last_brief_date: payload?.last_brief_date ?? null,
-    briefed_today: Boolean(payload?.briefed_today),
-    line: payload?.line ?? "",
-  };
-}
-
-export async function readLearnProgress(): Promise<LearnProgress> {
-  if (!isTauri()) {
-    return {
-      courses: [],
-      totals: { fragile: 0, holding: 0, durable: 0, total: 0 },
-    };
-  }
-  const payload = await invoke<LearnProgress>("read_learn_progress");
-  return {
-    courses: Array.isArray(payload?.courses) ? payload.courses : [],
-    totals: payload?.totals ?? { fragile: 0, holding: 0, durable: 0, total: 0 },
-  };
-}
 
 const EMPTY_BUDGET: ReviewBudget = {
   now: 0,
@@ -482,75 +430,6 @@ export async function readDueReviews(): Promise<DueReviewsPayload> {
   };
 }
 
-export type EvalCounts = {
-  delayed_reviews_open: number;
-  delayed_hit_signal: number;
-  overdue_work: number;
-  deadline_surprises: number;
-};
-
-export type EvaluationCompare = {
-  ok: boolean;
-  before?: EvalCounts;
-  after?: EvalCounts;
-  deltas?: EvalCounts;
-  note?: string;
-  reason?: string;
-};
-
-const EMPTY_COMPARE: EvaluationCompare = { ok: false };
-
-export async function readEvaluationCompare(): Promise<EvaluationCompare> {
-  if (!isTauri()) return EMPTY_COMPARE;
-  try {
-    const payload = await invoke<EvaluationCompare>("read_evaluation_compare");
-    if (!payload || payload.ok !== true) return { ok: false, note: payload?.note };
-    return payload;
-  } catch {
-    return EMPTY_COMPARE;
-  }
-}
-
-export async function readCommitment(): Promise<CommitmentState> {
-  if (!isTauri()) return EMPTY_COMMITMENT;
-  try {
-    const payload = await invoke<CommitmentState>("read_commitment");
-    return {
-      commitment: payload?.commitment ?? null,
-      check_in: payload?.check_in ?? null,
-      line: payload?.line ?? "",
-    };
-  } catch {
-    return EMPTY_COMMITMENT;
-  }
-}
-
-export async function setCommitment(input: {
-  text: string;
-  deadline: string;
-  course?: string;
-  linkedItemId?: string;
-}): Promise<CommitmentState> {
-  if (!isTauri()) {
-    throw new Error("not in tauri");
-  }
-  return invoke<CommitmentState>("set_commitment", {
-    text: input.text,
-    deadline: input.deadline,
-    course: input.course ?? "",
-    linkedItemId: input.linkedItemId ?? "",
-  });
-}
-
-export async function resolveCommitment(
-  status: "met" | "not_met" | "dropped"
-): Promise<CommitmentState> {
-  if (!isTauri()) {
-    throw new Error("not in tauri");
-  }
-  return invoke<CommitmentState>("resolve_commitment", { status });
-}
-
 export async function recordReviewOutcome(
   itemId: string,
   outcome: ReviewOutcome,
@@ -564,25 +443,6 @@ export async function recordReviewOutcome(
     outcome,
     sameSession,
   });
-}
-
-export async function readCheckIntention(): Promise<string> {
-  if (!isTauri()) {
-    try {
-      const raw = localStorage.getItem("pn_learning_profile");
-      if (!raw) return "";
-      const parsed = JSON.parse(raw) as { ifThen?: string };
-      return parsed.ifThen ?? "";
-    } catch {
-      return "";
-    }
-  }
-  return invoke<string>("read_check_intention");
-}
-
-export async function routeIntent(trigger: string): Promise<RouteResult | null> {
-  if (!isTauri()) return null;
-  return invoke<RouteResult>("route_intent", { trigger });
 }
 
 export async function onInboxUpdated(
@@ -612,11 +472,25 @@ export type FreshnessDashboard = {
   status?: { signed_in?: boolean | null; last_delta_at?: string | null; last_feed_poll_at?: string | null; feeds_configured?: boolean };
   changes: FreshnessChange[];
   digest?: { announcements_7d: number; with_actions: number };
+  /** Logistics the student can approve: work blocks for their own calendar (freshness-dashboard.mjs). */
+  agent_can_do?: {
+    id: string;
+    kind: string;
+    label: string;
+    why: string;
+    suggestion: { key: string; title: string; start: string; end: string; why: string };
+  }[];
 };
 
 export async function readFreshness(): Promise<FreshnessDashboard | null> {
-  if (!isTauri()) return null;
+  if (!isTauri()) return fixtureEnabled() ? fixtureFreshness() : null;
   return invoke<FreshnessDashboard | null>("read_freshness");
+}
+
+/** `{user_root}/inbox/freshness/skip-costs.json`: grade if each upcoming item is a zero or full marks. */
+export async function readSkipCosts(): Promise<SkipCosts> {
+  if (!isTauri()) return fixtureEnabled() ? fixtureSkipCosts() : {};
+  return invoke<SkipCosts>("read_skip_costs");
 }
 
 export async function onFreshnessUpdated(
@@ -631,6 +505,55 @@ export async function onSyncFailed(
 ): Promise<UnlistenFn | (() => void)> {
   if (!isTauri()) return () => undefined;
   return listen<string>("sync-failed", (event) => handler(event.payload));
+}
+
+/** Routes from the tray, the extension, and a future macOS URL-scheme handler. */
+export async function onDeepLink(handler: (url: string) => void): Promise<UnlistenFn | (() => void)> {
+  if (!isTauri()) return () => undefined;
+  return listen<string>("deep-link", (event) => handler(event.payload));
+}
+
+/** A `kairos://` link that arrived before Kairos was listening (cold start). Taken once. */
+export async function takePendingLink(): Promise<string | null> {
+  if (!isTauri()) return null;
+  return invoke<string | null>("take_pending_link");
+}
+
+/** When the Kairos Chrome extension first reached this app, or null if it never has. */
+export async function readExtensionStatus(): Promise<{ connected_at: string | null }> {
+  if (!isTauri()) return { connected_at: null };
+  return invoke<{ connected_at: string | null }>("extension_status");
+}
+
+/** Native opt-ins from Settings, all off by default (app-prefs.json). */
+export type AppPrefs = { keep_running: boolean; notifications: boolean; capture_shortcut: string | null };
+
+export const DEFAULT_APP_PREFS: AppPrefs = { keep_running: false, notifications: false, capture_shortcut: null };
+
+export async function readAppPrefs(): Promise<AppPrefs> {
+  if (!isTauri()) {
+    try {
+      return { ...DEFAULT_APP_PREFS, ...JSON.parse(localStorage.getItem("pn_app_prefs") || "{}") };
+    } catch {
+      return DEFAULT_APP_PREFS;
+    }
+  }
+  return { ...DEFAULT_APP_PREFS, ...(await invoke<AppPrefs>("read_app_prefs")) };
+}
+
+export async function setAppPrefs(prefs: AppPrefs): Promise<AppPrefs> {
+  if (!isTauri()) {
+    localStorage.setItem("pn_app_prefs", JSON.stringify(prefs));
+    return prefs;
+  }
+  return invoke<AppPrefs>("set_app_prefs", { prefs });
+}
+
+/** The menu-bar "Next" row. Empty clears it back to "Open Today". */
+export async function setTrayNext(title: string): Promise<void> {
+  if (!isTauri()) return;
+  const text = title.replace(/\s+/g, " ").trim().slice(0, 80);
+  await emit("tray-next", text);
 }
 
 export type SemesterTick = {
@@ -820,15 +743,6 @@ export type WorkItem = {
   course_code?: string | null;
 };
 
-export type WorkSurface = {
-  sync_id?: string;
-  health_state?: string;
-  as_of?: string;
-  items?: WorkItem[];
-  buckets?: Record<string, WorkItem[]>;
-  empty_means?: string;
-};
-
 export type CourseMap = {
   sync_id?: string;
   health_state?: string;
@@ -873,13 +787,8 @@ export async function readSyncHealth(): Promise<SyncHealth> {
   return invoke<SyncHealth>("read_sync_health");
 }
 
-export async function readWorkSurface(filters: Record<string, string> = {}): Promise<WorkSurface> {
-  if (!isTauri()) return { items: [], buckets: {} };
-  return invoke<WorkSurface>("read_work_surface", { filters });
-}
-
 export async function readCourseMap(courseId: string): Promise<CourseMap> {
-  if (!isTauri()) return { course: { id: courseId } };
+  if (!isTauri()) return fixtureEnabled() ? fixtureCourseMap(courseId) : { course: { id: courseId } };
   return invoke<CourseMap>("read_course_map", { courseId });
 }
 
@@ -891,6 +800,6 @@ export async function readCourseColors(): Promise<Record<string, string>> {
 }
 
 export async function readGradeTruth(courseId: string): Promise<GradeTruth> {
-  if (!isTauri()) return { course_id: courseId };
+  if (!isTauri()) return fixtureEnabled() ? fixtureGradeTruth(courseId) : { course_id: courseId };
   return invoke<GradeTruth>("read_grade_truth", { courseId });
 }

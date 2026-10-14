@@ -56,6 +56,7 @@ export function plainCanvasError(raw: string, fallback: string): string {
 
 const SIGN_IN_FAILED = "The sign-in window closed before Canvas finished. Try again.";
 const SYNC_FAILED = "Kairos couldn't read your classes from Canvas. Your sign-in may have expired, or Canvas didn't answer.";
+const NO_COURSES = "Canvas answered, but this account has no current classes. Check that you signed in to the right school, then try again.";
 
 export function FirstRun({
   onDone,
@@ -212,10 +213,15 @@ export function FirstRun({
         void Promise.all([readSyncHealth(), readSyncProgress()])
           .then(([health, progress]) => {
             if (cancelled) return;
-            const hasFreshProjection = Boolean(health.sync_id && health.as_of && health.state === "fresh_complete");
-            const hasCourses = progress.phase === "done" && progress.courses.length > 0;
-            if (!hasFreshProjection || !hasCourses) {
-              fail("sync verification did not produce a fresh Canvas course projection");
+            // fresh_partial still lands on Home, which names what's missing;
+            // stale or empty projections mean this sync didn't really read Canvas.
+            const fresh = health.state === "fresh_complete" || health.state === "fresh_partial";
+            if (!fresh || !health.sync_id || !health.as_of || progress.phase !== "done") {
+              fail("");
+              return;
+            }
+            if (progress.courses.length === 0) {
+              fail(NO_COURSES);
               return;
             }
             doneRef.current();
@@ -422,7 +428,7 @@ export function FirstRun({
                 {ssoBusy ? "Chrome sign-in is open…" : error ? "Restart sign-in" : "Open Chrome sign-in"}
               </button>
               {(session === "missing" || error) && (
-                <button type="button" disabled={ssoBusy} onClick={() => void checkAgain()}>
+                <button type="button" disabled={ssoBusy || session === "checking"} onClick={() => void checkAgain()}>
                   Check again
                 </button>
               )}

@@ -26,6 +26,15 @@ pub fn read_freshness(user_root: &Path) -> Value {
     read_json(&user_root.join("inbox").join("freshness").join("dashboard.json")).unwrap_or(Value::Null)
 }
 
+/// Cost of skipping upcoming work (`inbox/freshness/skip-costs.json`), keyed
+/// `course_id:assignment_id`, or `{}` before the first freshness run.
+pub fn read_skip_costs(user_root: &Path) -> Value {
+    match read_json(&user_root.join("inbox").join("freshness").join("skip-costs.json")) {
+        Some(Value::Object(map)) => Value::Object(map),
+        _ => json!({}),
+    }
+}
+
 /// Course card colours (`inbox/courses/colors.json`, written by sync from
 /// `users/self/colors`) as `{ course_id: "#rrggbb" }`. Only hex values pass.
 pub fn read_course_colors(user_root: &Path) -> Value {

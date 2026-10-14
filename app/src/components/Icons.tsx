@@ -83,6 +83,16 @@ export function IconSettings(props: IconProps) {
   );
 }
 
+export function IconUpload(props: IconProps) {
+  return (
+    <svg {...base} className={props.className}>
+      {props.title ? <title>{props.title}</title> : null}
+      <path d="M12 16V4M7 9l5-5 5 5" />
+      <path d="M5 14v5h14v-5" />
+    </svg>
+  );
+}
+
 export function IconPause(props: IconProps) {
   return (
     <svg {...base} className={props.className}>

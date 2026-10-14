@@ -12,6 +12,8 @@ Skill router triage ← {user_root}/inbox/ memory ← Canvas /api/v1 ← SSO coo
  browser UI only for LTI/external
 ```
 
+Files the student adds in the app (Add files) live in `{user_root}/inbox/library/`: start from `INDEX.md` (sorted by course), read `text/<id>.txt` before relying on an entry. Course and kind are local guesses unless marked (student).
+
 ## Agent order (every session)
 
 Follow [`skills/_SESSION.md`](skills/_SESSION.md), then:

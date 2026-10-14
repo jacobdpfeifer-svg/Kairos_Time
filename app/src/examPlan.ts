@@ -72,7 +72,7 @@ export function buildExamPlan(
   const relevant = sources.filter((s) => s.exam_relevant || /exam|midterm|final|review|study guide|formula/i.test(`${s.title} ${s.text || ""}`));
   const topics = relevant.flatMap((s) => s.scope_topics || []).concat([...scope]);
   const unique = [...new Set(topics.filter(Boolean))];
-  const scopedTopics = unique.length ? unique : ["Exam scope unknown — check the Exam Information page"];
+  const scopedTopics = unique.length ? unique : ["What's on it isn't known yet. Check the exam page in Canvas"];
   const weighted = shuffle(scopedTopics, hashSeed(exam.id, seed));
   const days: PlanDay[] = [];
   for (let i = 0; i <= span; i++) {

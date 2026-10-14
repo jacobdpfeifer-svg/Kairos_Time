@@ -1,10 +1,12 @@
 //! Tauri commands bridging the React shell to daemon sync + inbox + onboarding.
 
 use crate::calendar;
+use crate::advisor;
 use crate::canvas;
 use crate::daemon;
 use crate::inbox;
 use crate::runtime::{self, Runtime};
+use crate::prefs;
 use crate::semester;
 use serde::Serialize;
 use std::sync::Arc;
@@ -23,19 +25,22 @@ fn emit_inbox_updated(app: &AppHandle) {
     let _ = app.emit("inbox-updated", ());
 }
 
+/// Run blocking work (Python, Node, network) off the main thread. Non-async
+/// Tauri commands run on the main thread, so a sync there froze the window.
+async fn blocking<T: Send + 'static>(job: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(job)
+        .await
+        .map_err(|e| format!("background task failed: {e}"))?
+}
+
 /// Run Canvas sync (same helper as the tray menu) and notify the UI.
 #[tauri::command]
-pub fn sync_canvas(app: AppHandle, rt: Rt<'_>) -> Result<SyncResult, String> {
-    // Run off the main thread so the webview stays responsive; still block
-    // this command until done so invoke() callers get a real result.
-    let handle = app.clone();
+pub async fn sync_canvas(app: AppHandle, rt: Rt<'_>) -> Result<SyncResult, String> {
     let rt = Arc::clone(&rt);
-    let result = thread::spawn(move || daemon::run_canvas_sync(&rt))
-        .join()
-        .map_err(|_| "sync thread panicked".to_string())?;
+    let result = blocking(move || Ok(daemon::run_canvas_sync(&rt))).await?;
     match result {
         Ok(()) => {
-            emit_inbox_updated(&handle);
+            emit_inbox_updated(&app);
             Ok(SyncResult {
                 ok: true,
                 error: None,
@@ -51,53 +56,35 @@ pub fn sync_canvas(app: AppHandle, rt: Rt<'_>) -> Result<SyncResult, String> {
 /// Export the last canonical Canvas snapshot. Grades are excluded unless the
 /// student explicitly opts in for this action.
 #[tauri::command]
-pub fn export_canvas(rt: Rt<'_>, include_grades: Option<bool>) -> Result<serde_json::Value, String> {
-    let raw = daemon::run_canvas_export(&rt, include_grades.unwrap_or(false))?;
+pub async fn export_canvas(rt: Rt<'_>, include_grades: Option<bool>) -> Result<serde_json::Value, String> {
+    let rt = Arc::clone(&rt);
+    let raw = blocking(move || daemon::run_canvas_export(&rt, include_grades.unwrap_or(false))).await?;
     serde_json::from_str(&raw).map_err(|e| format!("invalid export result: {e}"))
 }
 
 #[tauri::command]
-pub fn read_top3(rt: Rt<'_>) -> Result<Vec<inbox::Top3Item>, String> {
-    inbox::read_top3(&rt.user_root, 3)
-}
-
-#[tauri::command]
-pub fn open_canvas_sso(rt: Rt<'_>) -> Result<(), String> {
-    daemon::run_open_canvas(&rt)
+pub async fn open_canvas_sso(rt: Rt<'_>) -> Result<(), String> {
+    let rt = Arc::clone(&rt);
+    blocking(move || daemon::run_open_canvas(&rt)).await
 }
 
 /// Headless probe: is there already a valid Canvas session in browser/.auth?
 /// Onboarding calls this before showing the sign-in step.
 #[tauri::command]
-pub fn check_canvas_session(rt: Rt<'_>) -> Result<bool, String> {
-    daemon::run_check_canvas_session(&rt)
-}
-
-/// Fire-and-forget deep first-sync, launched the moment onboarding confirms
-/// a Canvas session (silent cookie hit or fresh SSO login) — runs in the
-/// background while the student finishes the rest of the wizard, so the
-/// dock already has a full-term picture by the time they land on it.
-/// Does not block the caller and swallows its own errors: the daily
-/// `sync_canvas` cadence will retry on the normal schedule regardless.
-#[tauri::command]
-pub fn bootstrap_canvas_sync(app: AppHandle, rt: Rt<'_>) -> Result<(), String> {
+pub async fn check_canvas_session(rt: Rt<'_>) -> Result<bool, String> {
     let rt = Arc::clone(&rt);
-    thread::spawn(move || {
-        if daemon::run_bootstrap_sync(&rt).is_ok() {
-            emit_inbox_updated(&app);
-        }
-    });
-    Ok(())
+    blocking(move || daemon::run_check_canvas_session(&rt)).await
 }
 
 /// Find the student's school by name (public Instructure account search).
 #[tauri::command]
-pub fn search_schools(rt: Rt<'_>, term: String) -> Result<serde_json::Value, String> {
-    let term = term.trim();
+pub async fn search_schools(rt: Rt<'_>, term: String) -> Result<serde_json::Value, String> {
+    let term = term.trim().to_string();
     if term.chars().count() < 2 {
         return Ok(serde_json::json!({ "schools": [] }));
     }
-    let parsed = daemon::run_school_script(&rt, &["search", term])?;
+    let rt = Arc::clone(&rt);
+    let parsed = blocking(move || daemon::run_school_script(&rt, &["search", &term])).await?;
     Ok(parsed.get("schools").cloned().unwrap_or(serde_json::json!([])))
 }
 
@@ -201,97 +188,10 @@ pub fn save_learning_profile(
     )
 }
 
-/// Save the onboarding "Profile" step's identity/program answers into
-/// USER.md (see canvas_mcp.core.user_profile). Every field is optional —
-/// blank fields keep the templates/USER.md placeholder text.
-#[allow(clippy::too_many_arguments)]
-#[tauri::command]
-pub fn save_user_profile(
-    rt: Rt<'_>,
-    name: String,
-    institution: String,
-    school_slug: String,
-    major: String,
-    minor: String,
-    catalog_year: String,
-    target_grad_term: String,
-    interests: Vec<String>,
-    good_standing_gpa: String,
-    scholarship_min_gpa: String,
-    career_priorities: Vec<String>,
-    values: Vec<String>,
-    transfer_notes: String,
-) -> Result<(), String> {
-    daemon::run_save_user_profile(
-        &rt,
-        &name,
-        &institution,
-        &school_slug,
-        &major,
-        &minor,
-        &catalog_year,
-        &target_grad_term,
-        &interests,
-        &good_standing_gpa,
-        &scholarship_min_gpa,
-        &career_priorities,
-        &values,
-        &transfer_notes,
-    )
-}
-
 /// Due retrieval checks (at most two). Does not invent cards from the week list.
 #[tauri::command]
 pub fn read_due_reviews(rt: Rt<'_>) -> Result<serde_json::Value, String> {
     daemon::run_due_reviews(&rt)
-}
-
-/// Brief-day streak line. Empty `line` when there is nothing to show.
-#[tauri::command]
-pub fn read_brief_streak(rt: Rt<'_>) -> Result<serde_json::Value, String> {
-    daemon::run_brief_streak(&rt)
-}
-
-/// Per-course retention counts from stored claims. Not a skill tree.
-#[tauri::command]
-pub fn read_learn_progress(rt: Rt<'_>) -> Result<serde_json::Value, String> {
-    daemon::run_learn_progress(&rt)
-}
-
-/// Last two evaluation snapshots. Does not record one.
-#[tauri::command]
-pub fn read_evaluation_compare(rt: Rt<'_>) -> Result<serde_json::Value, String> {
-    daemon::run_evaluation_compare(&rt)
-}
-
-/// Open commitment and one-time check-in. Does not create or resolve.
-#[tauri::command]
-pub fn read_commitment(rt: Rt<'_>) -> Result<serde_json::Value, String> {
-    daemon::run_read_commitment(&rt)
-}
-
-/// Store one student-authored commitment. Refuses if one is already open.
-#[tauri::command]
-pub fn set_commitment(
-    rt: Rt<'_>,
-    text: String,
-    deadline: String,
-    course: Option<String>,
-    linked_item_id: Option<String>,
-) -> Result<serde_json::Value, String> {
-    daemon::run_set_commitment(
-        &rt,
-        &text,
-        &deadline,
-        course.as_deref().unwrap_or(""),
-        linked_item_id.as_deref().unwrap_or(""),
-    )
-}
-
-/// Student-scored close: met, not_met, or dropped.
-#[tauri::command]
-pub fn resolve_commitment(rt: Rt<'_>, status: String) -> Result<serde_json::Value, String> {
-    daemon::run_resolve_commitment(&rt, &status)
 }
 
 /// Student-scored retrieval. Dock checks of scheduled items pass same_session=false.
@@ -305,29 +205,46 @@ pub fn record_review_outcome(
     daemon::run_record_review_outcome(&rt, &item_id, &outcome, same_session.unwrap_or(false))
 }
 
-/// Optional implementation intention written at onboarding. Empty if skipped.
-#[tauri::command]
-pub fn read_check_intention(rt: Rt<'_>) -> Result<String, String> {
-    daemon::run_read_check_intention(&rt)
-}
-
-/// Route a natural-language trigger via the Python skill router CLI.
-#[tauri::command]
-pub fn route_intent(rt: Rt<'_>, trigger: String) -> Result<daemon::RouteResultDto, String> {
-    daemon::run_route_intent(&rt, &trigger)
-}
-
 /// Study workspace bridge. `request` = {"cmd": .., "params": {..}}; the reply is
 /// the Python study CLI's envelope ({"ok": true, ..} or {"ok": false, "error": ..}).
 #[tauri::command]
-pub fn study(rt: Rt<'_>, request: serde_json::Value) -> Result<serde_json::Value, String> {
+pub async fn study(rt: Rt<'_>, request: serde_json::Value) -> Result<serde_json::Value, String> {
     daemon::validate_study_request(&request)?;
-    daemon::run_study(&rt, &request)
+    let rt = Arc::clone(&rt);
+    blocking(move || daemon::run_study(&rt, &request)).await
+}
+
+/// Week plan state: `{ cmd, params }` like `study`, handled by `week_plan.py`.
+#[tauri::command]
+pub async fn week_plan(rt: Rt<'_>, request: serde_json::Value) -> Result<serde_json::Value, String> {
+    daemon::validate_study_request(&request)?;
+    let rt = Arc::clone(&rt);
+    blocking(move || daemon::run_week_plan(&rt, &request)).await
+}
+
+/// Whether the Chrome extension has reached this app, and when.
+#[tauri::command]
+pub fn extension_status(rt: Rt<'_>) -> serde_json::Value {
+    serde_json::json!({ "connected_at": crate::nativehost::connected_at(&rt.user_root) })
+}
+
+/// Native opt-ins (keep running, notifications, capture shortcut). All default off.
+#[tauri::command]
+pub fn read_app_prefs(rt: Rt<'_>) -> prefs::AppPrefs {
+    prefs::read(&rt.user_root)
+}
+
+/// Save the opt-ins and apply the capture shortcut right away.
+#[tauri::command]
+pub fn set_app_prefs(app: AppHandle, rt: Rt<'_>, prefs: prefs::AppPrefs) -> Result<prefs::AppPrefs, String> {
+    prefs::write(&rt.user_root, &prefs)?;
+    crate::shortcut::apply(&app, prefs.capture_shortcut.as_deref())?;
+    Ok(prefs)
 }
 
 /// Sync Canvas study sources. Emits `study-sync-progress` as progress.json updates.
 #[tauri::command]
-pub fn sync_study_sources(app: AppHandle, rt: Rt<'_>) -> Result<SyncResult, String> {
+pub async fn sync_study_sources(app: AppHandle, rt: Rt<'_>) -> Result<SyncResult, String> {
     let handle = app.clone();
     let rt = Arc::clone(&rt);
     let root = rt.user_root.clone();
@@ -350,10 +267,8 @@ pub fn sync_study_sources(app: AppHandle, rt: Rt<'_>) -> Result<SyncResult, Stri
             thread::sleep(std::time::Duration::from_millis(80));
         }
     });
-    let result = thread::spawn(move || daemon::run_sync_study_sources(&rt))
-        .join()
-        .map_err(|_| "sync thread panicked".to_string())?;
-    let _ = watcher.join();
+    let result = blocking(move || Ok(daemon::run_sync_study_sources(&rt))).await?;
+    let _ = blocking(move || watcher.join().map_err(|_| "progress watcher panicked".to_string())).await;
     let _ = app.emit("study-sync-progress", semester::read_sync_progress(&root));
     Ok(match result {
         Ok(()) => SyncResult {
@@ -411,8 +326,13 @@ pub fn read_freshness(rt: Rt<'_>) -> serde_json::Value {
 }
 
 #[tauri::command]
-pub fn read_work_surface(rt: Rt<'_>, filters: Option<serde_json::Value>) -> serde_json::Value {
-    canvas::read_work_surface(&rt.user_root, &filters.unwrap_or_else(|| serde_json::json!({})))
+pub fn read_skip_costs(rt: Rt<'_>) -> serde_json::Value {
+    canvas::read_skip_costs(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn read_advisor_snapshot(rt: Rt<'_>) -> serde_json::Value {
+    advisor::read_snapshot(&rt.user_root)
 }
 
 #[tauri::command]

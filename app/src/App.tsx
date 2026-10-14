@@ -1,28 +1,55 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FirstRun } from "./components/FirstRun";
-import { CalendarView } from "./views/CalendarView";
-import { ExamPrepView } from "./views/ExamPrepView";
-import { HomeView } from "./views/HomeView";
-import { PlanView } from "./views/PlanView";
+import { TodayView } from "./views/TodayView";
 import { SettingsView } from "./views/SettingsView";
-import { StudyView } from "./views/StudyView";
-import { IconCalendar, IconHome, IconPlan, IconSettings, IconStudy } from "./components/Icons";
+import { StudyPathView } from "./views/StudyPathView";
+import { AdvisorView } from "./views/AdvisorView";
+import { WeekView } from "./views/WeekView";
+import { ALL_FILES, CoursesView } from "./views/CoursesView";
+import { FileDrop } from "./components/FileDrop";
+import { IconCalendar, IconHome, IconPlan, IconSettings, IconSources, IconStudy, IconUpload } from "./components/Icons";
 import { Wordmark } from "./components/Wordmark";
-import { useTheme } from "./theme";
+import { CommandBar, type Command } from "./components/CommandBar";
+import { Toast, type ToastState } from "./components/Toast";
+import { AskSheet } from "./ask/AskSheet";
+import { THEMES, useTheme } from "./theme";
 import { VoiceSheet } from "./voice/VoiceSheet";
-import { isTauri, readSchoolProfile, setDockMode, type SemesterTick } from "./ipc";
+import { isTauri, onDeepLink, readSchoolProfile, readSemester, setDockMode, syncCanvas, takePendingLink, type SemesterTick } from "./ipc";
+import { usePrefs } from "./prefs";
+import { useNotifications } from "./notify/useNotifications";
+import { study } from "./study/api";
+import type { AskEnvelope } from "./study/types";
+import { MOD, SETTINGS_TAB, TABS, loadTab, routeFromUrl, saveTab, type Route, type Tab } from "./nav";
+import { friendlyRelative } from "./format";
+import { kindLabel } from "./semesterTicks";
+import { parseLine } from "./capture/parseLine";
+import { weekPlan } from "./week/api";
 
-export type Tab = "home" | "plan" | "study" | "calendar" | "settings";
+export type { Tab } from "./nav";
 
-const TABS: { id: Tab; label: string; Icon: typeof IconStudy }[] = [
-  { id: "home", label: "Home", Icon: IconHome },
-  { id: "plan", label: "Plan", Icon: IconPlan },
-  { id: "study", label: "Study", Icon: IconStudy },
-  { id: "calendar", label: "Calendar", Icon: IconCalendar },
-  { id: "settings", label: "Settings", Icon: IconSettings },
+/** Screens that exist in this build, in sidebar order. */
+const SIDEBAR: { id: Tab; label: string; key?: string }[] = TABS;
+const AVAILABLE: Tab[] = [...SIDEBAR.map((t) => t.id), "settings"];
+
+const ICONS: Record<Tab, typeof IconHome> = {
+  today: IconHome,
+  week: IconCalendar,
+  courses: IconSources,
+  study: IconStudy,
+  advisor: IconPlan,
+  upload: IconUpload,
+  settings: IconSettings,
+};
+
+const SETTINGS_GROUPS: [string, string][] = [
+  ["canvas", "Canvas sign-in and sync"],
+  ["mac", "Menu bar, alerts, and shortcuts"],
+  ["ai", "AI help"],
+  ["connectors", "Calendar and email"],
+  ["appearance", "Appearance"],
+  ["profile", "Profile"],
+  ["privacy", "Privacy"],
 ];
-
-const TAB_KEY = "pn_tab";
 
 /**
  * Onboarding is per profile. The webview's localStorage is shared by every
@@ -39,26 +66,70 @@ export async function resolveOnboarded(): Promise<boolean> {
   }
 }
 
+const isAssessment = (t: SemesterTick) => t.kind === "exam" || t.kind === "quiz";
+
 export function App() {
   const [onboarded, setOnboarded] = useState<boolean | null>(() =>
     isTauri() ? null : localStorage.getItem("pn_onboarded") === "1"
   );
-  const [settingsGroup, setSettingsGroup] = useState<string | undefined>(undefined);
-  const [tab, setTab] = useState<Tab>(() => {
-    const raw = localStorage.getItem(TAB_KEY);
-    return TABS.some((t) => t.id === raw) ? (raw as Tab) : "home";
-  });
-  const [examTick, setExamTick] = useState<SemesterTick | null>(null);
-  const [studyPreselect, setStudyPreselect] = useState<{ course?: string; examId?: string } | null>(null);
-  useTheme();
+  const [route, setRoute] = useState<Route>(() => ({ tab: loadTab(AVAILABLE) }));
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const [ask, setAsk] = useState<{ initial: AskEnvelope | null; seed?: { content: string } } | null>(null);
+  const [lastAsk, setLastAsk] = useState<AskEnvelope | null>(null);
+  const [items, setItems] = useState<SemesterTick[]>([]);
+  const [courses, setCourses] = useState<{ id: string; label: string; name: string }[]>([]);
+  const [filesVersion, setFilesVersion] = useState(0);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const { setTheme } = useTheme();
+
+  const navigate = useCallback((next: Route) => {
+    // "Add files" became the files on each course page (2026-10-13).
+    if (next.tab === "upload") next = { tab: "courses", courseId: ALL_FILES };
+    setRoute(AVAILABLE.includes(next.tab) ? next : { tab: "today" });
+  }, []);
+  const go = useCallback((tab: Tab) => navigate({ tab }), [navigate]);
+
+  const prefs = usePrefs();
+  useNotifications(Boolean(onboarded && prefs?.notifications));
+
+  // kairos:// links (menu bar, capture shortcut, the Chrome extension, macOS)
+  // reduce to the same small route the sidebar and ⌘K use.
+  const followLink = useCallback(
+    (url: string) => {
+      const next = routeFromUrl(url);
+      if (!next) return;
+      navigate(next);
+      if (next.ask) {
+        setCmdOpen(false);
+        setAsk({ initial: null });
+      } else if (next.capture) {
+        setCmdOpen(true);
+      }
+    },
+    [navigate]
+  );
 
   useEffect(() => {
-    if (tab !== "settings" && tab !== "home" && tab !== "study" && tab !== "calendar" && tab !== "plan") {
-      setTab("home");
-    } else {
-      localStorage.setItem(TAB_KEY, tab);
-    }
-  }, [tab]);
+    if (!onboarded) return;
+    let alive = true;
+    // A link that launched Kairos arrived before this listener existed.
+    void takePendingLink()
+      .then((url) => alive && url && followLink(url))
+      .catch(() => undefined);
+    const unlisten = onDeepLink((url) => {
+      if (!alive) return;
+      followLink(url);
+      void takePendingLink().catch(() => undefined);
+    });
+    return () => {
+      alive = false;
+      void unlisten.then((fn) => fn()).catch(() => undefined);
+    };
+  }, [onboarded, followLink]);
+
+  useEffect(() => {
+    saveTab(route.tab);
+  }, [route.tab]);
 
   useEffect(() => {
     if (onboarded !== null) return;
@@ -78,7 +149,88 @@ export function App() {
     void setDockMode(onboarded ? "workspace" : "onboarding");
   }, [onboarded]);
 
-  // Dev only: ?blot plays a scripted voice exchange so Blot can be seen before the voice model is wired.
+  // The last answer comes back as a row on Today, never as a takeover.
+  useEffect(() => {
+    if (!onboarded) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const promoted = await study.askPending();
+        const current = promoted.ask ? promoted : await study.askCurrent();
+        if (alive && current.ask) setLastAsk(current);
+      } catch {
+        /* Ask's bridge being down never blocks Today. */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [onboarded]);
+
+  // Courses for capture, file drop, and ⌘K. Refreshed when the bar opens.
+  useEffect(() => {
+    if (!onboarded) return;
+    let alive = true;
+    readSemester("full", new Date().toISOString())
+      .then((s) => {
+        if (!alive) return;
+        setItems(s.courses.flatMap((c) => c.ticks).filter((t) => !t.completed && t.due_at));
+        setCourses(s.courses.map((c) => ({ id: c.id, label: c.label, name: c.name })));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [onboarded, cmdOpen]);
+
+  const openAsk = useCallback((initial?: AskEnvelope | null, question?: string) => {
+    setCmdOpen(false);
+    setAsk({ initial: initial ?? null, seed: question ? { content: question } : undefined });
+  }, []);
+
+  const syncNow = useCallback(async () => {
+    setToast({ message: "Syncing with Canvas…" });
+    try {
+      const r = await syncCanvas();
+      setToast({ message: r.ok ? "Synced with Canvas." : r.error ? `Sync didn't finish: ${r.error}` : "Sync didn't finish." });
+    } catch {
+      setToast({ message: "Sync didn't finish. Try again." });
+    }
+  }, []);
+
+  // Global keys (MASTER §14: every action reachable from ⌘K or a listed shortcut).
+  useEffect(() => {
+    if (!onboarded) return;
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "k") {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+        return;
+      }
+      if (k === "j") {
+        e.preventDefault();
+        openAsk(null);
+        return;
+      }
+      if (k === ",") {
+        e.preventDefault();
+        go("settings");
+        return;
+      }
+      const tab = SIDEBAR.find((t) => t.key === e.key);
+      if (tab) {
+        e.preventDefault();
+        go(tab.id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onboarded, go, openAsk]);
+
+  // Dev only: ?blot plays a scripted voice exchange so the ink ring can be seen before the voice model is wired.
   useEffect(() => {
     if (!import.meta.env.DEV || !new URLSearchParams(window.location.search).has("blot")) return;
     let stop: () => void = () => {};
@@ -92,6 +244,96 @@ export function App() {
     };
   }, []);
 
+  const commands = useMemo<Command[]>(() => {
+    const now = new Date();
+    const out: Command[] = [
+      ...SIDEBAR.map((t) => ({
+        id: `go:${t.id}`,
+        group: "Go to" as const,
+        label: t.label,
+        keys: t.key ? `${MOD}${t.key}` : undefined,
+        run: () => go(t.id),
+      })),
+      ...SETTINGS_GROUPS.map(([id, label]) => ({
+        id: `go:settings:${id}`,
+        group: "Go to" as const,
+        label: `Settings: ${label}`,
+        keys: id === "canvas" ? `${MOD}${SETTINGS_TAB.key}` : undefined,
+        run: () => navigate({ tab: "settings", group: id }),
+      })),
+      { id: "do:ask", group: "Do", label: "Ask Kairos", keys: `${MOD}J`, keywords: "question help explain", run: () => openAsk(null) },
+      { id: "do:sync", group: "Do", label: "Sync Canvas now", keywords: "refresh update", run: () => void syncNow() },
+      { id: "do:files", group: "Do", label: "Add files", keywords: "upload notes syllabus slides library", run: () => navigate({ tab: "courses", courseId: ALL_FILES }) },
+      ...courses.map((c) => ({
+        id: `course:${c.id}`,
+        group: "Go to" as const,
+        label: c.name ? `${c.label}: ${c.name}` : c.label,
+        hint: "course",
+        keywords: `${c.label} ${c.name} course grade`,
+        run: () => navigate({ tab: "courses", courseId: c.id }),
+      })),
+      { id: "do:plan", group: "Do", label: "Plan this week", keywords: "schedule week defer review", run: () => go("week") },
+      { id: "do:practice", group: "Do", label: "Start practice", keywords: "study quiz me review", run: () => navigate({ tab: "study", practice: true }) },
+      ...THEMES.map((t) => ({
+        id: `do:theme:${t.id}`,
+        group: "Do" as const,
+        label: `Use the ${t.label.toLowerCase()} theme`,
+        keywords: "appearance dark mode light contrast",
+        run: () => setTheme(t.id),
+      })),
+      ...items.map((t) => ({
+        id: `item:${t.id}`,
+        group: "Go to" as const,
+        label: t.title,
+        hint: `${t.course_label}, ${kindLabel(t.kind).toLowerCase()}, ${t.due_at ? friendlyRelative(t.due_at, now) : "no date"}`,
+        keywords: t.course_label,
+        course: t.course_label,
+        run: () =>
+          isAssessment(t)
+            ? navigate({ tab: "study", examId: t.id })
+            : navigate({ tab: "today", courseId: t.course_id, itemId: t.id }),
+      })),
+    ];
+    return out;
+  }, [items, courses, go, navigate, openAsk, syncNow, setTheme]);
+
+  const addRow = useCallback(
+    (query: string): Command | null => {
+      const parsed = parseLine(query, courses);
+      // A plain sentence remains an Ask query. Date-bearing quick-add lines
+      // (or an explicit “add …”) opt into capture so the command bar keeps its
+      // natural-language fallthrough.
+      if (!parsed.title || (!parsed.preview && !/^add\s+/i.test(query.trim()))) return null;
+      return {
+        id: `add:${query}`,
+        group: "Add",
+        label: `Add “${parsed.title}”`,
+        hint: parsed.preview && parsed.course ? `${parsed.preview} in ${parsed.course}` : parsed.preview ?? parsed.course ?? "your week",
+        keywords: "capture quick add task",
+        run: () => {
+          void weekPlan("capture", { title: parsed.title, course: parsed.course, due_at: parsed.dueAt, day: parsed.day, source: "typed" })
+            .then((saved) =>
+              setToast({
+                message: `Added “${parsed.title}” to your week.`,
+                id: Date.now(),
+                undo: saved.saved
+                  ? async () => {
+                      try {
+                        await weekPlan("remove", { item_id: saved.saved?.id });
+                      } catch {
+                        setToast({ message: "Undo didn't save.", id: Date.now() });
+                      }
+                    }
+                  : undefined,
+              })
+            )
+            .catch(() => setToast({ message: "That capture could not be saved.", id: Date.now() }));
+        },
+      };
+    },
+    [courses]
+  );
+
   if (onboarded === null) {
     return <div className="workspace" aria-busy="true" />;
   }
@@ -102,29 +344,43 @@ export function App() {
         onDone={() => {
           localStorage.setItem("pn_onboarded", "1");
           setOnboarded(true);
-          setTab("home");
+          go("today");
         }}
       />
     );
   }
 
-  if (examTick) {
+  const tab = route.tab;
+  const tabButton = (t: { id: Tab; label: string; key?: string }, list: { id: Tab }[]) => {
+    const Icon = ICONS[t.id];
     return (
-      <div className="workspace">
-        <ExamPrepView
-          tick={examTick}
-          sources={examTick.description ? [{ title: examTick.title, text: examTick.description }] : []}
-          hasPractice={Boolean(examTick.description)}
-          onBack={() => setExamTick(null)}
-          onTest={() => {
-            setStudyPreselect({ course: examTick.course_label, examId: examTick.id });
-            setExamTick(null);
-            setTab("study");
-          }}
-        />
-      </div>
+      <button
+        type="button"
+        role="tab"
+        id={`tab-${t.id}`}
+        aria-selected={tab === t.id}
+        aria-controls="main"
+        className={tab === t.id ? "active" : undefined}
+        title={t.key ? `${t.label} (${MOD}${t.key})` : t.label}
+        onClick={() => go(t.id)}
+        onKeyDown={(e) => {
+          const all = [...list];
+          const idx = all.findIndex((x) => x.id === t.id);
+          let next: Tab | null = null;
+          if (e.key === "ArrowDown" || e.key === "ArrowRight") next = all[(idx + 1) % all.length].id;
+          if (e.key === "ArrowUp" || e.key === "ArrowLeft") next = all[(idx - 1 + all.length) % all.length].id;
+          if (!next) return;
+          e.preventDefault();
+          go(next);
+          document.getElementById(`tab-${next}`)?.focus();
+        }}
+      >
+        <Icon />
+        {t.label}
+      </button>
     );
-  }
+  };
+  const navOrder = [...SIDEBAR, SETTINGS_TAB];
 
   return (
     <div className="workspace">
@@ -133,58 +389,81 @@ export function App() {
       </a>
       <nav className="workspace-nav" aria-label="Sections">
         <Wordmark className="instrument-mark" />
-        <ul role="tablist">
-          {TABS.map((t) => (
+        <ul role="tablist" aria-orientation="vertical">
+          {SIDEBAR.map((t) => (
             <li key={t.id} role="presentation">
-              <button
-                type="button"
-                role="tab"
-                id={`tab-${t.id}`}
-                aria-selected={tab === t.id}
-                aria-controls="main"
-                className={tab === t.id ? "active" : undefined}
-                onClick={() => {
-                  setSettingsGroup(undefined);
-                  if (t.id !== "study") setStudyPreselect(null);
-                  setTab(t.id);
-                }}
-                onKeyDown={(e) => {
-                  const idx = TABS.findIndex((x) => x.id === t.id);
-                  if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-                    e.preventDefault();
-                    const next = TABS[(idx + 1) % TABS.length].id;
-                    setTab(next);
-                    document.getElementById(`tab-${next}`)?.focus();
-                  } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-                    e.preventDefault();
-                    const prev = TABS[(idx - 1 + TABS.length) % TABS.length].id;
-                    setTab(prev);
-                    document.getElementById(`tab-${prev}`)?.focus();
-                  }
-                }}
-              >
-                <t.Icon />
-                {t.label}
-              </button>
+              {tabButton(t, navOrder)}
             </li>
           ))}
+          <li role="presentation" className="nav-bottom">
+            {tabButton(SETTINGS_TAB, navOrder)}
+          </li>
         </ul>
+        <button type="button" className="nav-command" onClick={() => setCmdOpen(true)}>
+          <span>Search and commands</span>
+          <kbd>{MOD}K</kbd>
+        </button>
       </nav>
       <main id="main" className="workspace-main" role="tabpanel" aria-labelledby={`tab-${tab}`} tabIndex={-1}>
-        {tab === "home" && <HomeView onExamPrep={setExamTick} />}
-        {tab === "plan" && <PlanView />}
-        {tab === "study" && (
-          <StudyView
-            onGoToSources={() => {
-              setSettingsGroup("canvas");
-              setTab("settings");
-            }}
-            preselect={studyPreselect}
+        {tab === "today" && (
+          <TodayView
+            lastAsk={lastAsk}
+            openItem={route.itemId ? { courseId: route.courseId, itemId: route.itemId } : null}
+            onStudy={(t) => navigate({ tab: "study", examId: t.id })}
+            onAsk={(initial) => openAsk(initial)}
+            onOpenWeek={() => go("week")}
           />
         )}
-        {tab === "calendar" && <CalendarView />}
-        {tab === "settings" && <SettingsView key={settingsGroup ?? "default"} initialGroup={settingsGroup} />}
+        {tab === "week" && (
+          <WeekView onToast={setToast} onStudy={(t) => navigate({ tab: "study", examId: t.id })} />
+        )}
+        {tab === "study" && (
+          <StudyPathView
+            examId={route.examId}
+            practice={route.practice}
+            onOpenExam={(examId) => navigate({ tab: "study", examId })}
+            onPractice={(examId) => navigate({ tab: "study", examId, practice: true })}
+            onBack={() => navigate({ tab: "study" })}
+            onGoToSources={() => navigate({ tab: "courses" })}
+            onOpenCourse={(courseId) => navigate({ tab: "courses", courseId })}
+          />
+        )}
+        {tab === "advisor" && <AdvisorView />}
+        {tab === "courses" && (
+          <CoursesView
+            courseId={route.courseId}
+            filesVersion={filesVersion}
+            onOpenCourse={(courseId) => navigate({ tab: "courses", courseId })}
+            onBack={() => navigate({ tab: "courses" })}
+            onStudy={(t) => navigate({ tab: "study", examId: t.id })}
+          />
+        )}
+        {tab === "settings" && <SettingsView key={route.group ?? "default"} initialGroup={route.group} />}
       </main>
+      {cmdOpen && <CommandBar commands={commands} addRow={addRow} onClose={() => setCmdOpen(false)} onAsk={(q) => openAsk(null, q)} />}
+      {ask && (
+        <AskSheet
+          initial={ask.initial}
+          seed={ask.seed}
+          onClose={() => setAsk(null)}
+          onResult={(r) => {
+            if (r?.response) setLastAsk(r);
+          }}
+          onConnectAi={() => {
+            setAsk(null);
+            navigate({ tab: "settings", group: "ai" });
+          }}
+        />
+      )}
+      <FileDrop
+        courseId={tab === "courses" && route.courseId !== ALL_FILES ? route.courseId : undefined}
+        courseLabel={tab === "courses" ? courses.find((c) => c.id === route.courseId)?.label : undefined}
+        onAdded={(message) => {
+          setFilesVersion((n) => n + 1);
+          setToast({ message, id: Date.now() });
+        }}
+      />
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
       <VoiceSheet />
     </div>
   );

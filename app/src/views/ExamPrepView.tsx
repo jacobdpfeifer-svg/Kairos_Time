@@ -8,12 +8,21 @@ export function ExamPrepView({
   hasPractice,
   onBack,
   onTest,
+  scope,
+  scopeNote,
+  onAddMaterial,
 }: {
   tick: SemesterTick;
-  sources: { title: string; text?: string; kind?: string }[];
+  sources: { title: string; text?: string; kind?: string; exam_relevant?: boolean; scope_topics?: string[] }[];
   hasPractice: boolean;
   onBack: () => void;
   onTest: () => void;
+  /** What the exam covers, from the study core's exam record when it has one. */
+  scope?: string[];
+  /** Where the topics came from, in one plain sentence. */
+  scopeNote?: string;
+  /** Empty practice: go where material for this course is added. */
+  onAddMaterial?: () => void;
 }) {
   const [seed, setSeed] = useState(1);
   const today = useMemo(() => new Date(), []);
@@ -26,12 +35,13 @@ export function ExamPrepView({
           due_at: tick.due_at,
           course_label: tick.course_label,
           description: tick.description,
+          objective_scope: scope,
         },
         sources,
         today,
         seed
       ),
-    [tick, sources, today, seed]
+    [tick, sources, today, seed, scope]
   );
 
   const dueLabel = tick.due_at
@@ -58,6 +68,7 @@ export function ExamPrepView({
       </header>
       <h1 className="display exam-title">{tick.title}</h1>
       <p className="muted">A day-by-day plan up to the exam. Today is highlighted.</p>
+      {scopeNote && <p className="exam-scope-note">{scopeNote}</p>}
       <ol className="ledger prep-days">
         {plan.days.map((d) => (
           <li key={d.date} className={`prep-day${d.isToday ? " today" : ""}`} aria-current={d.isToday ? "date" : undefined}>
@@ -76,10 +87,17 @@ export function ExamPrepView({
       <div className="stack-actions">
         {hasPractice ? (
           <button type="button" className="primary" onClick={onTest}>
-            Let’s test your knowledge
+            Practice for it
           </button>
         ) : (
-          <p className="empty">No practice items for this exam yet</p>
+          <p className="empty">
+            No practice questions for this course yet. Add notes or a study guide and Kairos builds them.{" "}
+            {onAddMaterial && (
+              <button type="button" className="link" onClick={onAddMaterial}>
+                Add material
+              </button>
+            )}
+          </p>
         )}
         <button type="button" className="ghost" onClick={() => setSeed((s) => s + 1)}>
           Shuffle this plan

@@ -76,11 +76,19 @@ export const RANGE_KEY = "pn_semester_range";
 export type RangeId = "1m" | "2m" | "3m" | "full";
 
 export function loadRange(): RangeId {
-  const raw = localStorage.getItem(RANGE_KEY);
-  if (raw === "2m" || raw === "3m" || raw === "full") return raw;
-  return "1m";
+  try {
+    const raw = localStorage.getItem(RANGE_KEY);
+    if (raw === "1m" || raw === "2m" || raw === "3m") return raw;
+  } catch {
+    /* storage blocked: fall through to the default */
+  }
+  return "full";
 }
 
 export function saveRange(range: RangeId): void {
-  localStorage.setItem(RANGE_KEY, range);
+  try {
+    localStorage.setItem(RANGE_KEY, range);
+  } catch {
+    /* not remembered in private mode */
+  }
 }

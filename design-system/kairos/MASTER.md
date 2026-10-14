@@ -1,6 +1,6 @@
 # Kairos — Notebook design system
 
-**Source of truth for visual craft** across the desktop app (`app/src`), the Chrome extension (`app/extension-chrome`), and the marketing site (`landing/`). Adopted 2026-10-07 from the three-direction exploration in [`explorations/2026-10-07/`](../explorations/2026-10-07/) (the owner picked `c-notebook.html`). It replaces the Living Instrument / Spatial Instrument systems; where an older doc disagrees with this one, this one wins.
+**Source of truth for visual craft** across the desktop app (`app/src`), the Chrome extension (`app/extension-chrome`), and the marketing site (`landing/`). Adopted 2026-10-07 (structure amended 2026-10-13 from [`docs/research/saas-themes-applied-to-kairos-2026-10-13.md`](../../docs/research/saas-themes-applied-to-kairos-2026-10-13.md)) from the three-direction exploration in [`explorations/2026-10-07/`](../explorations/2026-10-07/) (the owner picked `c-notebook.html`). It replaces the Living Instrument / Spatial Instrument systems; where an older doc disagrees with this one, this one wins.
 
 ## 01 Direction
 
@@ -105,6 +105,18 @@ Emphasis inside a headline is a **marker swipe** (`.mark`), never a color change
 
 **Margin note.** `.note` in Caveat with an SVG arrow (stroke `--pen`, 2.4px, round caps). Max two per screen, never over prose, `aria-hidden` (the information must exist in text elsewhere).
 
+**Command bar (⌘K).** A sheet dialog, 600px wide, top third of the window, page shadow, no blur. One input (18px/600) and hairline rows below grouped under plain sentence-case words: "Do", "Go to", "Add", "Ask". Each action row shows its key on the right in `--muted` 13px tabular type (for example `D`, `⌘K`). Empty query shows recent items. More than 30 results group by course. `?` in the input lists every shortcut. Enter runs the selected row; Escape closes and returns focus to where it was.
+
+**Capture line.** A form input whose parse is shown before it saves: under the typed text, one `--muted` 14px line with what Kairos understood ("Thu, Oct 16 at 11:59 PM, Calc"). The input gets `--hl-soft` only while it is being edited. Nothing is written until Enter, and the saved row appears in place with an undo toast.
+
+**Pile header.** A 15px/700 heading for a group of rows with its count in plain words ("Needs you, 2"). Three piles at most per screen. A row moves between piles from its menu; the first move offers "Always put this course here".
+
+**Undo toast.** Bottom-center small sheet, one sentence and one quiet "Undo" button, 6 seconds, pauses on hover and focus, `role="status"`. Used after any local write the student made with one gesture (defer, accept, remove, capture).
+
+**Consequence sentence.** One `--muted` sentence under a title that says what happens if the item is skipped or done ("Skip it: 84% → 79% in Calc."). Computed from grade truth; never invented. Omit it when the data is missing rather than guess.
+
+**Notifications (macOS).** Title is the item ("Thermo midterm moved"); body is one sentence with the date in the §02 format and what to do ("Now Thu, Oct 16 at 9:00 AM. Open your plan."). No exclamation marks, no "don't forget", no "you haven't opened Kairos". Three triggers only (due date moved, high-stakes work within 48 hours not started, sync broken), at most three a day, held during class and from 11 PM to 8 AM.
+
 ## 07 Illustration
 
 - Subject matter: outdoor activities and campus life students do once the week is handled. Small people, big landscape. Never a "student at laptop".
@@ -118,7 +130,8 @@ Voice must have a presence; it must not be a character.
 
 - **Form:** the "ink ring": three or four soft overlapping loops (ink, `--pen`, `--hl`) inside a 72–120px circle, like ink diffusing in water. Abstract, no face.
 - **States** (from `useVoicePresence()`): `idle` hidden · `listening` loops open and track mic level · `thinking` loops slowly orbit · `speaking` loops ripple outward with output level · `done` one settle-in, then the sheet closes.
-- **Where:** the voice sheet (bottom-center sheet with live caption + Stop) and onboarding's voice step. It may appear as a 24px mark in the extension header while voice is live. Never resident on Home or Study.
+- **Where:** the voice sheet (bottom-center sheet with live caption + Stop) and onboarding's voice step. It may appear as a 24px mark in the extension header while voice is live. Never resident on Today or Study.
+- **How it starts:** not in the app yet. Voice runs as the developer intake page (`npm run voice`, `docs/VOICE.md`) because it needs a Gemini key the packaged app can't give students. When that is decided, holding the capture shortcut starts listening and releasing ends the turn. There is no always-on wake word.
 - **Access:** decorative (`aria-hidden`); the sheet carries a text status ("Listening…", "Thinking…"), the live caption, and a Stop button. Reduced motion shows a still ring per state.
 - No losable state, no moods, no guilt.
 
@@ -140,10 +153,16 @@ Motion only for real state changes:
 ## 10 Screen recipes
 
 - **Onboarding:** one question per screen, centered column 440px, big Gabarito question, one primary button. School is *found*, not picked from a hard-coded list (§12). A small outdoor doodle on the welcome and done screens.
-- **Home:** date as display heading, "Good morning, <name>.", the focus block for the single most important item, then the next few rows, then the semester line. No dashboard tiles.
-- **Plan / Calendar:** the same row grammar; calendar grid cells are hairline boxes with course-colored tags.
-- **Study:** page sheet, 17–19px prose, one question at a time, progress as plain text ("3 of 6"). No illustration, no margin notes over prose.
+- **Navigation:** sidebar items Today, Week, Courses, Study, Advisor, with Settings pinned at the bottom. ⌘K reaches every screen and action. Ask opens as a sheet over the current screen and never replaces the focus block.
+- **Today:** date as display heading, "Good morning, <name>.", the focus block for the single most important item with its consequence sentence, one row saying what changed since the student last looked, then the rest of today's rows, then the semester line. No dashboard tiles.
+- **Exam-week mode (Today):** when a weighted exam is three days out or less, the focus block becomes that exam's path ("Day 2 of 4. Next: practice the rate laws.") and the rest of today collapses to one row ("3 small things also due today"). One quiet link, "Show my whole day", restores the normal page. The highlighter stays on the focus block.
+- **Week:** one capacity sentence at the top ("About 11 hours of work and 8 free. Move two things?"), the piles (Needs you, Changed, For your info), then the days as hairline sections. Each row has Defer. "Plan this week" is a quiet button that opens a three-step sheet (what changed, what is left from last week, proposed order) ending in one primary "Use this plan". Accepted plans never reorder themselves.
+- **Calendar suggestions:** a sheet listing each proposed block with what it would change; nothing is written until the student says yes to that block.
+- **Courses:** one row per course (tag, Canvas grade next to the grade with missing work as zero, next due). The course page is one column: grade truth, open work with consequence sentences, the Start here / Learn / Do / Check map, exam dates, files.
+- **Study:** a path in plain rows (reviews due, then each exam's track, then practice). The session screen is a page sheet, 17–19px prose, one question at a time, progress as plain text ("3 of 6"). No illustration, no margin notes over prose.
 - **Exam prep:** day-by-day rows, today's row highlighted with `--hl-soft`.
+- **Capture shortcut:** the opt-in global shortcut brings the workspace forward with ⌘K open on the capture line and its parse preview. No separate floating window, no vibrancy.
+- **Menu bar:** template icon. Menu items in plain words: "Next: <item title>", "Open Today", "Capture…", "Sync now", "Quit Kairos". No badge counts, no glass peek window.
 - **Settings:** left list of groups (plain words, no numbers), right panel with forms.
 - **Extension side panel:** the same row and focus-block grammar at 360px.
 
@@ -161,4 +180,4 @@ Uppercase eyebrow labels · numbered section indexes · em-dashes in UI copy · 
 
 ## 14 Acceptance test
 
-A screen ships when: the next action is obvious in two seconds; it works with motion off; contrast passes WCAG AA in all three themes; there is at most one highlighted thing; every string reads like a person wrote it; and a screenshot looks like a page from Kairos, not a template.
+A screen ships when: the next action is obvious in two seconds; every action reachable by mouse is reachable from ⌘K or a listed shortcut; it works with motion off; contrast passes WCAG AA in all three themes; there is at most one highlighted thing; every string reads like a person wrote it; and a screenshot looks like a page from Kairos, not a template.

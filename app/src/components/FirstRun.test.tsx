@@ -28,7 +28,7 @@ vi.mock("../ipc", () => ({
 
 vi.mock("../study/api", () => ({ runtimeInfo: vi.fn().mockResolvedValue(null) }));
 
-import { chooseSchool, openCanvasSso, saveOnboarding, syncStudySourcesIpc } from "../ipc";
+import { chooseSchool, openCanvasSso, readSyncHealth, readSyncProgress, saveOnboarding, syncStudySourcesIpc } from "../ipc";
 import { runtimeInfo } from "../study/api";
 
 async function pickOhioState(user: ReturnType<typeof userEvent.setup>) {
@@ -117,6 +117,41 @@ describe("FirstRun", () => {
     expect(onDone).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Try again" }));
     await vi.waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+  });
+
+  it("finishes on a fresh partial sync but not on a stale projection", async () => {
+    vi.mocked(syncStudySourcesIpc).mockResolvedValue({ ok: true });
+    vi.mocked(readSyncHealth)
+      .mockResolvedValueOnce({ state: "stale_complete", sync_id: "old", as_of: "2026-10-01T00:00:00Z" })
+      .mockResolvedValueOnce({ state: "fresh_partial", sync_id: "new", as_of: "2026-10-12T00:00:00Z" });
+    const onDone = vi.fn();
+    const user = userEvent.setup();
+    render(<FirstRun startStep="sync" onDone={onDone} />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/couldn't read your classes/i);
+    expect(alert).not.toHaveTextContent(/projection|verification/i);
+    expect(onDone).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+  });
+
+  it("says plainly when Canvas answers with no current classes", async () => {
+    vi.mocked(syncStudySourcesIpc).mockResolvedValue({ ok: true });
+    vi.mocked(readSyncProgress).mockResolvedValueOnce({ phase: "done", courses: [] });
+    const onDone = vi.fn();
+    render(<FirstRun startStep="sync" onDone={onDone} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/no current classes.*right school/i);
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it("tells the student to restart when the school sign-in page expired", async () => {
+    vi.mocked(openCanvasSso).mockRejectedValueOnce("login_expired: the school sign-in page expired; restart sign-in from Kairos");
+    const user = userEvent.setup();
+    render(<FirstRun startStep="canvas" onDone={() => undefined} />);
+    await user.click(await screen.findByRole("button", { name: "Open Chrome sign-in" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/sign-in page expired/);
+    expect(screen.getByRole("button", { name: "Restart sign-in" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
   });
 
   it("replaces process text from a failed sign-in with what to do next", async () => {

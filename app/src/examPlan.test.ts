@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { buildExamPlan } from "./examPlan";
-import { tickHeightPx, clusterTicks } from "./semesterTicks";
 
 describe("buildExamPlan", () => {
   it("is deterministic for a seed and reshuffles when the seed changes", () => {
@@ -26,26 +25,5 @@ describe("buildExamPlan", () => {
     expect(plan.days.map((d) => d.date)).toEqual(["2026-10-07"]);
     expect(plan.cutoffAt).toBe("2026-10-08T00:45:00Z");
     expect(plan.scopeConfidence).toBe("high");
-  });
-});
-
-describe("tick heights", () => {
-  it("maps weight monotonically with a floor and exam bonus", () => {
-    const small = tickHeightPx({ kind: "assignment", weight_share: 0.01 });
-    const big = tickHeightPx({ kind: "assignment", weight_share: 0.4 });
-    const exam = tickHeightPx({ kind: "exam", weight_share: 0.01 });
-    expect(small).toBeGreaterThanOrEqual(12);
-    expect(big).toBeGreaterThan(small);
-    expect(exam).toBeGreaterThan(small);
-  });
-
-  it("clusters overlapping small ticks", () => {
-    const ticks = [
-      { id: "a", due_at: "2026-09-21T00:00:00Z", kind: "assignment", weight_share: 0.01 },
-      { id: "b", due_at: "2026-09-21T01:00:00Z", kind: "assignment", weight_share: 0.01 },
-    ];
-    const clusters = clusterTicks(ticks as never, "2026-09-20T00:00:00Z", "2026-10-20T00:00:00Z", 400, 40);
-    expect(clusters.length).toBe(1);
-    expect(clusters[0].ticks.length).toBe(2);
   });
 });

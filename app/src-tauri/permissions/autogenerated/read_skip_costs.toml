@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-skip-costs"
+description = "Enables the read_skip_costs command without any pre-configured scope."
+commands.allow = ["read_skip_costs"]
+
+[[permission]]
+identifier = "deny-read-skip-costs"
+description = "Denies the read_skip_costs command without any pre-configured scope."
+commands.deny = ["read_skip_costs"]

@@ -5,7 +5,6 @@
 //!
 //! Autostart: enable via tauri-plugin-autostart so the daemon runs on login.
 
-use serde::Serialize;
 use serde_json::Value;
 use std::env;
 use std::io::Write;
@@ -15,15 +14,6 @@ use std::thread;
 use std::time::Duration;
 
 use crate::runtime::Runtime;
-
-#[derive(Debug, Serialize)]
-pub struct RouteResultDto {
-    pub skill_id: Option<String>,
-    pub method: String,
-    pub ambiguous: bool,
-    pub model_tier: Option<String>,
-    pub raw: String,
-}
 
 /// Weekday sync interval during term.
 pub const SYNC_WEEKDAY: Duration = Duration::from_secs(2 * 60 * 60);
@@ -105,22 +95,6 @@ pub fn run_canvas_sync(rt: &Runtime) -> Result<(), String> {
     tick_log("sync");
     let cmd = rt.browser_script("sync-canvas-canonical")?;
     run_status(cmd, "canvas sync")
-}
-
-/// First-run deep crawl: same `npm run sync`, but widened to the whole term
-/// (`DAYS`/`CATALOG_DAYS`≈150) instead of the daily 14-day window, so course
-/// catalogs are populated before the student ever asks. Fired once, right
-/// after onboarding confirms a Canvas session — never on the daily cadence.
-pub fn run_bootstrap_sync(rt: &Runtime) -> Result<(), String> {
-    tick_log("bootstrap-sync");
-    let mut cmd = rt.browser_script("sync-canvas-canonical")?;
-    cmd.env("DAYS", "14").env("CATALOG_DAYS", "150");
-    run_status(cmd, "canvas bootstrap sync")?;
-    // Best-effort: learn the school's time zone, term, and color from Canvas itself.
-    if let Err(e) = run_school_script(rt, &["enrich"]) {
-        tick_log(&format!("school enrich skipped: {e}"));
-    }
-    Ok(())
 }
 
 /// `browser/scripts/school.mjs <args>`: school search / choose / enrich (docs/architecture/school-personalization.md).
@@ -209,8 +183,22 @@ pub fn run_open_canvas(rt: &Runtime) -> Result<(), String> {
     if canvas_stub() {
         return Ok(());
     }
-    let cmd = rt.browser_script("open-canvas")?;
-    run_status(cmd, "open-canvas")
+    let mut cmd = rt.browser_script("open-canvas")?;
+    // Keep stderr: a stale school sign-in exits 2 with a `login_expired:` line
+    // that onboarding turns into "restart sign-in" guidance.
+    let output = cmd
+        .output()
+        .map_err(|e| format!("failed to spawn open-canvas: {e}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let detail = stderr
+        .lines()
+        .rev()
+        .find(|line| line.starts_with("login_expired"))
+        .map(str::to_string);
+    Err(detail.unwrap_or_else(|| format!("open-canvas exited with {}", output.status)))
 }
 
 /// Shell `npm run check-session` — headless probe of browser/.auth cookies.
@@ -238,46 +226,6 @@ pub fn run_check_canvas_session(rt: &Runtime) -> Result<bool, String> {
     Ok(parsed.get("loggedIn").and_then(Value::as_bool).unwrap_or(false))
 }
 
-/// Call Python skill router CLI; returns structured route result.
-pub fn run_route_intent(rt: &Runtime, trigger: &str) -> Result<RouteResultDto, String> {
-    tick_log("route-intent");
-    let output = rt
-        .python_module("canvas_mcp.core.skill_router", &["--json", trigger])
-        .output()
-    .map_err(|e| format!("failed to spawn skill_router: {e}"))?;
-    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if raw.is_empty() {
-        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if err.is_empty() {
-            format!("skill_router exited {}", output.status)
-        } else {
-            err
-        });
-    }
-    let value: Value = serde_json::from_str(&raw)
-        .map_err(|e| format!("skill_router JSON parse failed: {e}; raw={raw}"))?;
-    Ok(RouteResultDto {
-        skill_id: value
-            .get("skill_id")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
-        method: value
-            .get("method")
-            .and_then(|v| v.as_str())
-            .unwrap_or("none")
-            .to_string(),
-        ambiguous: value
-            .get("ambiguous")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
-        model_tier: value
-            .get("model_tier")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
-        raw,
-    })
-}
-
 fn python_json(rt: &Runtime, module: &str, args: &[&str]) -> Result<Value, String> {
     rt.usable()?;
     let output = rt
@@ -302,84 +250,10 @@ pub fn run_due_reviews(rt: &Runtime) -> Result<Value, String> {
     python_json(rt, "canvas_mcp.core.learn_loop", &["--json", "due"])
 }
 
-/// Brief-day streak. Does not increment — only a written brief does.
-pub fn run_brief_streak(rt: &Runtime) -> Result<Value, String> {
-    tick_log("brief-streak");
-    python_json(rt, "canvas_mcp.core.habit", &["--json", "show"])
-}
-
-/// Per-course stability counts. Empty `courses` when no claims are stored.
-pub fn run_learn_progress(rt: &Runtime) -> Result<Value, String> {
-    tick_log("learn-progress");
-    python_json(rt, "canvas_mcp.core.learn_loop", &["--json", "progress"])
-}
-
-const EVAL_NOTE: &str =
-    "A single window is not causal. A longer brief count is exposure, not success.";
-
-/// Diff the last two recorded snapshots. Never passes `--record`.
-pub fn run_evaluation_compare(rt: &Runtime) -> Result<Value, String> {
-    tick_log("evaluation-compare");
-    let output = rt
-        .python_module("canvas_mcp.core.learn_loop", &["evaluate", "--compare"])
-        .output()
-        .map_err(|e| format!("failed to spawn canvas_mcp.core.learn_loop: {e}"))?;
-    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if let Ok(value) = serde_json::from_str::<Value>(&raw) {
-        if value.is_object() {
-            return Ok(value);
-        }
-    }
-    Ok(serde_json::json!({
-        "ok": false,
-        "reason": "compare unavailable",
-        "note": EVAL_NOTE,
-    }))
-}
-
 /// Current commitment. Does not create or resolve one.
 pub fn run_read_commitment(rt: &Runtime) -> Result<Value, String> {
     tick_log("read-commitment");
     python_json(rt, "canvas_mcp.core.commitment", &["--json", "status"])
-}
-
-/// Store one student-authored commitment. Refuses if one is already open.
-pub fn run_set_commitment(
-    rt: &Runtime,
-    text: &str,
-    deadline: &str,
-    course: &str,
-    linked_item_id: &str,
-) -> Result<Value, String> {
-    tick_log("set-commitment");
-    let mut owned = vec![
-        "--json".to_string(),
-        "add".into(),
-        "--text".into(),
-        text.to_string(),
-        "--deadline".into(),
-        deadline.to_string(),
-    ];
-    if !course.is_empty() {
-        owned.push("--course".into());
-        owned.push(course.to_string());
-    }
-    if !linked_item_id.is_empty() {
-        owned.push("--linked-item-id".into());
-        owned.push(linked_item_id.to_string());
-    }
-    let refs: Vec<&str> = owned.iter().map(|part| part.as_str()).collect();
-    python_json(rt, "canvas_mcp.core.commitment", &refs)
-}
-
-/// Student-scored close. Does not infer the outcome from activity.
-pub fn run_resolve_commitment(rt: &Runtime, status: &str) -> Result<Value, String> {
-    tick_log("resolve-commitment");
-    python_json(
-        rt,
-        "canvas_mcp.core.commitment",
-        &["--json", "resolve", "--status", status],
-    )
 }
 
 /// Record a retrieval score. `same_session` must stay false for a scheduled dock check.
@@ -402,17 +276,6 @@ pub fn run_record_review_outcome(
         args.push("--same-session");
     }
     python_json(rt, "canvas_mcp.core.learn_loop", &args)
-}
-
-/// Student's optional start line from the learning profile. Empty when unset.
-pub fn run_read_check_intention(rt: &Runtime) -> Result<String, String> {
-    tick_log("read-check-intention");
-    let value = python_json(rt, "canvas_mcp.core.learning_profile", &["--json", "show"])?;
-    Ok(value
-        .get("if_then")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string())
 }
 
 /// Write the onboarding learning-profile games' answers via the Python CLI.
@@ -451,78 +314,6 @@ pub fn run_save_learning_profile(
         let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
         Err(if err.is_empty() {
             format!("learning_profile exited {}", output.status)
-        } else {
-            err
-        })
-    }
-}
-
-/// Write the onboarding "Profile" step's identity/program answers via the
-/// Python CLI (see canvas_mcp.core.user_profile). Ranked lists (interests,
-/// career priorities, values) are passed as repeated `--flag value` pairs.
-pub fn run_save_user_profile(
-    rt: &Runtime,
-    name: &str,
-    institution: &str,
-    school_slug: &str,
-    major: &str,
-    minor: &str,
-    catalog_year: &str,
-    target_grad_term: &str,
-    interests: &[String],
-    good_standing_gpa: &str,
-    scholarship_min_gpa: &str,
-    career_priorities: &[String],
-    values: &[String],
-    transfer_notes: &str,
-) -> Result<(), String> {
-    tick_log("save-user-profile");
-    let mut args: Vec<&str> = vec![
-        "--json",
-        "save",
-        "--name",
-        name,
-        "--institution",
-        institution,
-        "--school-slug",
-        school_slug,
-        "--major",
-        major,
-        "--minor",
-        minor,
-        "--catalog-year",
-        catalog_year,
-        "--target-grad-term",
-        target_grad_term,
-        "--good-standing-gpa",
-        good_standing_gpa,
-        "--scholarship-min-gpa",
-        scholarship_min_gpa,
-        "--transfer-notes",
-        transfer_notes,
-    ];
-    for interest in interests {
-        args.push("--interest");
-        args.push(interest);
-    }
-    for priority in career_priorities {
-        args.push("--career-priority");
-        args.push(priority);
-    }
-    for value in values {
-        args.push("--values");
-        args.push(value);
-    }
-    let output = rt
-        .python_module("canvas_mcp.core.user_profile", &args)
-        .output()
-        .map_err(|e| format!("failed to spawn user_profile: {e}"))?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(if err.is_empty() {
-            format!("user_profile exited {}", output.status)
         } else {
             err
         })
@@ -671,6 +462,46 @@ pub fn run_study(rt: &Runtime, request: &Value) -> Result<Value, String> {
             format!("study core produced no reply (exit {})", output.status)
         })?;
     serde_json::from_str(line).map_err(|e| format!("study core JSON parse failed: {e}"))
+}
+
+/// Student-owned week plan state (`canvas_mcp/core/week_plan.py`): estimates,
+/// hours, deferrals, the accepted plan, captures, pile corrections. Local only.
+pub fn run_week_plan(rt: &Runtime, request: &Value) -> Result<Value, String> {
+    tick_log("week-plan");
+    rt.usable()?;
+    validate_study_request(request)?;
+    let mut child = rt
+        .core_module_command("week_plan", &["--json", "run"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("failed to spawn week plan: {e}"))?;
+    {
+        let stdin = child.stdin.as_mut().ok_or("week plan stdin unavailable")?;
+        stdin
+            .write_all(request.to_string().as_bytes())
+            .map_err(|e| format!("failed to send week plan request: {e}"))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("week plan failed: {e}"))?;
+    if output.stdout.len() > MAX_REPLY_BYTES {
+        return Err("week plan reply too large".into());
+    }
+    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let line = raw
+        .lines()
+        .rev()
+        .find(|l| l.trim_start().starts_with('{'))
+        .ok_or_else(|| {
+            let err = String::from_utf8_lossy(&output.stderr);
+            for l in err.lines().rev().take(3) {
+                eprintln!("[kairos-daemon] week plan: {l}");
+            }
+            format!("week plan produced no reply (exit {})", output.status)
+        })?;
+    serde_json::from_str(line).map_err(|e| format!("week plan JSON parse failed: {e}"))
 }
 
 fn is_weekend_now() -> bool {

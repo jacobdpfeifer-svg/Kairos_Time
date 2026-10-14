@@ -44,7 +44,7 @@ describe("AskPanel", () => {
     await user.type(screen.getByRole("textbox"), "Find the derivative of x^2");
     await user.click(screen.getByRole("button", { name: "Get a next step" }));
     expect(await screen.findByRole("heading", { name: "The derivative is 2x." })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Walkthrough" }));
+    await user.click(screen.getByRole("button", { name: "Walk me through it" }));
     expect(await screen.findByRole("heading", { name: "Use the power rule." })).toBeInTheDocument();
     const create = vi.mocked(transport.send).mock.calls.filter(([cmd]) => cmd === "ask-create");
     expect(create).toHaveLength(1);
@@ -95,7 +95,7 @@ describe("AskPanel", () => {
     const course = await screen.findByLabelText("Course");
     await user.clear(course);
     await user.type(course, "HIST 1010");
-    await user.click(screen.getByRole("button", { name: "Update chip" }));
+    await user.click(screen.getByRole("button", { name: "Use these" }));
     const correct = vi.mocked(transport.send).mock.calls.filter(([cmd]) => cmd === "ask-correct");
     expect(correct).toHaveLength(1);
     expect(correct[0][1]).toMatchObject({ input_id: "ask-1", course: "HIST 1010", boundary: "open_homework" });
