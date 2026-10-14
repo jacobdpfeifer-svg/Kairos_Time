@@ -166,6 +166,7 @@
       <li><strong>Sign in the way you always do.</strong> <span>Your school's normal login. Kairos never sees your password.</span></li>
       <li><strong>Your classes show up.</strong> <span>Due dates, grades, and syllabus pages, sorted into one plan.</span></li>
     </ol>
+    <p class="how-note">You'll need a Mac and Google Chrome, because sign-in happens in Chrome. Kairos for Canvas, a small Chrome extension, also shows what changed right on your Canvas dashboard.</p>
   </section>
 
   <section class="privacy wrap" id="privacy" aria-labelledby="privacy-title">
@@ -189,14 +190,14 @@
       <p class="section-lede" id="access-lede">Kairos is in a small Mac beta. The signed download is still being prepared, so there are two honest ways to get in line.</p>
       <div class="access-options">
         <article class="access-option">
-          <p class="access-kicker">For most testers</p>
+          <p class="access-for">For most testers</p>
           <h3>Get the Mac app</h3>
           <p id="dmg-copy">We'll send you a verified <code>.dmg</code> when it's ready. It will install like a normal Mac app and won't require a git checkout.</p>
           <span class="btn btn-disabled" id="dmg-status">DMG coming soon</span>
           <p class="access-note" id="dmg-note">The download appears here after signing, fresh-machine testing, and release.</p>
         </article>
         <article class="access-option">
-          <p class="access-kicker">For GitHub users</p>
+          <p class="access-for">For GitHub users</p>
           <h3>Try from source</h3>
           <p>If you're comfortable with GitHub, request source instructions. We'll share the right repo access and setup steps directly.</p>
           <a class="btn btn-outline" href="#waitlist-email" data-beta-path="github">Request GitHub access</a>
@@ -207,7 +208,7 @@
         <label for="waitlist-email">School email</label>
         <div class="email-row">
           <input id="waitlist-email" type="email" placeholder="you@school.edu" required autocomplete="email">
-          <button class="btn" type="submit">Get early access</button>
+          <button class="btn" type="submit" id="waitlist-submit">Get early access</button>
         </div>
         <input id="beta-path" type="hidden" value="mac">
       </form>

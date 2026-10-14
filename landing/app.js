@@ -36,6 +36,9 @@
     document.querySelectorAll("[data-beta-path]").forEach(function (link) {
       link.addEventListener("click", function () {
         if (path) path.value = link.getAttribute("data-beta-path") || "mac";
+        var submit = document.getElementById("waitlist-submit");
+        // One label per intent (MASTER §11): the GitHub path asks for source access.
+        if (submit) submit.textContent = path && path.value === "github" ? "Request source access" : "Get early access";
         window.setTimeout(function () {
           input.focus();
         }, 0);
