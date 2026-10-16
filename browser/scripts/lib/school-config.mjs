@@ -120,13 +120,18 @@ function parseSchoolYaml(text) {
 
 let _cached = null;
 
+/** Slugs are file stems under schools/; refuse anything that could name another path. */
+const SLUG = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$/;
+
 function yamlPath(slug) {
+  if (!SLUG.test(String(slug || ""))) throw new Error(`Invalid school slug: ${JSON.stringify(slug)}`);
   return path.join(schoolsDir(), `${slug}.yaml`);
 }
 
 function loadYaml(slug) {
+  if (!slug || slug.startsWith("_") || !SLUG.test(String(slug))) return null;
   const file = yamlPath(slug);
-  if (!slug || slug.startsWith("_") || !fs.existsSync(file)) return null;
+  if (!fs.existsSync(file)) return null;
   return parseSchoolYaml(fs.readFileSync(file, "utf8"));
 }
 

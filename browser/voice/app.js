@@ -220,7 +220,10 @@ async function start() {
     return;
   }
 
-  ws = new WebSocket(`ws://${location.host}/ws`);
+  // Keep the transport aligned with the page origin so a future HTTPS host
+  // cannot silently downgrade the microphone session to cleartext WebSocket.
+  const wsProtocol = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${wsProtocol}://${location.host}/ws`);
   ws.binaryType = "arraybuffer";
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: "start", mode: els.mode.value, course: els.course.value }));

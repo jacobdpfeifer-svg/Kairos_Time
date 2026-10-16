@@ -46,6 +46,22 @@ Chrome native host over framed stdin, the relay over loopback HTTP, and the
 actuator write gate. Each run gets a fresh root with per-student canaries and a
 planted feed secret. A network guard refuses every non-loopback connection.
 
+## Status 2026-10-14 (security pass)
+
+Fixed, with the strict-xfail markers removed and the tests now plain assertions:
+F1 (`escCell` strips every line separator; Python table readers split on `\n` only),
+F2 (Canvas rows and coverage titles fenced as untrusted data),
+F3 (study bridge always answers a JSON envelope),
+F5 (relay `request_id` carries a payload hash),
+F6–F8 (native host survives corrupt state and hostile messages, caps queues, drains oversize frames),
+F10–F12 (relay socket timeout and Content-Length checks, crashed dispatches settle `unknown` plus a stale-reservation reaper, per-tester session caps),
+F13 (links scrubbed from model feedback),
+F14 (lenient reads and event-line type checks; the corruption fuzz now asserts),
+F15 (a valid token only reaches `needs_human`; email/calendar writes execute after the student approves an MCP elicitation the model cannot answer, and fail closed without one),
+F16 (institution read from the root being written),
+and the provisional-skill hardening note (bundled skills always load; provisional skills never get write tools or replace a reviewed skill).
+Still open: F9 and F17 (not security), F18 (capacity decision), F19 (partly addressed by optional host permissions).
+
 ## Findings
 
 Severity is about what a beta tester would hit or what an attacker could do,

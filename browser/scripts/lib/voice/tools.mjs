@@ -87,7 +87,7 @@ export function buildToolDeclarations(courseCodes) {
 function writeAtomic(file, content) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, content);
+  fs.writeFileSync(tmp, content, { mode: 0o600 });
   fs.renameSync(tmp, file);
 }
 
@@ -134,8 +134,10 @@ export function createToolHandlers({ paths, sessionId, courseCodes = [], now = (
     courseCodes: codes,
     /** @param {string} name @param {Record<string, unknown>} [args] */
     async handle(name, args) {
-      const fn = tools[name];
-      if (!fn) return { ok: false, error: `unknown tool: ${name}` };
+      // Own keys only: a model-supplied name like "constructor" or "__proto__"
+      // must not resolve to an inherited Object method.
+      const fn = typeof name === "string" && Object.hasOwn(tools, name) ? tools[name] : null;
+      if (!fn) return { ok: false, error: `unknown tool: ${String(name).slice(0, 64)}` };
       try {
         return fn(args ?? {});
       } catch (err) {

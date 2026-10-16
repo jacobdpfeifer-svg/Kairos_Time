@@ -3,6 +3,7 @@
 
 mod calendar;
 mod advisor;
+mod briefs;
 mod canvas;
 mod commands;
 mod daemon;
@@ -36,7 +37,9 @@ fn take_pending_link(state: tauri::State<'_, PendingLink>) -> Option<String> {
 }
 
 fn open_link(app: &tauri::AppHandle, url: &str) {
-    if !url.to_ascii_lowercase().starts_with("kairos://") {
+    // Any website can open a kairos:// link; keep it short and plain before
+    // it reaches the webview router (which validates each segment again).
+    if url.len() > 512 || url.chars().any(char::is_control) || !url.to_ascii_lowercase().starts_with("kairos://") {
         return;
     }
     if let Some(state) = app.try_state::<PendingLink>() {
@@ -48,10 +51,38 @@ fn open_link(app: &tauri::AppHandle, url: &str) {
     let _ = app.emit("deep-link", url);
 }
 
+/// Only the app's own pages may load in the webview. A link, redirect or
+/// injected script that tries to navigate it elsewhere is refused, so no
+/// remote page ever runs with access to the app's IPC commands.
+fn is_app_origin(url: &tauri::Url) -> bool {
+    match url.scheme() {
+        "tauri" => true,
+        "http" | "https" => {
+            url.host_str() == Some("tauri.localhost")
+                || (cfg!(debug_assertions) && matches!(url.host_str(), Some("localhost") | Some("127.0.0.1")))
+        }
+        "about" => url.as_str() == "about:blank",
+        _ => false,
+    }
+}
+
+fn navigation_guard<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("navigation-guard")
+        .on_navigation(|_webview, url| {
+            let allowed = is_app_origin(url);
+            if !allowed {
+                eprintln!("[kairos-daemon] blocked webview navigation to {}", url.scheme());
+            }
+            allowed
+        })
+        .build()
+}
+
 fn main() {
     daemon::tick_log("boot");
 
     let app = tauri::Builder::default()
+        .plugin(navigation_guard())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -105,6 +136,13 @@ fn main() {
             commands::read_advisor_snapshot,
             commands::read_course_map,
             commands::read_course_colors,
+            commands::read_mission_control_surface,
+            commands::read_assignment_brief,
+            commands::set_mission_control_selection,
+            commands::read_brief_prefs,
+            commands::write_brief_prefs,
+            commands::record_brief_feedback,
+            commands::export_brief_feedback,
             commands::read_grade_truth,
             commands::add_calendar_event,
             commands::dismiss_calendar_suggestion,
@@ -240,7 +278,12 @@ fn main() {
 
             // The main window is the study workspace (normal, resizable). The
             // compact dock geometry is opt-in from the frontend (set_dock_mode).
-            daemon::spawn_cadence_loop(Arc::clone(&rt));
+            let cadence_handle = app.handle().clone();
+            daemon::spawn_cadence_loop(Arc::clone(&rt), move || {
+                // A canonical sync also rebuilds the local brief projection.
+                // Tell Today to re-read even if the freshness delta count is 0.
+                let _ = cadence_handle.emit("inbox-updated", ());
+            });
             let handle = app.handle().clone();
             daemon::spawn_freshness_loop(Arc::clone(&rt), move |n| {
                 let _ = handle.emit("freshness-updated", n);
@@ -264,6 +307,16 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+
+    #[test]
+    fn webview_may_only_navigate_within_the_app() {
+        let ok = |u: &str| super::is_app_origin(&tauri::Url::parse(u).unwrap());
+        assert!(ok("tauri://localhost/index.html"));
+        assert!(ok("http://tauri.localhost/"));
+        for bad in ["https://evil.example/", "file:///etc/passwd", "javascript:alert(1)", "data:text/html,x", "https://tauri.localhost.evil.example/"] {
+            assert!(!ok(bad), "{bad}");
+        }
+    }
 
     fn between<'a>(src: &'a str, start: &str, end: &str) -> &'a str {
         let from = src.find(start).expect("start marker") + start.len();

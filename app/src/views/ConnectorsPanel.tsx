@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StudyRequestError, connectors, type Connectors } from "../study/api";
 import { fmtWhen } from "../study/format";
+import { openExternalUrl } from "../ipc";
 
 const STATE_LABEL: Record<string, string> = {
   disconnected: "Not connected",
@@ -127,7 +128,11 @@ export function ConnectorsPanel() {
         {o.detail && <p className="muted">{o.detail}</p>}
         {device && (
           <p className="notice" role="status">
-            Open <a href={device.verification_uri} target="_blank" rel="noreferrer">{device.verification_uri}</a> and enter the code <code>{device.user_code}</code>. Waiting for sign-in…
+            Open{" "}
+            <button type="button" className="link" onClick={() => void openExternalUrl(device.verification_uri).catch(() => undefined)}>
+              {device.verification_uri}
+            </button>{" "}
+            and enter the code <code>{device.user_code}</code>. Waiting for sign-in…
           </p>
         )}
         <div className="row">

@@ -2225,3 +2225,272 @@ ul.rows > li:last-child {
   margin: 0;
   color: var(--muted);
 }
+
+/* ---------- Mission Control: brief islands (handoff 2026-10-15) ----------
+   Raised rounded launchers, one open at a time. Course color is a small pip
+   and a 3px left rule, never a fill. The only highlighter on the page is the
+   open brief's primary button. State is text first. */
+.mission-control {
+  margin-top: 8px;
+}
+.mc-islands,
+.mc-ops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mc-ops {
+  margin: 12px 0 4px;
+}
+.mc-island,
+.mc-ops-island {
+  background: var(--sheet);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--course, var(--hairline));
+  border-radius: var(--radius-sheet);
+  box-shadow: 0 1px 0 var(--hairline), 0 6px 18px rgba(29, 29, 31, 0.04);
+}
+.mc-ops-island {
+  border-left-color: var(--hairline);
+}
+.workspace-main .mc-island-heading {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.workspace .mc-island-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 13px 16px;
+  text-align: left;
+  border: 0;
+  border-radius: var(--radius-sheet);
+  background: transparent;
+  box-shadow: none;
+  color: var(--fg);
+}
+.workspace .mc-island-header:hover:not(:disabled) {
+  background: var(--sheet-2);
+}
+.mc-island-header .course-dot {
+  margin-top: 5px;
+  background: var(--course, var(--muted));
+}
+.mc-island-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.mc-island-title {
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.mc-island-main .row-meta {
+  display: block;
+}
+.mc-island-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.mc-status,
+.mc-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-tag);
+  background: var(--sheet-2);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mc-island[data-state="needs_attention"] .mc-status {
+  border-color: var(--danger);
+}
+.mc-island.is-quiet .mc-island-header {
+  min-height: 44px;
+  padding-block: 9px;
+}
+.mc-island.is-quiet .mc-island-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.mc-island-panel {
+  padding: 4px 16px 16px 37px;
+  border-top: 1px solid var(--hairline);
+}
+.mc-brief h4 {
+  margin: 18px 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.mc-brief h5 {
+  margin: 12px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.mc-brief ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.mc-brief li + li {
+  margin-top: 3px;
+}
+.mc-brief p {
+  margin: 4px 0;
+}
+.mc-provenance,
+.mc-updated {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.mc-updated {
+  color: var(--fg);
+  font-weight: 600;
+}
+.mc-gaps {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.mc-next p {
+  font-size: 16px;
+  font-weight: 600;
+}
+.mc-checklist .mc-tag,
+.mc-brief h5 .mc-tag,
+.mc-brief h4 .mc-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.mc-brief ul.rows {
+  padding: 0;
+}
+.mc-evidence {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+.mc-other-actions,
+.mc-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 16px;
+}
+.mc-feedback {
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+}
+.mc-enrichment {
+  margin-top: 16px;
+  padding: 4px 12px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-control);
+}
+.mc-ops-body {
+  padding-top: 8px;
+}
+.mc-ops-what {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mc-ops-body .course-dot {
+  background: var(--course, var(--muted));
+}
+.mc-draft-form {
+  display: grid;
+  gap: 10px;
+}
+.mc-draft-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mc-draft-form input,
+.mc-draft-form textarea {
+  font: inherit;
+  color: var(--fg);
+}
+.mc-exact {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 8px 0;
+}
+.mc-exact dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+.mc-exact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mc-pre {
+  white-space: pre-wrap;
+}
+.mc-review {
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+.mc-send-state {
+  color: var(--muted);
+  font-size: 14px;
+}
+.mc-rest {
+  margin-top: 12px;
+}
+.mc-calibrate {
+  margin-top: 24px;
+  padding: 4px 16px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sheet);
+  background: var(--sheet-2);
+}
+.mc-sheet {
+  max-height: min(86vh, 900px);
+  overflow-y: auto;
+}
+.workspace-main .mc-sheet-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+}
+@media (max-width: 720px) {
+  .mc-island-header {
+    flex-wrap: wrap;
+  }
+  .mc-island-side {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace .mc-island-header,
+  .mc-island {
+    transition: none;
+  }
+}

@@ -31,7 +31,9 @@ from datetime import datetime
 from html import unescape
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree
+
+from defusedxml import ElementTree
+from defusedxml.common import DefusedXmlException
 
 from . import canvas
 from .model import StudyError, iso
@@ -41,6 +43,8 @@ MAX_FILE_BYTES = 50 * 1024 * 1024
 MAX_TEXT_CHARS = 400_000
 SUMMARY_CHARS = 280
 CHUNK_CHARS = 1500
+MAX_ARCHIVE_MEMBER_BYTES = 20 * 1024 * 1024
+MAX_ARCHIVE_TOTAL_BYTES = 80 * 1024 * 1024
 
 CATEGORIES = ("syllabus", "notes", "slides", "assignment", "study_guide", "reading", "screenshot", "image", "other")
 
@@ -145,7 +149,7 @@ def _strip_rtf(text: str) -> str:
 def _xml_text(data: bytes, para_tag: str, text_tag: str) -> str:
     try:
         root = ElementTree.fromstring(data)
-    except ElementTree.ParseError:
+    except (ElementTree.ParseError, DefusedXmlException):
         return ""
     lines: list[str] = []
     for para in root.iter():
@@ -156,9 +160,24 @@ def _xml_text(data: bytes, para_tag: str, text_tag: str) -> str:
     return "\n".join(lines)
 
 
+def _zip_member(archive: zipfile.ZipFile, name: str, total: list[int]) -> bytes:
+    """Read one known archive member with decompression/resource bounds."""
+    info = archive.getinfo(name)
+    if info.file_size > MAX_ARCHIVE_MEMBER_BYTES:
+        raise ValueError("archive member is too large")
+    total[0] += info.file_size
+    if total[0] > MAX_ARCHIVE_TOTAL_BYTES:
+        raise ValueError("archive contents are too large")
+    with archive.open(info) as member:
+        data = member.read(MAX_ARCHIVE_MEMBER_BYTES + 1)
+    if len(data) > MAX_ARCHIVE_MEMBER_BYTES:
+        raise ValueError("archive member is too large")
+    return data
+
+
 def _docx_text(data: bytes) -> str:
     with zipfile.ZipFile(_bytes_io(data)) as archive:
-        return _xml_text(archive.read("word/document.xml"), "p", "t")
+        return _xml_text(_zip_member(archive, "word/document.xml", [0]), "p", "t")
 
 
 def _pptx_text(data: bytes) -> str:
@@ -166,8 +185,9 @@ def _pptx_text(data: bytes) -> str:
         slides = [n for n in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)]
         slides.sort(key=lambda n: int(re.findall(r"\d+", n)[-1]))
         parts = []
+        total = [0]
         for number, name in enumerate(slides, start=1):
-            body = _xml_text(archive.read(name), "p", "t")
+            body = _xml_text(_zip_member(archive, name, total), "p", "t")
             if body.strip():
                 parts.append(f"Slide {number}\n{body}")
         return "\n\n".join(parts)
@@ -177,14 +197,14 @@ def _xlsx_text(data: bytes) -> str:
     with zipfile.ZipFile(_bytes_io(data)) as archive:
         if "xl/sharedStrings.xml" not in archive.namelist():
             return ""
-        return _xml_text(archive.read("xl/sharedStrings.xml"), "si", "t")
+        return _xml_text(_zip_member(archive, "xl/sharedStrings.xml", [0]), "si", "t")
 
 
 def _odt_text(data: bytes) -> str:
     with zipfile.ZipFile(_bytes_io(data)) as archive:
         try:
-            root = ElementTree.fromstring(archive.read("content.xml"))
-        except (KeyError, ElementTree.ParseError):
+            root = ElementTree.fromstring(_zip_member(archive, "content.xml", [0]))
+        except (KeyError, ElementTree.ParseError, DefusedXmlException, ValueError):
             return ""
         return "\n".join("".join(node.itertext()) for node in root.iter() if node.tag.endswith("}p") or node.tag.endswith("}h"))
 
@@ -227,14 +247,23 @@ def _pdf_text(data: bytes) -> str:
     """Text-showing operators from FlateDecode/plain content streams. Fonts
     with custom encodings come out as noise; ``_looks_like_text`` rejects that."""
     lines: list[str] = []
+    inflated_total = 0
     for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.DOTALL):
         stream = match.group(1)
         header = data[max(0, match.start() - 400) : match.start()]
         if b"/FlateDecode" in header:
+            # Bounded inflate: a small Flate stream can expand to gigabytes
+            # (decompression bomb), so cap each stream and the whole file.
+            inflater = zlib.decompressobj()
             try:
-                stream = zlib.decompress(stream)
+                stream = inflater.decompress(stream, MAX_ARCHIVE_MEMBER_BYTES)
             except zlib.error:
                 continue
+            if inflater.unconsumed_tail:
+                continue  # larger than one member may be: skip it, keep the rest
+            inflated_total += len(stream)
+            if inflated_total > MAX_ARCHIVE_TOTAL_BYTES:
+                break
         elif b"/Filter" in header:
             continue
         if b"Tj" not in stream and b"TJ" not in stream:

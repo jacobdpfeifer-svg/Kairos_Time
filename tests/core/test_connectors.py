@@ -166,3 +166,62 @@ def test_relevant_context_selects_locally(tmp_path: Path) -> None:
     c._save_record(tmp_path, "outlook", {"fetched_at": "x", "items": [{"id": "m", "subject": "Re: MATH 1300 office hours"}, {"id": "n", "subject": "Newsletter"}]})
     out = c.relevant_context(tmp_path, course_terms=["MATH 1300"], days=3650)
     assert [e["id"] for e in out["events"]] == ["1"] and [m["id"] for m in out["emails"]] == ["m"]
+
+
+# --- Mission Control calendar island (2026-10-15): ledger, replay, expiry -------------
+
+
+class FakeGoogle:
+    def __init__(self) -> None:
+        self.created: list[dict[str, Any]] = []
+
+    def calendar_service(self, user_root: Path) -> object:
+        return object()
+
+    def gcal_create_event(self, service: object, **fields: Any) -> dict[str, Any]:
+        self.created.append(fields)
+        return {"id": f"evt-{len(self.created)}"}
+
+
+def _ledger(root: Path) -> list[dict[str, Any]]:
+    path = root / "ledger.jsonl"
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()] if path.exists() else []
+
+
+def _connected(monkeypatch: pytest.MonkeyPatch, root: Path) -> FakeGoogle:
+    fake = FakeGoogle()
+    monkeypatch.setattr(c, "_google_oauth", lambda: fake)
+    c._set(root, "gcal", state="connected")
+    return fake
+
+
+def test_confirmed_calendar_write_happens_once_and_is_ledgered(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _connected(monkeypatch, tmp_path)
+    fields = {"summary": "Work on PS4", "start_iso": "2026-10-15T20:00:00Z", "end_iso": "2026-10-15T21:30:00Z", "why": "Due in the next few days"}
+    token = c.gcal_preview_event(tmp_path, **fields)["confirmation_token"]
+    out = c.gcal_confirm_event(tmp_path, **fields, confirmation_token=token)
+    assert out["created"]["id"] == "evt-1" and len(fake.created) == 1
+    with pytest.raises(c.ConnectorError) as info:
+        c.gcal_confirm_event(tmp_path, **fields, confirmation_token=token)
+    assert info.value.code == "confirmation"  # replay refused
+    assert len(fake.created) == 1
+    rows = _ledger(tmp_path)
+    assert [r["outcome"] for r in rows] == ["success", "veto"]
+    assert rows[0]["tool"] == "gcal_create_event" and rows[0]["target"] == "google_calendar:evt-1"
+    assert rows[0]["preview_hash"] and rows[0]["category"] == "calendar"
+
+
+def test_changed_field_or_expired_token_never_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _connected(monkeypatch, tmp_path)
+    fields = {"summary": "Work on PS4", "start_iso": "2026-10-15T20:00:00Z", "end_iso": "2026-10-15T21:30:00Z", "why": "w"}
+    token = c.gcal_preview_event(tmp_path, **fields)["confirmation_token"]
+    with pytest.raises(c.ConnectorError):
+        c.gcal_confirm_event(tmp_path, **{**fields, "summary": "Something else"}, confirmation_token=token)
+    expired = c.gcal_preview_event(tmp_path, **fields)["confirmation_token"]
+    real_time = time.time
+    monkeypatch.setattr(time, "time", lambda: real_time() + 3600)
+    with pytest.raises(c.ConnectorError) as info:
+        c.gcal_confirm_event(tmp_path, **fields, confirmation_token=expired)
+    assert info.value.code == "confirmation"
+    assert fake.created == []
+    assert {r["outcome"] for r in _ledger(tmp_path)} == {"veto"}

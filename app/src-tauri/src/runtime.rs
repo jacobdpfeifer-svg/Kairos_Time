@@ -76,6 +76,18 @@ fn home() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+/// The profile holds SSO cookies, OAuth tokens, grades and private notes:
+/// owner-only (0700), so no other local account can list or read it.
+pub fn restrict_to_owner(dir: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+    }
+    #[cfg(not(unix))]
+    let _ = dir;
+}
+
 pub fn valid_profile_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
@@ -277,6 +289,7 @@ pub fn resolve(resource_dir: Option<&Path>) -> Runtime {
     if let Err(e) = fs::create_dir_all(&user_root) {
         diagnostics.push(format!("cannot create profile directory {}: {e}", user_root.display()));
     }
+    restrict_to_owner(&user_root);
 
     Runtime {
         mode,
@@ -324,6 +337,10 @@ impl Runtime {
             cmd.env("PYTHONNOUSERSITE", "1");
             cmd.env("PYTHONDONTWRITEBYTECODE", "1");
             cmd.env_remove("PYTHONHOME");
+            cmd.env_remove("PYTHONSTARTUP");
+            // A launchd-wide NODE_OPTIONS (--require/--import) would load
+            // foreign code into every sync with the student's Canvas session.
+            cmd.env_remove("NODE_OPTIONS");
         }
     }
 

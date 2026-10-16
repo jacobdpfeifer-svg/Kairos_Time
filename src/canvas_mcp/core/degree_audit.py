@@ -126,7 +126,7 @@ def load_degree_audit(
 ) -> DegreeAudit | None:
     if not path.is_file():
         return None
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8", errors="replace")
     fm, body = parse_frontmatter(text)
     imported = _parse_date(str(fm.get("imported_on") or ""))
     now = today or date.today()

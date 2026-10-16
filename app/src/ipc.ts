@@ -534,8 +534,12 @@ export async function dismissCalendarSuggestion(sourceMessageId: string): Promis
 }
 
 export async function openExternalUrl(url: string): Promise<void> {
+  const parsed = new URL(url);
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || !parsed.hostname) {
+    throw new Error('only credential-free http(s) URLs can be opened');
+  }
   if (!isTauri()) {
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(parsed.toString(), "_blank", "noopener,noreferrer");
     return;
   }
   await invoke("open_external_url", { url });

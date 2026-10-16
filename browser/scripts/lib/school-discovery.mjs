@@ -86,8 +86,8 @@ export function readSchoolProfile(root = resolveUserRoot()) {
 export function writeSchoolProfile(profile, root = resolveUserRoot()) {
   const file = schoolProfilePath(root);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(profile, null, 2) + "\n");
+  const tmp = `${file}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(profile, null, 2) + "\n", { mode: 0o600 });
   fs.renameSync(tmp, file);
   return file;
 }
@@ -101,7 +101,7 @@ export function buildSchoolProfile({ host, name, accountId = null, source = "ins
   return {
     version: PROFILE_VERSION,
     slug: curatedSlug || hostSlug(canvasHost),
-    display_name: String(name || "").trim() || canvasHost,
+    display_name: String(name || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120) || canvasHost,
     canvas_host: canvasHost,
     canvas_base_url: `https://${canvasHost}`,
     instructure_account_id: accountId,

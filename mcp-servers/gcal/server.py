@@ -18,13 +18,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "mcp-servers"))
 
 from common import google_oauth  # noqa: E402
-from common.actuator import gate_connector_write, user_root  # noqa: E402
+from common.actuator import gate_with_human, user_root  # noqa: E402
 from common.stop_rewind import engage_global_stop, rewind_last  # noqa: E402
 
 from canvas_mcp.core.ledger import UndoPtr, append_ledger  # noqa: E402
@@ -33,17 +33,20 @@ mcp = FastMCP("kairos-gcal")
 
 
 @mcp.tool()
-def create_event(
+async def create_event(
     summary: str,
     start_iso: str,
     end_iso: str,
     why: str = "Calendar event",
     confirmation_token: str | None = None,
+    ctx: Context | None = None,
 ) -> str:
     """Create a real calendar event. Always previews first; only writes once
-    the student confirms this exact content in the current conversation."""
+    the student approves this exact content in the client's approval prompt
+    (the model cannot answer it)."""
     root = user_root()
-    gate = gate_connector_write(
+    gate = await gate_with_human(
+        ctx,
         root,
         "calendar",
         connector_id="gcal",
@@ -93,18 +96,21 @@ def create_event(
 
 
 @mcp.tool()
-def update_event(
+async def update_event(
     event_id: str,
     summary: str | None = None,
     start_iso: str | None = None,
     end_iso: str | None = None,
     why: str = "Calendar event update",
     confirmation_token: str | None = None,
+    ctx: Context | None = None,
 ) -> str:
     """Update a real calendar event. Always previews first; only writes once
-    the student confirms this exact content in the current conversation."""
+    the student approves this exact content in the client's approval prompt
+    (the model cannot answer it)."""
     root = user_root()
-    gate = gate_connector_write(
+    gate = await gate_with_human(
+        ctx,
         root,
         "calendar",
         connector_id="gcal",

@@ -10,7 +10,6 @@ import json
 import struct
 
 import pytest
-from conftest import finding
 from kairos_adapter import native_host
 
 
@@ -28,7 +27,6 @@ CORRUPT_STATE = [
 ]
 
 
-@finding("F6", "host handlers catch only OSError; corrupt freshness state kills the host process")
 @pytest.mark.parametrize("name,fname,content,msg", CORRUPT_STATE, ids=[c[0] for c in CORRUPT_STATE])
 def test_host_survives_corrupt_state(avery, name, fname, content, msg) -> None:
     path = fresh(avery) / fname
@@ -49,11 +47,9 @@ HOSTILE = [
 @pytest.mark.parametrize("name,msg", HOSTILE, ids=[h[0] for h in HOSTILE])
 def test_host_rejects_hostile_messages_without_dying(avery, name, msg) -> None:
     rc, replies, err = native_host(avery, [msg, {"type": "get_dashboard"}])
-    if rc != 0 or len(replies) != 2:
-        pytest.xfail(f"F6: {name} kills the host: {err.strip().splitlines()[-1:]}")
+    assert rc == 0 and len(replies) == 2, f"F6: {name} kills the host: {err.strip().splitlines()[-1:]}"
 
 
-@finding("F7", "queue_ask / canvas_focus / calendar suggestions have no backlog cap (disk fill from a compromised or buggy extension)")
 def test_host_caps_unbounded_queues(avery) -> None:
     msgs = [{"type": "queue_ask", "content": "x" * 7999} for _ in range(300)]
     msgs += [{"type": "canvas_focus", "url": "https://canvas.example.invalid/" + "a" * 900_000} for _ in range(3)]
@@ -72,7 +68,6 @@ def test_host_delta_backlog_is_capped(avery) -> None:
     assert len(list((avery / "inbox" / "freshness" / "deltas").glob("*.json"))) <= 50
 
 
-@finding("F8", "an oversize frame is only partly drained; the remainder is parsed as the next frame header")
 def test_oversize_frame_does_not_desync(avery) -> None:
     big = b"{" + b" " * 1_200_000 + b"}"
     ok = json.dumps({"type": "get_dashboard"}).encode()

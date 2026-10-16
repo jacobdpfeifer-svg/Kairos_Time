@@ -9,8 +9,8 @@ walkthrough, mastery diagnosis, or draft.
 
 from __future__ import annotations
 
+import hashlib
 import json
-import os
 import re
 import uuid
 from datetime import datetime, timezone
@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import canvas, checkers, library
-from .model import StudyError, iso, require_choice, require_id
+from .model import StudyError, iso, require_choice, require_id, write_private_text
 from .packets import find_item
 from .store import study_dir
 
@@ -85,14 +85,7 @@ def _current_path(user_root: Path) -> Path:
 
 
 def _atomic_write(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    try:
-        os.chmod(tmp, 0o600)
-    except OSError:
-        pass
-    os.replace(tmp, path)
+    write_private_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -890,8 +883,7 @@ def relay_payload(record: dict[str, Any], context: dict[str, Any], plan: dict[st
         if len(passages) >= 6:
             break
         passages.append({"locator": scrub(str(item.get("locator") or "source"), banned)[:200], "text": scrub(str(item.get("text") or ""), banned)[:6000]})
-    return {
-        "request_id": f"ask:{record['input_id']}:{plan['response_mode']}",
+    payload = {
         "session_budget_id": str(record.get("input_id")),
         "purpose": purpose,
         "source_passages": passages,
@@ -901,6 +893,11 @@ def relay_payload(record: dict[str, Any], context: dict[str, Any], plan: dict[st
         "schema_version": 1,
         "pricing_version": "2026-09-18",
     }
+    # The relay replays a repeated request_id, so the id must change whenever
+    # what the model would see changes (a corrected course, new passages) —
+    # otherwise the student gets the answer for the old context (finding F5).
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:12]
+    return {"request_id": f"ask:{record['input_id']}:{plan['response_mode']}:{digest}", **payload}
 
 
 def _maybe_relay(service: Any, record: dict[str, Any], context: dict[str, Any], plan: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:

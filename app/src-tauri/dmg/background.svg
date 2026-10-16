@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="400" viewBox="0 0 660 400" role="img" aria-label="Drag kairos into Applications">
+  <title>Drag kairos into Applications</title>
+  <defs>
+    <style>
+      @font-face {
+        font-family: Gabarito;
+        src: url("../../../landing/fonts/gabarito-latin-wght-normal.woff2") format("woff2");
+        font-weight: 400 900;
+      }
+      @font-face {
+        font-family: Caveat;
+        src: url("../../../landing/fonts/caveat-latin-wght-normal.woff2") format("woff2");
+        font-weight: 400 700;
+      }
+    </style>
+  </defs>
+
+  <rect width="660" height="400" fill="#fbfbfa"/>
+
+  <!-- Finder title bar covers roughly the top 28px. Copy sits just below. -->
+  <text
+    x="330"
+    y="72"
+    text-anchor="middle"
+    font-family="Gabarito, system-ui, sans-serif"
+    font-weight="800"
+    font-size="22"
+    letter-spacing="-0.44px"
+    fill="#1d1d1f"
+  >Drag kairos into Applications</text>
+
+  <!-- Finder icons land at (180,170) and (480,170). Pads stay empty. One highlighter swipe. -->
+  <path
+    d="M268 176 C 308 160, 352 160, 392 176"
+    fill="none"
+    stroke="#ffe14d"
+    stroke-width="16"
+    stroke-linecap="round"
+  />
+  <path
+    d="M272 170 C 312 156, 348 156, 372 166"
+    fill="none"
+    stroke="#1d1d1f"
+    stroke-width="2.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M360 154 L 390 170 L 360 186"
+    fill="none"
+    stroke="#1d1d1f"
+    stroke-width="2.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <g transform="translate(348 300) rotate(-4)" aria-hidden="true">
+    <text
+      font-family="Caveat, 'Comic Neue', cursive"
+      font-weight="700"
+      font-size="22"
+      fill="#2f5bea"
+    >this bit</text>
+    <path
+      d="M 8 -10 C 0 -24, -10 -38, -20 -52"
+      fill="none"
+      stroke="#2f5bea"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M -30 -46 L -20 -54 L -12 -42"
+      fill="none"
+      stroke="#2f5bea"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+
+  <!-- Outdoor doodle: landscape only, ink line, no mascot. -->
+  <g fill="none" stroke="#1d1d1f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M14 392 C 36 372, 52 378, 70 360 C 88 378, 108 368, 128 392"/>
+    <path d="M38 392 L 78 328 L 104 360 L 132 312 L 168 392"/>
+    <path d="M86 352 L 78 328 L 68 352"/>
+    <circle cx="154" cy="318" r="11"/>
+    <path d="M8 392 H 200"/>
+  </g>
+</svg>

@@ -330,6 +330,7 @@ function validSuggestion(s) {
 async function handleMessage(msg, sender) {
   switch (msg?.type) {
     case "hello": {
+      if (!sender.tab || (sender.frameId ?? 0) !== 0) return { ok: false };
       const origin = sender.url ? new URL(sender.url).origin + "/" : null;
       if (origin && (await canRead(origin))) await set({ base: origin });
       return { ok: true };
@@ -414,8 +415,29 @@ async function handleMessage(msg, sender) {
   }
 }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+/**
+ * What each surface may ask for. Content scripts run inside Canvas pages
+ * (sender.tab is set); everything else — reading the student's selection,
+ * queueing an Ask, granting a school, the beta readout — is only for the
+ * extension's own pages (side panel).
+ */
+const CONTENT_SCRIPT_MESSAGES = new Set(["hello", "get_view", "poll_now", "queue_suggestion", "funnel"]);
+const EXTENSION_PAGE_ORIGIN = new URL(chrome.runtime.getURL("/")).origin;
+
+function senderMayAsk(type, sender) {
   if (sender.id !== chrome.runtime.id) return false;
+  const fromExtensionPage = !sender.tab && typeof sender.url === "string" && new URL(sender.url).origin === EXTENSION_PAGE_ORIGIN;
+  if (fromExtensionPage) return true;
+  return Boolean(sender.tab) && CONTENT_SCRIPT_MESSAGES.has(type);
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg || typeof msg !== "object" || typeof msg.type !== "string") return false;
+  try {
+    if (!senderMayAsk(msg.type, sender)) return false;
+  } catch {
+    return false;
+  }
   handleMessage(msg, sender).then(sendResponse, (e) => sendResponse({ ok: false, error: String(e?.message || e) }));
   return true;
 });

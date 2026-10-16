@@ -27,6 +27,13 @@ PER_TESTER_CONCURRENCY = 1
 GLOBAL_CONCURRENCY = 3
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_BODY_BYTES = 128 * 1024
+CLIENT_SOCKET_TIMEOUT_SECONDS = 5
+# A reservation still "reserved" after this long belongs to a dispatch that
+# crashed or a process that restarted mid-call; it is reaped to "unknown"
+# (keeping the conservative charge) so it stops holding concurrency slots (F11).
+STALE_RESERVATION_SECONDS = REQUEST_TIMEOUT_SECONDS * 2
+MIN_ADMIN_TOKEN_CHARS = 32
+MAX_TESTER_ALLOWANCE_CENTS = 1_000_000  # sanity bound; the global envelope is the real cap
 
 
 @dataclass(frozen=True)
@@ -44,6 +51,11 @@ class Config:
     default_tester_allowance_cents: int = field(default_factory=lambda: int(os.environ.get("RELAY_TESTER_ALLOWANCE_CENTS", "400")))
     host: str = field(default_factory=lambda: os.environ.get("RELAY_HOST", "127.0.0.1"))
     port: int = field(default_factory=lambda: int(os.environ.get("RELAY_PORT", "8787")))
+
+    @property
+    def admin_enabled(self) -> bool:
+        """Admin endpoints exist only behind a long token: there is no rate limit here."""
+        return len(self.admin_token) >= MIN_ADMIN_TOKEN_CHARS
 
 
 def inference_allowance_cents(config: Config) -> int:

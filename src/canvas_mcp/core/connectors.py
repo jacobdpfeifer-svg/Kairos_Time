@@ -35,6 +35,8 @@ from pathlib import Path
 from typing import Any
 
 from .connector_guards import get_connector_guard
+from .ledger import append_ledger
+from .private_files import write_private_text
 from .write_confirmation import ConfirmationGuard
 
 MS_AUTHORITY = "https://login.microsoftonline.com/common/oauth2/v2.0"
@@ -66,7 +68,7 @@ def http_json(url: str, body: dict[str, Any] | None, headers: dict[str, str], me
             hdrs.setdefault("content-type", "application/json")
     req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - fixed provider hosts
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310 - URL is selected from fixed provider constants; nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             raw = resp.read().decode("utf-8")
             return resp.status, (json.loads(raw) if raw else {})
     except urllib.error.HTTPError as exc:
@@ -96,11 +98,8 @@ def load_registry(user_root: Path) -> dict[str, dict[str, Any]]:
 
 
 def save_registry(user_root: Path, registry: dict[str, dict[str, Any]]) -> None:
-    path = registry_path(user_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(registry, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
+    # Holds a pending device_code while Outlook sign-in runs: owner-only.
+    write_private_text(registry_path(user_root), json.dumps(registry, indent=2))
 
 
 def _set(user_root: Path, connector: str, **fields: Any) -> dict[str, Any]:
@@ -114,22 +113,12 @@ def _set(user_root: Path, connector: str, **fields: Any) -> dict[str, Any]:
 
 
 def _write_secret_file(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data), encoding="utf-8")
-    try:
-        os.chmod(tmp, 0o600)
-    except OSError:
-        pass
-    os.replace(tmp, path)
+    write_private_text(path, json.dumps(data))
 
 
 def _save_record(user_root: Path, connector: str, payload: dict[str, Any]) -> None:
-    directory = records_dir(user_root)
-    directory.mkdir(parents=True, exist_ok=True)
-    tmp = directory / f"{connector}.json.tmp"
-    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    os.replace(tmp, directory / f"{connector}.json")
+    # Email subjects/senders and calendar titles are personal: owner-only.
+    write_private_text(records_dir(user_root) / f"{connector}.json", json.dumps(payload, indent=2))
 
 
 def load_record(user_root: Path, connector: str) -> dict[str, Any] | None:
@@ -166,7 +155,9 @@ def _google_oauth() -> Any:
     import importlib
     import sys
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "mcp-servers"))
+    helpers = str(Path(__file__).resolve().parents[3] / "mcp-servers")
+    if helpers not in sys.path:
+        sys.path.insert(0, helpers)
     return importlib.import_module("common.google_oauth")
 
 
@@ -299,6 +290,15 @@ def gcal_preview_event(user_root: Path, *, summary: str, start_iso: str, end_iso
     }
 
 
+def _ledger_gcal(user_root: Path, *, fingerprint: str, why: str, outcome: str, target: str) -> None:
+    """Every confirmed calendar write attempt leaves one local ledger row; a
+    ledger failure never turns a real write into a reported failure."""
+    try:
+        append_ledger(user_root, actor="student", tool="gcal_create_event", target=target[:200], why=why[:300], outcome=outcome, category="calendar", preview_hash=fingerprint)  # type: ignore[arg-type]
+    except (OSError, ValueError):
+        pass
+
+
 def gcal_confirm_event(user_root: Path, *, summary: str, start_iso: str, end_iso: str, why: str, confirmation_token: str) -> dict[str, Any]:
     guard = _guard(user_root, "gcal")
     fingerprint = guard.fingerprint(summary.strip()[:200], start_iso, end_iso, why)
@@ -308,22 +308,31 @@ def gcal_confirm_event(user_root: Path, *, summary: str, start_iso: str, end_iso
         # replayed against its original content later (revert-replay).
         guard.reserve(confirmation_token)
         _persist_guard(user_root, "gcal", guard)
+        _ledger_gcal(user_root, fingerprint=fingerprint, why=why, outcome="veto", target="google_calendar")
         raise ConnectorError("confirmation", problem)
     if not guard.reserve(confirmation_token):
         _persist_guard(user_root, "gcal", guard)
+        _ledger_gcal(user_root, fingerprint=fingerprint, why=why, outcome="veto", target="google_calendar")
         raise ConnectorError("confirmation", "that confirmation was already used; preview again")
     _persist_guard(user_root, "gcal", guard)
     if status(user_root)["gcal"]["state"] != "connected":
         guard.release(confirmation_token)
         _persist_guard(user_root, "gcal", guard)
+        _ledger_gcal(user_root, fingerprint=fingerprint, why=why, outcome="error", target="google_calendar")
         raise ConnectorError("disconnected", "Google Calendar is not connected; nothing was created")
     google_oauth = _google_oauth()
     service = google_oauth.calendar_service(user_root)
     if service is None:
         guard.release(confirmation_token)
         _persist_guard(user_root, "gcal", guard)
+        _ledger_gcal(user_root, fingerprint=fingerprint, why=why, outcome="error", target="google_calendar")
         raise ConnectorError("disconnected", "Google Calendar is not connected; nothing was created")
-    remote = google_oauth.gcal_create_event(service, summary=summary.strip()[:200], start_iso=start_iso, end_iso=end_iso)
+    try:
+        remote = google_oauth.gcal_create_event(service, summary=summary.strip()[:200], start_iso=start_iso, end_iso=end_iso)
+    except Exception:
+        _ledger_gcal(user_root, fingerprint=fingerprint, why=why, outcome="error", target="google_calendar")
+        raise
+    _ledger_gcal(user_root, fingerprint=fingerprint, why=why, outcome="success", target=f"google_calendar:{remote.get('id')}")
     return {"ok": True, "created": {"id": str(remote.get("id")), "summary": summary, "start": start_iso, "end": end_iso}, "mode": "live"}
 
 
@@ -349,8 +358,11 @@ def outlook_begin(user_root: Path, http: Http = http_json) -> dict[str, Any]:
     code, body = http(f"{MS_AUTHORITY}/devicecode", {"client_id": client_id, "scope": MS_SCOPES}, {"content-type": "application/x-www-form-urlencoded"}, "POST")
     if code != 200 or "device_code" not in body:
         raise ConnectorError("provider", f"device code request failed ({code}): {str(body.get('error_description') or body.get('error') or '')[:160]}")
+    verification_uri = _https_link(body.get("verification_uri") or body.get("verification_uri_complete"))
+    if not verification_uri:
+        raise ConnectorError("provider", "device code response had no https sign-in address")
     _set(user_root, "outlook", state="pending_auth", detail="waiting for sign-in", device={"device_code": body["device_code"], "interval": int(body.get("interval") or 5), "expires_at": time.time() + int(body.get("expires_in") or 900)})
-    return {"ok": True, "user_code": body["user_code"], "verification_uri": body.get("verification_uri") or body.get("verification_uri_complete"), "message": body.get("message", ""), "expires_in": body.get("expires_in")}
+    return {"ok": True, "user_code": str(body["user_code"])[:32], "verification_uri": verification_uri, "message": str(body.get("message", ""))[:500], "expires_in": body.get("expires_in")}
 
 
 def outlook_poll(user_root: Path, http: Http = http_json) -> dict[str, Any]:
@@ -431,7 +443,7 @@ def outlook_read(user_root: Path, *, top: int = 25, http: Http = http_json) -> d
             "from": str(((m.get("from") or {}).get("emailAddress") or {}).get("address") or "")[:200],
             "received": m.get("receivedDateTime"),
             "is_read": bool(m.get("isRead")),
-            "web_link": m.get("webLink"),
+            "web_link": _https_link(m.get("webLink")),
         }
         for m in body.get("value") or []
     ]
@@ -482,6 +494,19 @@ def _before(start: str | None, horizon: datetime) -> bool:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value <= horizon
+
+
+def _https_link(value: Any) -> str | None:
+    """A provider-supplied link the UI may open: https with a host, no credentials."""
+    if not isinstance(value, str) or len(value) > 2048:
+        return None
+    try:
+        parsed = urllib.parse.urlsplit(value)
+    except ValueError:
+        return None
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        return None
+    return value
 
 
 def _now() -> str:

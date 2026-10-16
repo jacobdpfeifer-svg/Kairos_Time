@@ -8,6 +8,7 @@ worth adapting. Every goal has a deterministic success check.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from kairos_adapter import CANARIES, SECRET_CANARY
@@ -81,7 +82,7 @@ GOALS = [
 
 def esc_cell(text: str) -> str:
     """Python mirror of browser/scripts/lib/canvas-session.mjs escCell."""
-    return str(text).replace("|", "/").replace("\n", " ").strip()
+    return re.sub("[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]", " ", str(text).replace("|", "/")).strip()
 
 
 def carrier_assignment_title(week_md: str, payload: str) -> str:

@@ -53,7 +53,7 @@ def read_events(user_root: Path) -> list[dict[str, Any]]:
         return []
     rows: list[dict[str, Any]] = []
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
     for line in text.splitlines():

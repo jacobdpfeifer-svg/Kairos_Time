@@ -79,12 +79,30 @@ export async function captureFeeds({ page, api, base, courses, now = Date.now() 
 }
 
 /** Every feed the watcher knows about, with its cadence class. */
+/** A feed URL the poller may request: https, no embedded credentials, and (when given) on that origin. */
+function safeFeedUrl(url, origin = null) {
+  try {
+    const u = new URL(String(url));
+    if (u.protocol !== "https:" || u.username || u.password) return false;
+    return origin ? u.origin === origin : true;
+  } catch {
+    return false;
+  }
+}
+
 export function feedList(feeds) {
   const list = [];
-  if (feeds?.ics) list.push({ url: feeds.ics, cls: "ics", course_id: null, course_name: null });
+  let origin = null;
+  try {
+    origin = feeds?.base ? new URL(feeds.base).origin : null;
+  } catch {
+    origin = null;
+  }
+  if (feeds?.ics && safeFeedUrl(feeds.ics)) list.push({ url: feeds.ics, cls: "ics", course_id: null, course_name: null });
   for (const [id, c] of Object.entries(feeds?.courses || {})) {
-    if (c.announcements) list.push({ url: c.announcements, cls: "announcements", course_id: id, course_name: c.name });
-    if (c.content) list.push({ url: c.content, cls: "content", course_id: id, course_name: c.name });
+    // Course feeds are captured from the student's own Canvas pages; never poll another host.
+    if (c.announcements && safeFeedUrl(c.announcements, origin)) list.push({ url: c.announcements, cls: "announcements", course_id: id, course_name: c.name });
+    if (c.content && safeFeedUrl(c.content, origin)) list.push({ url: c.content, cls: "content", course_id: id, course_name: c.name });
   }
   return list;
 }
@@ -197,6 +215,8 @@ function icsEvents(items, seen, { baselined, detectedAt }) {
 async function fetchFeed(fetchImpl, url) {
   const res = await fetchImpl(url, { redirect: "follow", headers: { Accept: "application/atom+xml, text/calendar, */*" } });
   if (!res.ok) return { ok: false, status: res.status, text: "" };
+  const declared = Number(res.headers?.get?.("content-length") || 0);
+  if (declared > MAX_FEED_BYTES) return { ok: false, status: 413, text: "" };
   const text = await res.text();
   if (text.length > MAX_FEED_BYTES) return { ok: false, status: 413, text: "" };
   return { ok: true, status: res.status, text };

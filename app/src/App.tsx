@@ -409,7 +409,7 @@ export function App() {
           <TodayView
             lastAsk={lastAsk}
             openItem={route.itemId ? { courseId: route.courseId, itemId: route.itemId } : null}
-            onStudy={(t) => navigate({ tab: "study", examId: t.id })}
+            onStudy={(t) => navigate(t ? { tab: "study", examId: t.id } : { tab: "study" })}
             onAsk={(initial) => openAsk(initial)}
             onOpenWeek={() => go("week")}
           />

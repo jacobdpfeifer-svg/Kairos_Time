@@ -41,6 +41,7 @@ from .skill_router import (
     structured_narrow,
 )
 from .teach_hint import is_teaching_skill, render_teach_hint
+from .untrusted_content import fence_untrusted
 
 
 class _ChatProvider(Protocol):
@@ -217,7 +218,11 @@ def extract_meta_query(text: str) -> MetaQuery:
 def _parse_md_table(text: str) -> list[dict[str, str]]:
     headers: list[str] | None = None
     rows: list[dict[str, str]] = []
-    for line in text.splitlines():
+    # Split on "\n" only, like the Rust (str::lines) and JS readers of the same
+    # file: str.splitlines() also breaks on \r, \v, \f, \x1c-\x1e, \x85,
+    # U+2028/9, so a Canvas title carrying one would hide its row from the
+    # model while the app still lists it (finding F1).
+    for line in text.split("\n"):
         if not line.strip().startswith("|"):
             headers = None
             continue
@@ -267,6 +272,8 @@ def _metadata_hits(row: dict[str, str], query: MetaQuery, default_year: int | No
 
 
 _UPDATED_RE = re.compile(r"^Updated:\s*(\S.*?)\s*$", re.M)
+# Characters other readers treat as line breaks; a rendered cell stays one line.
+_LINE_BREAKS_RE = re.compile("[\r\v\f\x1c-\x1e\x85\u2028\u2029]")
 
 
 def _render_rows(
@@ -284,7 +291,7 @@ def _render_rows(
         "| " + " | ".join("---" for _ in headers) + " |",
     ]
     for row in rows:
-        lines.append("| " + " | ".join(row.get(header, "") for header in headers) + " |")
+        lines.append("| " + " | ".join(_LINE_BREAKS_RE.sub(" ", row.get(header, "")) for header in headers) + " |")
     return "\n".join(lines) + "\n"
 
 
@@ -377,13 +384,13 @@ def load_catalog_for_trigger(user_root: Path, trigger: str) -> str | None:
         if path.name.startswith("_"):
             continue
         if _norm_course(path.stem) == needle:
-            return path.read_text(encoding="utf-8")
+            return path.read_text(encoding="utf-8", errors="replace")
     return None
 
 
 def session_boot_text() -> str:
     path = bundled_skills_dir() / "_SESSION.md"
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def assemble_turn(
@@ -412,18 +419,27 @@ def assemble_turn(
 
     if week_md is None:
         week_path = Path(user_root) / "inbox" / "week.md"
-        week_md = week_path.read_text(encoding="utf-8") if week_path.is_file() else ""
-    volatile, method = select_inbox_slice(
+        week_md = week_path.read_text(encoding="utf-8", errors="replace") if week_path.is_file() else ""
+    canvas_slice, method = select_inbox_slice(
         week_md,
         trigger,
         catalog_md=catalog_md,
         embedder=embedder,
     )
+    # Week rows and catalog text are Canvas-authored (titles, notes): fence
+    # them as data so an assignment titled "SYSTEM: …" is not read as an
+    # instruction in the student's own turn (finding F2). Kairos's own hint,
+    # review and progress lines are added outside the fence.
+    volatile = (
+        fence_untrusted(canvas_slice.strip(), "Canvas week rows and course catalog")
+        if canvas_slice.strip()
+        else ""
+    )
     if is_teaching_skill(skill.skill_id):
         hint = render_teach_hint(
             user_root,
             trigger,
-            volatile,
+            canvas_slice,
             catalog_md=catalog_md,
         )
         if hint.strip():

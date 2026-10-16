@@ -73,7 +73,7 @@ def _load(user_root: Path) -> Commitment | None:
     if not path.is_file():
         return None
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        raw = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
     except (OSError, yaml.YAMLError):
         return None
     if not isinstance(raw, dict):

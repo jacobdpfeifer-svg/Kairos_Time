@@ -281,8 +281,8 @@ def validate_config() -> bool:
     """Validate that required configuration is present."""
     config = get_config()
     unimplemented_env_vars = {
-        "TOKEN_STORAGE_BACKEND": "token storage backend selection is not enforced yet",
-        "TOKEN_ENVELOPE_KEY_SOURCE": "token envelope encryption is not enforced yet",
+        "TOKEN_STORAGE_BACKEND": "credential storage backend selection is not enforced yet",  # nosec B105 - diagnostic text, not a secret
+        "TOKEN_ENVELOPE_KEY_SOURCE": "credential envelope encryption is not enforced yet",  # nosec B105 - diagnostic text, not a secret
         "MCP_CLIENT_AUTH_MODE": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_API_KEY_REQUIRED": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_CERT_AUTHORITY": "MCP client authentication is not implemented for stdio transport",

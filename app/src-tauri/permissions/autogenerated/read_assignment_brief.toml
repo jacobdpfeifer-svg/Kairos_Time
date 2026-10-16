@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-assignment-brief"
+description = "Enables the read_assignment_brief command without any pre-configured scope."
+commands.allow = ["read_assignment_brief"]
+
+[[permission]]
+identifier = "deny-read-assignment-brief"
+description = "Denies the read_assignment_brief command without any pre-configured scope."
+commands.deny = ["read_assignment_brief"]

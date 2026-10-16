@@ -240,14 +240,11 @@ pub fn run_record_review_outcome(
     same_session: bool,
 ) -> Result<Value, String> {
     tick_log("review-outcome");
-    let mut args = vec![
-        "--json",
-        "outcome",
-        "--id",
-        item_id,
-        "--outcome",
-        outcome,
-    ];
+    // `--flag=value`: a webview value such as "--same-session" stays a value
+    // and can never be parsed as a flag of its own.
+    let id_arg = format!("--id={item_id}");
+    let outcome_arg = format!("--outcome={outcome}");
+    let mut args = vec!["--json", "outcome", id_arg.as_str(), outcome_arg.as_str()];
     if same_session {
         args.push("--same-session");
     }
@@ -264,24 +261,18 @@ pub fn run_save_learning_profile(
     if_then: &str,
 ) -> Result<(), String> {
     tick_log("save-learning-profile");
+    // `--flag=value` keeps free text (the if-then plan) from being read as a flag.
+    let args = [
+        format!("--practice-format={practice_format}"),
+        format!("--autonomy={autonomy}"),
+        format!("--chunk-size={chunk_size}"),
+        format!("--check-depth={check_depth}"),
+        format!("--if-then={if_then}"),
+    ];
+    let mut argv: Vec<&str> = vec!["--json", "save"];
+    argv.extend(args.iter().map(String::as_str));
     let output = rt
-        .python_module(
-        "canvas_mcp.core.learning_profile",
-        &[
-            "--json",
-            "save",
-            "--practice-format",
-            practice_format,
-            "--autonomy",
-            autonomy,
-            "--chunk-size",
-            chunk_size,
-            "--check-depth",
-            check_depth,
-            "--if-then",
-            if_then,
-        ],
-    )
+        .python_module("canvas_mcp.core.learning_profile", &argv)
     .output()
     .map_err(|e| format!("failed to spawn learning_profile: {e}"))?;
     if output.status.success() {
@@ -296,8 +287,21 @@ pub fn run_save_learning_profile(
     }
 }
 
-/// Parse the tick's last JSON line → number of new change events.
-pub fn parse_freshness_output(stdout: &str) -> Result<u64, String> {
+/// What one freshness tick reported. `briefs_changed` is set when the brief
+/// projection's stable signature changed, even if no Canvas delta arrived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FreshnessTick {
+    pub new_events: u64,
+    pub briefs_changed: bool,
+}
+
+/// Today re-reads when Canvas produced events or the brief projection changed.
+pub fn freshness_should_notify(tick: FreshnessTick) -> bool {
+    tick.new_events > 0 || tick.briefs_changed
+}
+
+/// Parse the tick's last JSON line.
+pub fn parse_freshness_output(stdout: &str) -> Result<FreshnessTick, String> {
     let line = stdout
         .lines()
         .rev()
@@ -311,11 +315,14 @@ pub fn parse_freshness_output(stdout: &str) -> Result<u64, String> {
             .unwrap_or("freshness tick failed")
             .to_string());
     }
-    Ok(value.get("new_events").and_then(Value::as_u64).unwrap_or(0))
+    Ok(FreshnessTick {
+        new_events: value.get("new_events").and_then(Value::as_u64).unwrap_or(0),
+        briefs_changed: value.get("briefs_changed").and_then(Value::as_bool).unwrap_or(false),
+    })
 }
 
 /// One freshness tick (`browser/scripts/freshness-tick.mjs`).
-pub fn run_freshness_tick(rt: &Runtime) -> Result<u64, String> {
+pub fn run_freshness_tick(rt: &Runtime) -> Result<FreshnessTick, String> {
     let output = rt
         .browser_script("freshness-tick")?
         .output()
@@ -323,8 +330,23 @@ pub fn run_freshness_tick(rt: &Runtime) -> Result<u64, String> {
     parse_freshness_output(&String::from_utf8_lossy(&output.stdout))
 }
 
-/// Keep Canvas changes flowing in while the app runs; `on_update` fires with
-/// the count whenever a tick finds something new.
+/// Rebuild the Mission Control brief projection from local files only (no
+/// network): after the student changes brief preferences or their week plan.
+pub fn run_briefs(rt: &Runtime) -> Result<(), String> {
+    let output = rt
+        .browser_script("briefs")?
+        .output()
+        .map_err(|e| format!("failed to spawn briefs: {e}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stdout).chars().take(200).collect())
+    }
+}
+
+/// Keep Canvas changes flowing in while the app runs. `on_update` fires when
+/// a tick has new Canvas events or the brief projection changed. A quiet tick
+/// that rewrote nothing stays silent.
 pub fn spawn_freshness_loop<F>(rt: Arc<Runtime>, on_update: F)
 where
     F: Fn(u64) + Send + 'static,
@@ -332,11 +354,11 @@ where
     thread::spawn(move || loop {
         if !canvas_stub() {
             match run_freshness_tick(&rt) {
-                Ok(0) => {}
-                Ok(n) => {
+                Ok(tick) if freshness_should_notify(tick) => {
                     tick_log("freshness");
-                    on_update(n);
+                    on_update(tick.new_events);
                 }
+                Ok(_) => {}
                 Err(e) => eprintln!("[kairos-daemon] freshness: {e}"),
             }
         }
@@ -345,7 +367,10 @@ where
 }
 
 /// Background cadence loop — logs ticks and optionally runs sync on each interval.
-pub fn spawn_cadence_loop(rt: Arc<Runtime>) {
+pub fn spawn_cadence_loop<F>(rt: Arc<Runtime>, on_sync: F)
+where
+    F: Fn() + Send + 'static,
+{
     thread::spawn(move || {
         loop {
             let weekend = is_weekend_now();
@@ -356,8 +381,9 @@ pub fn spawn_cadence_loop(rt: Arc<Runtime>) {
             } else {
                 "cadence-weekday"
             });
-            if let Err(e) = run_canvas_sync(&rt) {
-                eprintln!("[kairos-daemon] sync error: {e}");
+            match run_canvas_sync(&rt) {
+                Ok(()) => on_sync(),
+                Err(e) => eprintln!("[kairos-daemon] sync error: {e}"),
             }
         }
     });
@@ -547,8 +573,21 @@ mod tests {
 
     #[test]
     fn freshness_output_parses_last_json_line() {
-        assert_eq!(parse_freshness_output("[user-root] x\n{\"ok\":true,\"new_events\":3}\n"), Ok(3));
-        assert_eq!(parse_freshness_output("{\"ok\":true}"), Ok(0));
+        assert_eq!(
+            parse_freshness_output("[user-root] x\n{\"ok\":true,\"new_events\":3}\n").unwrap(),
+            FreshnessTick { new_events: 3, briefs_changed: false }
+        );
+        assert_eq!(
+            parse_freshness_output("{\"ok\":true}").unwrap(),
+            FreshnessTick { new_events: 0, briefs_changed: false }
+        );
+        assert_eq!(
+            parse_freshness_output("{\"ok\":true,\"new_events\":0,\"briefs_changed\":true}").unwrap(),
+            FreshnessTick { new_events: 0, briefs_changed: true }
+        );
+        assert!(freshness_should_notify(FreshnessTick { new_events: 0, briefs_changed: true }));
+        assert!(freshness_should_notify(FreshnessTick { new_events: 2, briefs_changed: false }));
+        assert!(!freshness_should_notify(FreshnessTick { new_events: 0, briefs_changed: false }));
         assert!(parse_freshness_output("{\"ok\":false,\"error\":\"boom\"}").unwrap_err().contains("boom"));
         assert!(parse_freshness_output("no json").is_err());
         assert!(FRESHNESS_TICK >= Duration::from_secs(60));

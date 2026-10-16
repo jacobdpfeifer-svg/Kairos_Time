@@ -7,6 +7,7 @@ import { savePrefs, usePrefs } from "../prefs";
 import { MOD } from "../nav";
 import { ConnectorsPanel } from "./ConnectorsPanel";
 import { SourcesView } from "./SourcesView";
+import { BriefSettings } from "../missionControl/BriefSettings";
 
 /** Older deep links and saved groups from before the groups were folded together. */
 const LEGACY_GROUPS: Record<string, string> = {
@@ -82,6 +83,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
 
   const groups = [
     ["canvas", "Canvas"],
+    ["briefs", "Briefs"],
     ["mac", "Menu bar and alerts"],
     ["ai", "AI help"],
     ["connectors", "Calendar"],
@@ -212,6 +214,8 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
       )}
 
       {group === "mac" && <MacPanel />}
+
+      {group === "briefs" && <BriefSettings tester={Boolean(ai?.connected)} />}
 
       {group === "privacy" && (
       <>

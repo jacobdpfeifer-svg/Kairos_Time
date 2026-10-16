@@ -12,6 +12,7 @@ import { diffGenerations } from "./canvas-changes.mjs";
 import { computeSkipCosts } from "./skip-cost.mjs";
 import { buildDashboard } from "./freshness-dashboard.mjs";
 import { loadCurrentProjections } from "./canvas-project.mjs";
+import { writeBriefProjection } from "./briefs/project.mjs";
 import {
   appendEvents,
   freshnessPaths,
@@ -57,7 +58,17 @@ export function rebuildDashboard(userRoot, { now = Date.now(), state = readState
     now,
   });
   writeJsonAtomic(p.dashboard, dashboard);
-  return dashboard;
+  // Mission Control briefs re-rank on every sync and tick. Derived and
+  // rebuildable, so a failure here must never break freshness. A failure
+  // still counts as a change: error.json is what Today needs to re-read.
+  let briefsChanged = false;
+  try {
+    briefsChanged = Boolean(writeBriefProjection(userRoot, { now }).changed);
+  } catch (e) {
+    briefsChanged = true;
+    console.warn(`briefs: ${String(e?.message || e).slice(0, 200)}`);
+  }
+  return { dashboard, briefsChanged };
 }
 
 /**
@@ -104,10 +115,11 @@ export async function runFreshnessTick({ userRoot, now = Date.now(), fetchImpl =
 
   const added = appendEvents(userRoot, state, events, { now });
   writeState(userRoot, state);
-  rebuildDashboard(userRoot, { now, state });
+  const { briefsChanged } = rebuildDashboard(userRoot, { now, state });
   return {
     ok: true,
     new_events: added.length,
+    briefs_changed: briefsChanged,
     deltas_processed: deltasProcessed,
     deltas_rejected: deltasRejected,
     feeds_polled: polled.length,

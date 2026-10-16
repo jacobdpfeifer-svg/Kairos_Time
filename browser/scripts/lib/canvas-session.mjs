@@ -228,7 +228,13 @@ export async function acquireAuthLock(
 
 export async function launchCanvasContext(options = {}) {
   BASE = getBase();
-  fs.mkdirSync(AUTH_DIR, { recursive: true });
+  // The Chromium profile holds the student's live Canvas SSO cookies.
+  fs.mkdirSync(AUTH_DIR, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(AUTH_DIR, 0o700);
+  } catch {
+    /* best effort */
+  }
   const releaseLock = await acquireAuthLock(AUTH_DIR);
   try {
     clearSingletonLocks();
@@ -478,10 +484,16 @@ async function fetchPlannerItems(page, startIso, endIso, extraParams = {}) {
   return { ok, items: allItems, truncated, status: lastStatus };
 }
 
+/**
+ * One Markdown table cell. Every character any reader treats as a line break
+ * becomes a space: Python's str.splitlines() also splits on \r \v \f
+ * \x1c-\x1e \x85 U+2028 U+2029, so leaving one in a Canvas title would hide
+ * that row from the model while the app still lists it (finding F1).
+ */
 export function escCell(s) {
   return String(s ?? "")
     .replace(/\|/g, "/")
-    .replace(/\n/g, " ")
+    .replace(/[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/g, " ")
     .trim();
 }
 

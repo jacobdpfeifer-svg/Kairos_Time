@@ -61,11 +61,13 @@ export function writeProjections(userRoot, projections) {
   fs.mkdirSync(path.join(dir, "grade-truth"), { recursive: true });
   writeJsonAtomic(path.join(dir, "sync-health.json"), projections.health);
   writeJsonAtomic(path.join(dir, "work-surface.json"), projections.work_surface);
+  // Course ids name files; same rule as the app's reader (canvas.rs valid_course_id).
+  const safeId = (id) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
   for (const [id, map] of Object.entries(projections.course_maps)) {
-    writeJsonAtomic(path.join(dir, "course-map", `${id}.json`), map);
+    if (safeId(id)) writeJsonAtomic(path.join(dir, "course-map", `${id}.json`), map);
   }
   for (const [id, g] of Object.entries(projections.grade_truth)) {
-    writeJsonAtomic(path.join(dir, "grade-truth", `${id}.json`), g);
+    if (safeId(id)) writeJsonAtomic(path.join(dir, "grade-truth", `${id}.json`), g);
   }
   writeJsonAtomic(path.join(dir, "unkeyed-sources.json"), projections.unkeyed_sources || []);
   return dir;

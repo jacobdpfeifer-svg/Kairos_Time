@@ -116,7 +116,7 @@ def _all_items(user_root: Path) -> list[dict[str, Any]]:
     path = items_path(user_root)
     rows: dict[str, dict[str, Any]] = {}
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return []
     for line in lines:

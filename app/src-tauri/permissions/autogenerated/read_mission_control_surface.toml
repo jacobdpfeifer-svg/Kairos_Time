@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-mission-control-surface"
+description = "Enables the read_mission_control_surface command without any pre-configured scope."
+commands.allow = ["read_mission_control_surface"]
+
+[[permission]]
+identifier = "deny-read-mission-control-surface"
+description = "Denies the read_mission_control_surface command without any pre-configured scope."
+commands.deny = ["read_mission_control_surface"]

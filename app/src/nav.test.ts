@@ -22,4 +22,14 @@ describe("routeFromUrl", () => {
   it("returns null instead of throwing on a malformed escape", () => {
     expect(routeFromUrl("kairos://course/%E0%A4")).toBeNull();
   });
+
+  it("refuses ids an outside link could use to reach a file path", () => {
+    expect(routeFromUrl("kairos://course/..%2F..%2F..%2Fetc")).toBeNull();
+    expect(routeFromUrl("kairos://course/%2e%2e")).toBeNull();
+    expect(routeFromUrl("kairos://item/1300/..%2Fx")).toBeNull();
+    expect(routeFromUrl("kairos://study/exam/%00")).toBeNull();
+    expect(routeFromUrl("kairos://settings/%3Cscript%3E")).toBeNull();
+    expect(routeFromUrl(`kairos://course/${"1".repeat(600)}`)).toBeNull();
+    expect(routeFromUrl("kairos://item/1/t|1|assignment|9")).toEqual({ tab: "today", courseId: "1", itemId: "t|1|assignment|9" });
+  });
 });

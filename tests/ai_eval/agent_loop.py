@@ -82,6 +82,10 @@ def _stub_tool(root: Path, name: str, args: dict[str, Any], injection: str | Non
             preview_lines=[f"{k}: {v}" for k, v in args.items() if k != "confirmation_token"],
             confirmation_token=args.get("confirmation_token"), actor="agent", target=str(args.get("to") or args.get("summary") or ""), why="eval",
         )
+        if gate.kind == "needs_human":
+            # No student is present in an eval run: the approval prompt goes
+            # unanswered, exactly as when a client cannot show one (F15).
+            return actuator.HUMAN_DECLINED
         return gate.message or ("✅ Sent." if gate.kind == "proceed" else gate.kind)
     if name in CANVAS_VISIBLE:
         return "Preview only: the student must do this in Canvas. Nothing was submitted."

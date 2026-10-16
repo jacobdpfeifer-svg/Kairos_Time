@@ -70,8 +70,7 @@ def test_daemon_clis_survive_corrupt_file(avery, target: str, kind: str) -> None
         rc, out, err = run_cli(avery, argv)
         if _crashed(rc, out, err):
             crashes.append(f"{name}: {err.strip().splitlines()[-1][:160]}")
-    if crashes:
-        pytest.xfail("F14: " + " | ".join(crashes))
+    assert not crashes, "F14: " + " | ".join(crashes)
 
 
 def test_clean_root_baseline(avery) -> None:

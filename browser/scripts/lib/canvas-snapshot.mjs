@@ -59,7 +59,11 @@ async function fetchModuleFile(page, file, item) {
   if (!url) return null;
   try {
     const encoded = await page.evaluate(async (target) => {
-      const response = await fetch(target);
+      // Only the student's own Canvas origin: an instructor-authored module
+      // link must not make the signed-in page fetch an arbitrary URL.
+      const resolved = new URL(target, location.href);
+      if (resolved.origin !== location.origin) return null;
+      const response = await fetch(resolved.href, { credentials: "same-origin" });
       if (!response.ok) return null;
       const length = Number(response.headers.get("content-length") || 0);
       if (length > 20_000_000) return null;
@@ -71,7 +75,9 @@ async function fetchModuleFile(page, file, item) {
     }, url);
     if (!encoded) return null;
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "canvas-module-file-"));
-    const filePath = path.join(dir, path.basename(file.filename || item.title || "module-file"));
+    // Fixed name: the Canvas-supplied filename only decides the extension.
+    const isPdf = /\.pdf$/i.test(String(file.filename || item.title || ""));
+    const filePath = path.join(dir, isPdf ? "module-file.pdf" : "module-file.bin");
     fs.writeFileSync(filePath, Buffer.from(encoded, "base64"));
     let text = "";
     if (/\.pdf$/i.test(filePath)) {

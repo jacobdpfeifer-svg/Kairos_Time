@@ -6,6 +6,7 @@ import inspect
 import re
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -15,6 +16,7 @@ sys.path.insert(0, str(REPO / "mcp-servers"))
 from common.actuator import (  # noqa: E402
     check_write,
     gate_connector_write,
+    gate_with_human,
     release_connector_confirmation,
     user_root,
 )
@@ -199,6 +201,7 @@ def test_gate_gated_valid_token_proceeds_once(tmp_path):
         target="Study",
         why="why",
         log_block=False,
+        human_approved=True,
     )
     assert first.kind == "proceed"
     assert first.confirmation_token == token
@@ -215,6 +218,7 @@ def test_gate_gated_valid_token_proceeds_once(tmp_path):
         target="Study",
         why="why",
         log_block=False,
+        human_approved=True,
     )
     assert second.kind == "blocked"
     assert "already used" in second.message.lower()
@@ -250,9 +254,93 @@ def test_gate_never_blocks_even_with_preview_token(tmp_path):
         target="Study",
         why="why",
         log_block=False,
+        human_approved=True,
     )
     assert gate.kind == "blocked"
     assert "Blocked" in gate.message
+
+
+def test_valid_token_without_student_approval_needs_human(tmp_path):
+    """F15: the token proves the content; only the student's own answer
+    (``human_approved``, set from an elicitation) lets a send/event proceed,
+    and asking does not burn the token."""
+    ensure_user_root(tmp_path)
+    kwargs = {
+        "connector_id": "gcal",
+        "tool": "create_event",
+        "fingerprint_parts": ["Study", "a", "b", "why"],
+        "preview_lines": ["Summary: Study"],
+        "actor": "gcal",
+        "target": "Study",
+        "why": "why",
+        "log_block": False,
+    }
+    token = _extract_token(gate_connector_write(tmp_path, "calendar", confirmation_token=None, **kwargs).message)
+    waiting = gate_connector_write(tmp_path, "calendar", confirmation_token=token, **kwargs)
+    assert waiting.kind == "needs_human" and "Summary: Study" in waiting.message
+    approved = gate_connector_write(tmp_path, "calendar", confirmation_token=token, human_approved=True, **kwargs)
+    assert approved.kind == "proceed"
+
+
+@pytest.mark.asyncio
+async def test_gate_with_human_fails_closed_without_elicitation_support(tmp_path):
+    """A valid token must not execute when the MCP client cannot elicit."""
+    ensure_user_root(tmp_path)
+    kwargs = {
+        "connector_id": "gcal",
+        "tool": "create_event",
+        "fingerprint_parts": ["Study", "a", "b", "why"],
+        "preview_lines": ["Summary: Study"],
+        "actor": "gcal",
+        "target": "Study",
+        "why": "why",
+        "log_block": False,
+    }
+    preview = gate_connector_write(tmp_path, "calendar", confirmation_token=None, **kwargs)
+    token = _extract_token(preview.message)
+
+    result = await gate_with_human(
+        None, tmp_path, "calendar", confirmation_token=token, **kwargs
+    )
+
+    assert result.kind == "blocked"
+    assert "Nothing was written" in result.message
+
+
+@pytest.mark.asyncio
+async def test_gate_with_human_proceeds_only_after_accepted_elicitation(tmp_path):
+    """The approval comes from an MCP elicitation, never a tool argument."""
+    ensure_user_root(tmp_path)
+    kwargs = {
+        "connector_id": "gcal",
+        "tool": "create_event",
+        "fingerprint_parts": ["Study", "a", "b", "why"],
+        "preview_lines": ["Summary: Study"],
+        "actor": "gcal",
+        "target": "Study",
+        "why": "why",
+        "log_block": False,
+    }
+    preview = gate_connector_write(tmp_path, "calendar", confirmation_token=None, **kwargs)
+    token = _extract_token(preview.message)
+
+    class ApprovingContext:
+        called = False
+
+        async def elicit(self, *, message, schema):
+            self.called = True
+            assert "Summary: Study" in message
+            return SimpleNamespace(
+                action="accept", data=SimpleNamespace(approve=True)
+            )
+
+    ctx = ApprovingContext()
+    result = await gate_with_human(
+        ctx, tmp_path, "calendar", confirmation_token=token, **kwargs
+    )
+
+    assert ctx.called
+    assert result.kind == "proceed"
 
 
 def test_release_connector_confirmation_allows_retry(tmp_path):
@@ -285,6 +373,7 @@ def test_release_connector_confirmation_allows_retry(tmp_path):
         target="Study",
         why="why",
         log_block=False,
+        human_approved=True,
     )
     assert first.kind == "proceed"
     release_connector_confirmation("gcal", first.confirmation_token)
@@ -300,6 +389,7 @@ def test_release_connector_confirmation_allows_retry(tmp_path):
         target="Study",
         why="why",
         log_block=False,
+        human_approved=True,
     )
     assert retry.kind == "proceed"
 

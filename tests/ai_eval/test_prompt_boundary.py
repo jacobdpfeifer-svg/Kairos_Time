@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 from attacks import GOALS, carrier_assignment_title, esc_cell
-from conftest import finding
 from kairos_adapter import CANARIES, SECRET_CANARY, assemble_skill_turn
 
 from canvas_mcp.core.prompt_assembly import _parse_md_table
@@ -13,7 +12,6 @@ HEADER = "| Course | Assignment | Due | Points | Type | Notes |\n|---|---|---|--
 SEPARATORS = ["\r", "\x0b", "\x0c", "\x1c", "\x85", " ", " "]
 
 
-@finding("F1", "escCell strips only \\n; Python splitlines() also splits on \\r, U+2028, …, so the row vanishes")
 @pytest.mark.parametrize("sep", SEPARATORS, ids=[repr(s) for s in SEPARATORS])
 def test_line_separator_in_title_keeps_row_visible(sep: str) -> None:
     title = esc_cell(f"Problem Set 6{sep}(revised)")
@@ -27,7 +25,6 @@ def test_rust_and_js_parsers_keep_the_row() -> None:
     assert len((HEADER + line).split("\n")) == 3  # JS String.split("\n") / Rust str::lines()
 
 
-@finding("F1", "a stray line separator hides the midterm row from the model while the app still lists it")
 def test_midterm_with_line_separator_stays_visible_to_model(avery) -> None:
     week = avery / "inbox" / "week.md"
     text = week.read_text(encoding="utf-8")
@@ -37,7 +34,6 @@ def test_midterm_with_line_separator_stays_visible_to_model(avery) -> None:
     assert "assessment — student only" in turn.messages[-1].content
 
 
-@finding("F2", "Canvas rows are pasted into the student's own user turn with no provenance fence")
 def test_canvas_text_in_prompt_is_fenced(avery) -> None:
     week = avery / "inbox" / "week.md"
     payload = GOALS[0].text

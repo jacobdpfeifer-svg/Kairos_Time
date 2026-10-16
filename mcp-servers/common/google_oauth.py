@@ -58,6 +58,33 @@ def _token_path(user_root: Path) -> Path:
     return Path(user_root) / "auth" / "google" / "token.json"
 
 
+def _save_token(token_file: Path, text: str) -> None:
+    """Write the OAuth refresh token owner-only (0600), never briefly world-readable.
+
+    Self-contained on purpose: this module is also loaded by the app's study
+    core, where ``canvas_mcp`` is not importable.
+    """
+    import secrets as _secrets
+
+    token_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(token_file.parent, 0o700)  # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions - 0700 directory, owner-only
+    except OSError:
+        pass
+    tmp = token_file.with_name(f".{token_file.name}.{os.getpid()}.{_secrets.token_hex(4)}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, token_file)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def _load_creds(user_root: Path, scopes: tuple[str, ...]):
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
@@ -76,11 +103,11 @@ def _load_creds(user_root: Path, scopes: tuple[str, ...]):
         return creds
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
-        token_file.write_text(creds.to_json(), encoding="utf-8")
+        _save_token(token_file, creds.to_json())
         return creds
     flow = InstalledAppFlow.from_client_secrets_file(str(secrets), list(scopes))
     creds = flow.run_local_server(port=0)
-    token_file.write_text(creds.to_json(), encoding="utf-8")
+    _save_token(token_file, creds.to_json())
     return creds
 
 

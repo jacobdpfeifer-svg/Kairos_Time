@@ -243,10 +243,14 @@ class ConfirmationGuard:
         return True
 
     def release(self, token: str) -> None:
-        """Give a claim back after a path that ended without writing."""
-        parsed = self._parse(token)
-        if parsed is not None:
-            self._redeemed.pop(parsed[1], None)
+        """Give a claim back after a path that ended without writing.
+
+        Only a token this guard issued (authenticated, unexpired) can release
+        its nonce; a forged token naming someone else's nonce cannot un-burn it.
+        """
+        authed = self._authenticate(token)
+        if authed is not None:
+            self._redeemed.pop(authed[1], None)
 
     def _purge(self) -> None:
         """Forget claims whose tokens have expired anyway."""

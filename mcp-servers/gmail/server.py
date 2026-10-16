@@ -15,13 +15,13 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "mcp-servers"))
 
 from common import google_oauth  # noqa: E402
-from common.actuator import gate_connector_write, user_root  # noqa: E402
+from common.actuator import gate_connector_write, gate_with_human, user_root  # noqa: E402
 from common.stop_rewind import rewind_last  # noqa: E402
 
 from canvas_mcp.core.ledger import UndoPtr, append_ledger  # noqa: E402
@@ -247,19 +247,22 @@ def describe_mode() -> str:
 
 
 @mcp.tool()
-def send_email(
+async def send_email(
     to: str,
     subject: str,
     body: str,
     why: str = "Email send",
     confirmation_token: str | None = None,
+    ctx: Context | None = None,
 ) -> str:
     """Send a real email. Always previews first; only sends once the student
-    confirms this exact content in the current conversation — see
+    approves this exact content in the client's approval prompt (the model
+    cannot answer it) — see
     docs/handoff/canvas-focus-pivot-2026-09-11.md (2026-09-13 addendum).
     Irreversible: no undo_ptr, `rewind` cannot unsend."""
     root = user_root()
-    gate = gate_connector_write(
+    gate = await gate_with_human(
+        ctx,
         root,
         "email_send",
         connector_id="gmail",

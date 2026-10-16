@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-write-brief-prefs"
+description = "Enables the write_brief_prefs command without any pre-configured scope."
+commands.allow = ["write_brief_prefs"]
+
+[[permission]]
+identifier = "deny-write-brief-prefs"
+description = "Denies the write_brief_prefs command without any pre-configured scope."
+commands.deny = ["write_brief_prefs"]

@@ -11,9 +11,11 @@ touch a real student profile. It never writes feed URLs or credentials.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shutil
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -49,6 +51,7 @@ def build(
     week: str = "normal",
     with_audit: bool = True,
     clean: bool = True,
+    now: datetime | None = None,
 ) -> Path:
     src = HERE / persona
     if not (src / "USER.md").is_file():
@@ -83,7 +86,30 @@ def build(
     if courses.is_dir():
         for path in sorted(courses.glob("*.md")):
             shutil.copy2(path, out / "inbox" / "courses" / path.name)
+    write_study_sources(src, out, now or datetime.now(timezone.utc))
     return out
+
+
+def write_study_sources(src: Path, out: Path, now: datetime) -> None:
+    """Resolve the persona's relative due dates against `now` so briefs (and
+    Today) see a live week: ``cd browser && DEV_USER_ROOT=<out> npm run briefs``."""
+    path = src / "study-sources.json"
+    if not path.is_file():
+        return
+    iso = lambda hours: (now + timedelta(hours=hours)).isoformat(timespec="seconds").replace("+00:00", "Z")  # noqa: E731
+    dest = out / "inbox" / "study-sources"
+    dest.mkdir(parents=True, exist_ok=True)
+    for rec in json.loads(path.read_text(encoding="utf-8"))["courses"]:
+        cid = rec["course"]["id"]
+        for item in rec["items"]:
+            item["due_at"] = iso(item.pop("due_in_hours")) if "due_in_hours" in item else None
+            item.setdefault("course_id", cid)
+            item.setdefault("completed", False)
+            item.setdefault("html_url", f"https://canvas.example.edu/courses/{cid}/assignments/{item['canvas_id']}")
+        for exam in rec.get("exams", []):
+            exam["due_at"] = iso(exam.pop("due_in_hours")) if "due_in_hours" in exam else None
+        record = {"schema": 2, "fetched_at": iso(-1), "term": None, "generated_items": [], "truncated": False, **rec}
+        (dest / f"{cid}.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:

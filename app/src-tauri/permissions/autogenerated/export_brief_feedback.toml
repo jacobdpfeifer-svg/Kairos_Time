@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-brief-feedback"
+description = "Enables the export_brief_feedback command without any pre-configured scope."
+commands.allow = ["export_brief_feedback"]
+
+[[permission]]
+identifier = "deny-export-brief-feedback"
+description = "Denies the export_brief_feedback command without any pre-configured scope."
+commands.deny = ["export_brief_feedback"]

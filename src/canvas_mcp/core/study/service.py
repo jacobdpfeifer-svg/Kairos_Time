@@ -316,7 +316,8 @@ class StudyService:
         return view
 
     def _independent_after(self, state: ItemState) -> datetime:
-        assert state.anchor is not None
+        if state.anchor is None:
+            raise StudyError("state", "cannot calculate independent check before an anchor exists")
         gate = calendar_add(state.anchor, max(1, state.gap_days), self.zone)
         floor = state.anchor + timedelta(hours=ELAPSED_FLOOR_HOURS)
         candidates = [gate, floor]
@@ -724,7 +725,8 @@ class StudyService:
 
     def disagree(self, attempt_id: str, note: str = "") -> dict[str, Any]:
         attempt = self._require_attempt(attempt_id, ("assessed",))
-        assert attempt.assessment_event_id is not None
+        if attempt.assessment_event_id is None:
+            raise StudyError("state", "cannot disagree with an attempt without an assessment")
         event_id = f"{attempt_id}:disagree"
         self._append(
             "correction",
@@ -735,7 +737,8 @@ class StudyService:
 
     def invalidate_assessment(self, attempt_id: str, note: str = "") -> dict[str, Any]:
         attempt = self._require_attempt(attempt_id, ("assessed",))
-        assert attempt.assessment_event_id is not None
+        if attempt.assessment_event_id is None:
+            raise StudyError("state", "cannot invalidate an attempt without an assessment")
         event_id = f"{attempt_id}:invalidate"
         self._append(
             "correction",

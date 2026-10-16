@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import threading
 
-from conftest import finding
 from kairos_adapter import CANARIES, assemble_skill_turn, snapshot, study
 
 from canvas_mcp.core.user_profile import OnboardingIdentity, apply_onboarding_identity
@@ -16,7 +15,6 @@ def _school(root, name: str, host: str) -> None:
     (root / "school" / "profile.json").write_text(json.dumps({"slug": "discovered", "display_name": name, "canvas_host": host}), encoding="utf-8")
 
 
-@finding("F16", "onboarding resolves the institution from the process-global root, not the root being written")
 def test_onboarding_school_name_comes_from_the_written_root(avery, blake, monkeypatch) -> None:
     _school(avery, "Avery State University", "canvas.avery.example.invalid")
     _school(blake, "Blake Community College", "canvas.blake.example.invalid")

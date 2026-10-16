@@ -81,7 +81,30 @@ pub fn read_suggestions(user_root: &Path) -> Vec<CalendarSuggestion> {
         .collect()
 }
 
+fn too_long(value: &str, max: usize) -> bool {
+    value.chars().count() > max
+}
+
+/// Bounds on what the webview may append: these rows are re-read on every
+/// calendar render and handed to the planning prompt.
+fn validate_event(event: &CalendarEvent) -> Result<(), String> {
+    if event.title.trim().is_empty() || too_long(&event.title, 200) {
+        return Err("event title must be 1–200 characters".into());
+    }
+    if too_long(&event.kind, 32) || too_long(&event.id, 128) || too_long(&event.start, 64) || too_long(&event.end, 64) {
+        return Err("event field is too long".into());
+    }
+    if event.course_id.as_deref().is_some_and(|v| too_long(v, 64))
+        || event.color.as_deref().is_some_and(|v| too_long(v, 32))
+        || event.note.as_deref().is_some_and(|v| too_long(v, 2000))
+    {
+        return Err("event field is too long".into());
+    }
+    Ok(())
+}
+
 pub fn append_event(user_root: &Path, mut event: CalendarEvent) -> Result<CalendarEvent, String> {
+    validate_event(&event)?;
     if event.id.is_empty() {
         event.id = format!(
             "cal-{}",
@@ -107,6 +130,9 @@ pub fn append_event(user_root: &Path, mut event: CalendarEvent) -> Result<Calend
 }
 
 pub fn dismiss_suggestion(user_root: &Path, source_message_id: &str) -> Result<(), String> {
+    if source_message_id.is_empty() || too_long(source_message_id, 300) {
+        return Err("invalid suggestion id".into());
+    }
     let path = dismissed_path(user_root);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;

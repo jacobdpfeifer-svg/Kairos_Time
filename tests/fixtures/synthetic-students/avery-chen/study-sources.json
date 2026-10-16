@@ -1,0 +1,44 @@
+{
+  "_comment": "Synthetic study-sources records (schema 2) for the Mission Control brief assembler. due_in_hours / fetched_hours_ago are resolved against the run's now by make_root.py; mirrors week-dense.md.",
+  "courses": [
+    {
+      "course": { "id": "2360", "name": "Intro Diff Equations w/ Linear Algebra", "code": "APPM 2360", "label": "APPM 2360 — Intro Diff Equations w/ Linear Algebra", "color": "#2E86AB" },
+      "sources": [
+        { "id": "page-linear-systems", "kind": "page", "title": "Worked examples: first-order linear systems", "url": "https://canvas.example.edu/courses/2360/pages/linear-systems", "text": "Example 2. Solve x' = Ax for A = [[1,2],[2,1]] using eigenvalues." },
+        { "id": "page-ps6-solutions", "kind": "page", "title": "Problem Set 6 linear systems solutions", "url": "https://canvas.example.edu/courses/2360/pages/ps6-sol", "text": "1. x(t) = ..." }
+      ],
+      "items": [
+        { "id": "item-a6001", "canvas_id": "6001", "title": "Problem Set 6: first-order linear systems", "kind": "assignment", "points_possible": 30, "weight_share": 0.05, "due_in_hours": 18, "submission_types": ["online_upload"], "description": "Complete problems 1-10 from Section 6.2 and Section 6.3.\nShow your work for every eigenvalue computation.\nSubmit one PDF." },
+        { "id": "item-a6002", "canvas_id": "6002", "title": "WebAssign 6.2", "kind": "assignment", "points_possible": 8, "due_in_hours": 42, "submission_types": ["external_tool"], "description": "" }
+      ],
+      "exams": []
+    },
+    {
+      "course": { "id": "2401", "name": "Statics", "code": "ASEN 2401", "label": "ASEN 2401 — Statics", "color": "#E09F3E" },
+      "sources": [],
+      "items": [
+        { "id": "item-a7001", "canvas_id": "7001", "title": "Lab 2 pre-lab (WebAssign)", "kind": "assignment", "points_possible": 10, "due_in_hours": 8, "submission_types": ["external_tool"], "description": "" }
+      ],
+      "exams": []
+    },
+    {
+      "course": { "id": "2402", "name": "Thermodynamics", "code": "ASEN 2402", "label": "ASEN 2402 — Thermodynamics", "color": "#2A9D8F" },
+      "sources": [
+        { "id": "module_page-midterm-review", "kind": "module_page", "title": "Midterm 1 review sheet", "url": null, "text": "First law, second law, entropy, Carnot cycles.", "exam_relevant": true }
+      ],
+      "items": [
+        { "id": "item-a8001", "canvas_id": "8001", "title": "Discussion: where does the second law bite?", "kind": "discussion", "points_possible": 5, "due_in_hours": 42, "submission_types": ["discussion_topic"], "description": "Read section 7.1 on entropy. Post one example where the second law limits an engineering design and respond to two classmates." },
+        { "id": "item-q8002", "canvas_id": "8002", "title": "Midterm 1", "kind": "exam", "points_possible": 100, "weight_share": 0.25, "due_in_hours": 200, "submission_types": ["online_quiz"], "description": "Covers chapters 1-7." }
+      ],
+      "exams": [{ "id": "canvas-exam-2402-q8002", "label": "Midterm 1", "due_in_hours": 200, "kind": "quiz", "inferred": true, "confidence": "low" }]
+    },
+    {
+      "course": { "id": "2501", "name": "Introduction to Astronautics", "code": "ASEN 2501", "label": "ASEN 2501 — Introduction to Astronautics", "color": "#C44569" },
+      "sources": [],
+      "items": [
+        { "id": "item-a9001", "canvas_id": "9001", "title": "Mission concept report — draft", "kind": "assignment", "points_possible": 50, "weight_share": 0.1, "due_in_hours": 42, "submission_types": ["online_upload"], "description": "Write a 1200-1500 words draft of your mission concept report.\nUse APA format.\nCite at least four sources, two of them peer-reviewed.\nGraded on the rubric: problem statement, architecture, risks, writing." }
+      ],
+      "exams": []
+    }
+  ]
+}

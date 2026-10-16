@@ -93,6 +93,35 @@ def test_office_formats_and_pdf_are_read_with_stdlib(tmp_path: Path) -> None:
     assert "Product rule worked examples" in library.read_text(tmp_path, p["id"])
 
 
+def test_office_xml_with_external_entity_is_not_resolved(tmp_path: Path) -> None:
+    malicious = (
+        b'<!DOCTYPE document [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+        b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        b'<w:body><w:p><w:r><w:t>&xxe;</w:t></w:r></w:p></w:body></w:document>'
+    )
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, "w") as archive:
+        archive.writestr("word/document.xml", malicious)
+    assert library.extract_text("malicious.docx", data.getvalue()) == ("", "full")
+
+
+def test_office_archive_member_limit_prevents_decompression_bomb(tmp_path: Path) -> None:
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, "w") as archive:
+        archive.writestr("word/document.xml", b"x" * (library.MAX_ARCHIVE_MEMBER_BYTES + 1))
+    assert library.extract_text("large.docx", data.getvalue()) == ("", "none")
+
+
+def test_pdf_flate_bomb_is_bounded(tmp_path: Path) -> None:
+    import zlib
+
+    bomb = zlib.compress(b"0" * (library.MAX_ARCHIVE_MEMBER_BYTES + 1024), 9)
+    pdf = b"%PDF-1.4\n1 0 obj <</Filter /FlateDecode>>\nstream\n" + bomb + b"\nendstream\nendobj\n"
+    assert len(pdf) < 1_000_000
+    text, _status = library.extract_text("bomb.pdf", pdf)
+    assert text == ""
+
+
 def test_unreadable_files_are_kept_and_marked_honestly(tmp_path: Path) -> None:
     image = library.add_bytes(tmp_path, "Screenshot 2026-09-20.png", b"\x89PNG\r\n\x1a\nnot really", NOW)["entry"]
     assert image["kind"] == "image" and image["category"] == "screenshot"

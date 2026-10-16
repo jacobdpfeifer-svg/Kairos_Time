@@ -31,6 +31,7 @@ vi.mock("../ipc", () => ({
 
 import { TodayView } from "./TodayView";
 import { openExternalUrl, syncCanvas } from "../ipc";
+import { fixtureBrief, fixtureMissionControl } from "../missionControl/fixtures";
 
 const surface: SemesterSurface = {
   range: "1m",
@@ -95,76 +96,55 @@ const surface: SemesterSurface = {
 };
 
 const fresh = { state: "fresh_complete" as const, surfaces_enabled: true, sync_id: "s", as_of: "2026-09-20T00:00:00Z" };
-const base = { onStudy: () => undefined, onAsk: () => undefined };
+const NOW = new Date("2026-09-20T00:00:00Z");
+const mission = fixtureMissionControl(NOW);
+const loadBrief = async (c: string, a: string) => fixtureBrief(c, a, NOW) ?? { error: "not_found" };
+const base = { onStudy: () => undefined, onAsk: () => undefined, mission, loadBrief };
 
-describe("TodayView", () => {
+describe("TodayView (Mission Control)", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
   });
 
-  it("puts one next move in the focus block with what skipping it costs", async () => {
-    const user = userEvent.setup();
-    render(
-      <TodayView
-        {...base}
-        surface={surface}
-        health={fresh}
-        skipCosts={{ "1300:77": { course_id: "1300", assignment_id: "77", current: 88, if_zero: 84.5, if_full: 89, swing: 4.5, share_of_final: null, status: "ok" } }}
-      />
-    );
-    const focus = screen.getByRole("region", { name: "Homework 1" });
-    expect(within(focus).getByText("MATH 1300, homework")).toBeInTheDocument();
-    expect(within(focus).getByText("Skip it: 88% → 84.5% in MATH 1300. Full marks: 89%.")).toBeInTheDocument();
-    await user.click(within(focus).getByRole("button", { name: "Open in Canvas" }));
-    expect(openExternalUrl).toHaveBeenCalledWith("https://canvas.example/hw");
-    // the rest of the week is a quiet list without the lead
-    const week = screen.getByRole("region", { name: "Also this week" });
-    expect(week).toHaveTextContent("Reading notes");
-    expect(week).not.toHaveTextContent("Homework 1");
+  it("leads with the brief islands and opens the first brief on a new day", async () => {
+    render(<TodayView {...base} surface={surface} health={fresh} />);
+    expect(screen.getByRole("heading", { name: "Today is about this" })).toBeInTheDocument();
+    const panel = await screen.findByRole("region", { name: /Midterm 2/ });
+    expect(await within(panel).findByText("Do this next")).toBeInTheDocument();
+    // No second dashboard: the old focus block and "Also this week" are gone.
+    expect(screen.queryByRole("region", { name: "Also this week" })).not.toBeInTheDocument();
     // MASTER §13: no middle-dot chains
     expect(document.body.textContent).not.toContain(" · ");
   });
 
-  it("starts studying when the lead is an exam", async () => {
-    const onStudy = vi.fn();
-    const user = userEvent.setup();
-    const examFirst: SemesterSurface = {
-      ...surface,
-      courses: [{ ...surface.courses[0], ticks: surface.courses[0].ticks.map((t) => (t.kind === "assignment" ? { ...t, completed: true } : t)) }],
-    };
-    render(<TodayView {...base} surface={examFirst} health={fresh} onStudy={onStudy} />);
-    await user.click(screen.getByRole("button", { name: "Start studying" }));
-    expect(onStudy).toHaveBeenCalledWith(expect.objectContaining({ id: "ex" }));
-  });
-
-  it("opens an item sheet that takes focus and closes on Escape", async () => {
-    const user = userEvent.setup();
-    render(<TodayView {...base} surface={surface} health={fresh} />);
-    const title = within(screen.getByRole("region", { name: "Homework 1" })).getByRole("button", { name: "Homework 1" });
-    await user.click(title);
-    const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(dialog.contains(document.activeElement)).toBe(true);
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(document.activeElement).toBe(title);
-  });
-
-  it("opens the exam's study track from its sheet", async () => {
+  it("opens Canvas and starts Study from a brief", async () => {
     const onStudy = vi.fn();
     const user = userEvent.setup();
     render(<TodayView {...base} surface={surface} health={fresh} onStudy={onStudy} />);
-    await user.click(within(screen.getByRole("region", { name: "Also this week" })).queryByRole("button", { name: /Midterm 1/ }) ?? screen.getByRole("button", { name: "Midterm 1" }));
-    await user.click(screen.getByRole("button", { name: "Study for it" }));
-    expect(onStudy).toHaveBeenCalledWith(expect.objectContaining({ id: "ex" }));
+    await user.click(await screen.findByRole("button", { name: "Start studying" }));
+    expect(onStudy).toHaveBeenCalledWith({ id: "item-a12" });
+    await user.click(screen.getByRole("button", { name: /^Problem Set 4/ }));
+    const panel = await screen.findByRole("region", { name: /Problem Set 4/ });
+    await user.click(await within(panel).findByRole("button", { name: "Open in Canvas" }));
+    expect(openExternalUrl).toHaveBeenCalledWith("https://canvas.example.edu/courses/101/assignments/11");
   });
 
-  it("keeps the next move on screen and offers the last answer as a row", async () => {
+  it("a deep link opens that item's brief, or its sheet when it has no brief", async () => {
+    sessionStorage.setItem("mc_first_open_day", mission.today);
+    const { unmount } = render(<TodayView {...base} surface={surface} health={fresh} openItem={{ courseId: "101", itemId: "item-a11" }} />);
+    expect(await screen.findByRole("region", { name: /Problem Set 4/ })).toBeInTheDocument();
+    unmount();
+    render(<TodayView {...base} surface={surface} health={fresh} openItem={{ courseId: "1300", itemId: "item-a77" }} />);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Homework 1");
+  });
+
+  it("offers the last answer as a row", async () => {
     const onAsk = vi.fn();
     const user = userEvent.setup();
     const lastAsk = { ok: true, input_id: "ask-1", response: { one_sentence: "The derivative is 2x." } } as never;
     render(<TodayView {...base} surface={surface} health={fresh} lastAsk={lastAsk} onAsk={onAsk} />);
-    expect(screen.getByRole("region", { name: "Homework 1" })).toBeInTheDocument();
     expect(screen.getByText("The derivative is 2x.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open" }));
     expect(onAsk).toHaveBeenCalledWith(lastAsk);
@@ -178,7 +158,6 @@ describe("TodayView", () => {
     ];
     render(<TodayView {...base} surface={surface} health={fresh} changes={changes} />);
     expect(screen.getByRole("heading", { name: /2 things changed in Canvas since you last looked/ })).toBeInTheDocument();
-    expect(screen.getByText(/The due date moved/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "See what changed" }));
     expect(screen.getByText("Office hours moved")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Mark these as seen" }));
@@ -188,7 +167,7 @@ describe("TodayView", () => {
   it("shows empty_unverified as a warning with a Sync now that works", async () => {
     const user = userEvent.setup();
     render(<TodayView {...base} surface={{ ...surface, courses: [] }} health={{ state: "empty_unverified", surfaces_enabled: false, sync_id: null }} />);
-    expect(screen.getByRole("status")).toHaveTextContent(/not an empty week/i);
+    expect(screen.getAllByRole("status")[0]).toHaveTextContent(/not an empty week/i);
     await user.click(screen.getByRole("button", { name: "Sync now" }));
     expect(syncCanvas).toHaveBeenCalled();
   });
@@ -197,27 +176,16 @@ describe("TodayView", () => {
     render(<TodayView {...base} surface={surface} health={{ state: "blocked", surfaces_enabled: false, sync_id: null }} />);
     expect(screen.getByRole("button", { name: "Sign in again" })).toBeInTheDocument();
   });
+
+  it("says briefs come after the first sync instead of inventing any", () => {
+    render(<TodayView {...base} mission={{ ...mission, prepared: false, assignments: [], operations: [] }} surface={surface} health={fresh} />);
+    expect(screen.getByText("Your briefs are prepared after the first Canvas sync.")).toBeInTheDocument();
+  });
 });
 
 describe("TodayView captures", () => {
-  it("shows a capture planned for today as the next move, and later ones as rows", () => {
-    const dated: SemesterSurface = {
-      ...surface,
-      today: "2026-09-20T18:00:00",
-      courses: [{ ...surface.courses[0], ticks: [] }],
-    };
-    const { rerender } = render(
-      <TodayView
-        {...base}
-        surface={dated}
-        health={fresh}
-        captures={[{ id: "cap-1", title: "read ch 5", course: "MATH 1300", due_at: null, day: "2026-09-20", source: "typed", created_at: "2026-09-20T18:00:00" }]}
-      />
-    );
-    expect(screen.getByRole("region", { name: "read ch 5" })).toHaveTextContent("Planned for today.");
-    expect(screen.queryByText(/Nothing due in the next month/)).not.toBeInTheDocument();
-
-    rerender(
+  it("shows the student's own rows for the week", () => {
+    render(
       <TodayView
         {...base}
         surface={surface}
@@ -226,13 +194,12 @@ describe("TodayView captures", () => {
       />
     );
     expect(screen.getByRole("region", { name: "You added" })).toHaveTextContent("outline the lab");
-    expect(screen.getByRole("region", { name: "Homework 1" })).toBeInTheDocument();
   });
 });
 
 describe("TodayView after a background Canvas sync", () => {
   it("re-reads sync health when the sync finishes, and surfaces a failed background sync", async () => {
-    render(<TodayView {...base} />);
+    render(<TodayView onStudy={() => undefined} onAsk={() => undefined} />);
     expect(await screen.findByText(/hasn't finished reading Canvas yet/)).toBeInTheDocument();
     health.current = { state: "fresh_complete", surfaces_enabled: true, as_of: "2026-10-08T16:05:00Z" };
     await act(async () => inbox.handler?.());
@@ -240,22 +207,5 @@ describe("TodayView after a background Canvas sync", () => {
     await act(async () => failed.handler?.("Canvas timed out"));
     expect(await screen.findByText(/last background sync didn't finish/)).toBeInTheDocument();
     expect(screen.getByText(/Canvas timed out/)).toBeInTheDocument();
-  });
-});
-
-describe("TodayView in exam week", () => {
-  it("shrinks to the exam when one is three days out, and the whole day is one click away", async () => {
-    const user = userEvent.setup();
-    const examSoon: SemesterSurface = { ...surface, today: "2026-10-13T16:00:00Z" };
-    const onStudy = vi.fn();
-    render(<TodayView {...base} surface={examSoon} health={fresh} onStudy={onStudy} />);
-    const focus = screen.getByRole("region", { name: "Midterm 1" });
-    expect(focus).toHaveTextContent(/In 2 days\. Day 2 of 3 before it\./);
-    expect(screen.queryByRole("region", { name: "Also this week" })).not.toBeInTheDocument();
-    await user.click(within(focus).getByRole("button", { name: "Study for it" }));
-    expect(onStudy).toHaveBeenCalledWith(expect.objectContaining({ id: "ex" }));
-    await user.click(screen.getByRole("button", { name: "Show my whole day" }));
-    expect(screen.queryByRole("region", { name: "Midterm 1" })).not.toBeInTheDocument();
-    sessionStorage.clear();
   });
 });

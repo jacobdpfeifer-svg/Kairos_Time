@@ -346,7 +346,8 @@ def test_http_surface_roundtrip(tmp_path: Path) -> None:
     from relay.app import make_handler
 
     provider = ScriptedProvider()
-    cfg = Config(db_path=str(tmp_path / "h.sqlite3"), admin_token="admin-secret", default_model="claude-haiku-4-5", fixed_fees_cents=0)
+    admin = "admin-secret-" + "x" * 32
+    cfg = Config(db_path=str(tmp_path / "h.sqlite3"), admin_token=admin, default_model="claude-haiku-4-5", fixed_fees_cents=0)
     store = Store(cfg.db_path, global_allowance_cents=inference_allowance_cents(cfg))
     service = RelayService(cfg, store, providers={"anthropic": provider})
     server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(service, cfg))
@@ -366,8 +367,9 @@ def test_http_surface_roundtrip(tmp_path: Path) -> None:
             return exc.code, json.loads(exc.read())
 
     try:
-        status, inv = call("/admin/invites", {"label": "t"}, token="admin-secret")
+        status, inv = call("/admin/invites", {"label": "t"}, token=admin)
         assert status == 200
+        assert call("/admin/invites", {"label": "t", "allowance_cents": "500"}, token=admin)[0] == 400
         assert call("/admin/invites", {"label": "t"}, token="wrong")[0] == 401
         status, red = call("/v1/invite/redeem", {"code": inv["invite_code"]})
         assert status == 200
@@ -382,3 +384,41 @@ def test_http_surface_roundtrip(tmp_path: Path) -> None:
         assert status == 400
     finally:
         server.shutdown()
+
+
+def test_short_admin_token_disables_admin(tmp_path: Path) -> None:
+    assert not Config(db_path=str(tmp_path / "s.sqlite3"), admin_token="admin").admin_enabled
+    assert not Config(db_path=str(tmp_path / "s.sqlite3"), admin_token="").admin_enabled
+    assert Config(db_path=str(tmp_path / "s.sqlite3"), admin_token="a" * 32).admin_enabled
+
+
+def test_feedback_links_are_scrubbed() -> None:
+    from relay.providers import validate_proposal
+
+    text = json.dumps({
+        "schema_version": 1, "status": "complete", "outcome": "partial",
+        "feedback": "Close. Log in again at http://canvas-login.example.invalid or www.evil.example.com/x, then retry.",
+        "support_rows": [{"locator": "p1", "quote": "see https://phish.example", "status": "explicit_support"}],
+    })
+    proposal, problem = validate_proposal(text)
+    assert problem == "" and proposal is not None
+    assert "example" not in proposal["feedback"] and "[link removed]" in proposal["feedback"]
+    assert "phish" not in proposal["support_rows"][0]["quote"]
+
+
+BRIEF_JSON = json.dumps({"schema_version": 1, "status": "complete", "sections": [{"id": "order", "title": "Review order", "body": "- Chain rule examples first\n- See https://evil.example/x", "locator": "Q §chain"}], "gaps": ["No rubric in the sources"]})
+
+
+def test_brief_purpose_is_validated_separately_and_never_answers(tmp_path: Path) -> None:
+    provider = ScriptedProvider([ok_result(BRIEF_JSON), ok_result(GOOD_JSON)])
+    service, _store, provider = make(tmp_path, provider)
+    t, _tid = tester(service)
+    res = service.study(t, request("b1", purpose="brief", submitted_answer=""))
+    assert res["status"] == "complete" and res["assessment_proposal"] is None
+    sec = res["brief_proposal"]["sections"][0]
+    assert sec["id"] == "ai-order" and "evil.example" not in sec["body"]
+    assert res["brief_proposal"]["gaps"] == ["No rubric in the sources"]
+    assert "Do not answer, solve, or draft any graded question" in provider.calls[0]["content"]
+    # Feedback-shaped JSON is not a brief: explicit malformed outcome.
+    bad = service.study(t, request("b2", "s2", purpose="brief", submitted_answer=""))
+    assert bad["status"] == "malformed" and bad["brief_proposal"] is None

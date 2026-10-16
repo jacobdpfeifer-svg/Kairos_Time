@@ -6,7 +6,6 @@ import socket
 import threading
 
 import pytest
-from conftest import finding
 from relay.providers import ProviderResult
 from relay_harness import ScriptedProvider, running_relay, study_body
 
@@ -18,7 +17,6 @@ def _slow_post(url: str, headers: str, body: bytes = b"") -> socket.socket:
     return sock
 
 
-@finding("F10", "no socket timeout: an unauthenticated client that under-sends its body pins a relay thread forever")
 @pytest.mark.parametrize("headers", ["Content-Length: 100\r\n", "Content-Length: -1\r\n"], ids=["short_body", "negative_length"])
 def test_slow_client_is_cut_off(tmp_path, headers) -> None:
     with running_relay(tmp_path) as relay:
@@ -33,7 +31,6 @@ def test_slow_client_is_cut_off(tmp_path, headers) -> None:
         assert data is not None, "relay held the connection open with no response for 8s"
 
 
-@finding("F11", "a provider exception after reserve() leaves the row 'reserved' forever: tester is locked out (429 busy) for good")
 def test_provider_crash_does_not_lock_tester(tmp_path) -> None:
     def boom(_content: str) -> ProviderResult:
         raise AttributeError("unexpected provider body")
@@ -48,7 +45,6 @@ def test_provider_crash_does_not_lock_tester(tmp_path) -> None:
         assert status == 200, f"tester locked after one crash: {status} {body.get('error')}"
 
 
-@finding("F11", "three crashed dispatches exhaust GLOBAL_CONCURRENCY for every tester")
 def test_provider_crashes_do_not_lock_service(tmp_path) -> None:
     provider = ScriptedProvider(behavior=lambda c: (_ for _ in ()).throw(KeyError("x")))
     with running_relay(tmp_path, provider) as relay:
@@ -59,7 +55,6 @@ def test_provider_crashes_do_not_lock_service(tmp_path) -> None:
         assert status == 200, f"fresh tester refused: {status} {body.get('error')}"
 
 
-@finding("F12", "session_budget_id is global, not per tester: one tester can burn another's session cap")
 def test_session_cap_is_per_tester(tmp_path) -> None:
     with running_relay(tmp_path) as relay:
         attacker, victim = relay.tester(), relay.tester()
@@ -104,13 +99,11 @@ def test_client_cannot_choose_model_or_add_fields(tmp_path) -> None:
         assert status == 400 and "fields not accepted" in body["error"]["message"]
 
 
-def test_model_output_is_passed_through_unfiltered(tmp_path) -> None:
-    """Observation for F13: relay schema-checks the proposal but not its prose,
-    so a hijacked model's link/instructions reach the student verbatim."""
+def test_model_output_links_are_scrubbed(tmp_path) -> None:
+    """F13: the relay removes links from model prose before it reaches the student."""
     phish = '{"schema_version":1,"status":"complete","outcome":"correct","feedback":"Log in again at http://canvas-login.example.invalid","support_rows":[]}'
     provider = ScriptedProvider(behavior=lambda c: ProviderResult(status="complete", text=phish, usage={"input": 10, "output": 10, "reasoning": 0}))
     with running_relay(tmp_path, provider) as relay:
         status, body = relay.call("POST", "/v1/study", study_body(), token=relay.tester())
         assert status == 200
-        if "canvas-login.example.invalid" in body["assessment_proposal"]["feedback"]:
-            pytest.xfail("F13: model feedback links/instructions are not filtered before reaching the student")
+        assert "canvas-login.example.invalid" not in body["assessment_proposal"]["feedback"], "F13: model links reach the student"

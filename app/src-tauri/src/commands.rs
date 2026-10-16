@@ -2,6 +2,7 @@
 
 use crate::calendar;
 use crate::advisor;
+use crate::briefs;
 use crate::canvas;
 use crate::daemon;
 use crate::inbox;
@@ -9,7 +10,7 @@ use crate::runtime::{self, Runtime};
 use crate::prefs;
 use crate::semester;
 use serde::Serialize;
-use std::sync::Arc;
+use std::sync::{atomic::{AtomicU8, Ordering}, Arc};
 use std::thread;
 use tauri::{AppHandle, Emitter, State};
 
@@ -98,8 +99,18 @@ pub fn choose_school(
     account_id: Option<i64>,
     manual: Option<bool>,
 ) -> Result<serde_json::Value, String> {
+    let host = host.trim();
+    let name = name.trim();
+    // Values go to school.mjs as `--flag value` pairs; one that starts with
+    // "-" (or is absurdly long) is not a school and could pose as a flag.
+    if host.is_empty() || host.len() > 253 || host.starts_with('-') {
+        return Err("Enter your school's Canvas address.".into());
+    }
+    if name.len() > 200 || name.starts_with('-') {
+        return Err("That school name is not valid.".into());
+    }
     let account = account_id.map(|n| n.to_string());
-    let mut args: Vec<&str> = vec!["choose", "--host", host.trim(), "--name", name.trim()];
+    let mut args: Vec<&str> = vec!["choose", "--host", host, "--name", name];
     if let Some(a) = account.as_deref() {
         args.extend(["--account-id", a]);
     }
@@ -185,10 +196,55 @@ pub async fn study(rt: Rt<'_>, request: serde_json::Value) -> Result<serde_json:
 
 /// Week plan state: `{ cmd, params }` like `study`, handled by `week_plan.py`.
 #[tauri::command]
-pub async fn week_plan(rt: Rt<'_>, request: serde_json::Value) -> Result<serde_json::Value, String> {
+pub async fn week_plan(app: AppHandle, rt: Rt<'_>, request: serde_json::Value) -> Result<serde_json::Value, String> {
     daemon::validate_study_request(&request)?;
     let rt = Arc::clone(&rt);
-    blocking(move || daemon::run_week_plan(&rt, &request)).await
+    let changes_order = request.get("cmd").and_then(|c| c.as_str()).is_some_and(|c| c != "show");
+    let out = blocking({
+        let rt = Arc::clone(&rt);
+        move || daemon::run_week_plan(&rt, &request)
+    })
+    .await?;
+    // An accepted plan is the student's island order: re-rank now, not at the next tick.
+    if changes_order {
+        refresh_briefs(app, rt);
+    }
+    Ok(out)
+}
+
+/// Rebuild briefs off the main thread, then tell Today to re-read them.
+// 0 = idle, 1 = rebuilding, 2 = another rebuild requested while running.
+// A plan/editor can save several times in quick succession. Coalesce those
+// changes into at most one follow-up process rather than launching competing
+// Node writers or leaving the final save unread.
+static BRIEF_REFRESH: AtomicU8 = AtomicU8::new(0);
+
+fn refresh_briefs(app: AppHandle, rt: Arc<Runtime>) {
+    if BRIEF_REFRESH
+        .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        BRIEF_REFRESH.store(2, Ordering::Release);
+        return;
+    }
+    thread::spawn(move || {
+        loop {
+            if daemon::run_briefs(&rt).is_ok() {
+                let _ = app.emit("freshness-updated", 0u64);
+            }
+            // Claim a queued follow-up, if any. A request that arrives after
+            // this swap sees idle and starts the next worker itself.
+            if BRIEF_REFRESH.swap(0, Ordering::AcqRel) != 2 {
+                break;
+            }
+            if BRIEF_REFRESH
+                .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
 }
 
 /// Whether the Chrome extension has reached this app, and when.
@@ -301,6 +357,43 @@ pub fn read_advisor_snapshot(rt: Rt<'_>) -> serde_json::Value {
 }
 
 #[tauri::command]
+pub fn read_mission_control_surface(rt: Rt<'_>, today: String) -> serde_json::Value {
+    briefs::read_surface(&rt.user_root, &today)
+}
+
+#[tauri::command]
+pub fn read_assignment_brief(rt: Rt<'_>, course_id: String, assignment_id: String) -> serde_json::Value {
+    briefs::read_brief(&rt.user_root, &course_id, &assignment_id)
+}
+
+#[tauri::command]
+pub fn set_mission_control_selection(rt: Rt<'_>, today: String, assignment_id: Option<String>) -> Result<(), String> {
+    briefs::set_selection(&rt.user_root, &today, assignment_id.as_deref())
+}
+
+#[tauri::command]
+pub fn read_brief_prefs(rt: Rt<'_>) -> briefs::BriefPrefs {
+    briefs::read_prefs(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn write_brief_prefs(app: AppHandle, rt: Rt<'_>, prefs: briefs::BriefPrefs, now: String) -> Result<briefs::BriefPrefs, String> {
+    let saved = briefs::write_prefs(&rt.user_root, prefs, &now)?;
+    refresh_briefs(app, Arc::clone(&rt));
+    Ok(saved)
+}
+
+#[tauri::command]
+pub fn record_brief_feedback(rt: Rt<'_>, kind: String, outcome: String, day: String) -> Result<(), String> {
+    briefs::record_feedback(&rt.user_root, &kind, &outcome, &day)
+}
+
+#[tauri::command]
+pub fn export_brief_feedback(rt: Rt<'_>) -> serde_json::Value {
+    briefs::export_feedback(&rt.user_root)
+}
+
+#[tauri::command]
 pub fn read_course_colors(rt: Rt<'_>) -> serde_json::Value {
     canvas::read_course_colors(&rt.user_root)
 }
@@ -330,22 +423,32 @@ pub fn dismiss_calendar_suggestion(rt: Rt<'_>, source_message_id: String) -> Res
 
 #[tauri::command]
 pub fn open_external_url(url: String) -> Result<(), String> {
-    if !(url.starts_with("https://") || url.starts_with("http://")) {
+    if url.len() > 4096 {
+        return Err("external URL is too long".into());
+    }
+    let parsed = url::Url::parse(&url).map_err(|_| "invalid external URL".to_string())?;
+    if !matches!(parsed.scheme(), "https" | "http") || parsed.host_str().is_none() {
         return Err("only http(s) URLs can be opened".into());
     }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        return Ok(());
+    if parsed.username() != "" || parsed.password().is_some() {
+        return Err("external URLs must not contain credentials".into());
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = url;
-        Err("open_external_url is macOS-only in this build".into())
-    }
+    open_with_system(&parsed)
+}
+
+#[cfg(target_os = "macos")]
+fn open_with_system(url: &url::Url) -> Result<(), String> {
+    // The normalized form: it starts with "http", so `open` never reads it as an option.
+    std::process::Command::new("open")
+        .arg(url.as_str())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_with_system(_url: &url::Url) -> Result<(), String> {
+    Err("open_external_url is macOS-only in this build".into())
 }
 
 /// Runtime summary for Settings / first-run diagnostics (no secrets).
@@ -379,4 +482,21 @@ pub fn list_profiles(rt: Rt<'_>) -> serde_json::Value {
         .unwrap_or_default();
     ids.sort();
     serde_json::json!({"current": rt.profile_id, "profiles": ids, "root": root.display().to_string()})
+}
+
+#[cfg(test)]
+mod tests {
+    use super::open_external_url;
+
+    #[test]
+    fn external_url_rejects_non_http_schemes_and_credentials() {
+        for value in [
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "https://user:password@example.com/",
+            "https://trusted.example@attacker.example/",
+        ] {
+            assert!(open_external_url(value.to_string()).is_err(), "{value}");
+        }
+    }
 }

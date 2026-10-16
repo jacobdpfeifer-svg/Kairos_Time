@@ -55,11 +55,17 @@ NEVER_AUTO: frozenset[str] = frozenset(
 
 # Always require per-instance human confirm — may be gated or never, never automatic.
 # Distinct from NEVER_AUTO (which forces posture "never"). Per the 2026-09-13
-# addendum to docs/handoff/canvas-focus-pivot-2026-09-11.md.
+# addendum to docs/handoff/canvas-focus-pivot-2026-09-11.md. The Canvas-visible
+# categories are here too: submit/post tools are preview-only (canvas-focus
+# pivot), and no k-success count or hand-edited permissions.yaml may ever turn
+# one into a standing automatic posture.
 ALWAYS_GATED: frozenset[str] = frozenset(
     {
         "calendar",
         "email_send",
+        "canvas_submit",
+        "canvas_quiz_submit",
+        "canvas_discussion_post",
     }
 )
 

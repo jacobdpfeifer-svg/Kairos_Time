@@ -256,11 +256,10 @@ try {
   await dash.locator("#kairos-stage").screenshot({ path: path.join(OUT, "dashboard-narrow.png") });
   await dash.setViewportSize({ width: 1280, height: 900 });
 
-  const clicked = await dash.evaluate(() => {
-    const button = [...document.querySelector("#kairos-stage").shadowRoot.querySelectorAll("button")].find((b) => b.textContent === "Block 90 min");
-    button?.click();
-    return Boolean(button);
-  });
+  // A real (trusted) click: the stage ignores synthetic clicks from page script.
+  const blockButton = dash.locator("#kairos-stage button", { hasText: /^Block 90 min$/ });
+  const clicked = (await blockButton.count()) > 0;
+  if (clicked) await blockButton.first().click();
   check("block_button_present", clicked);
   await dash.waitForTimeout(800);
   const suggestionsFile = path.join(userRoot, "inbox/calendar-suggestions.jsonl");

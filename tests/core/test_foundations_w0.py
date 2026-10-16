@@ -19,6 +19,7 @@ from canvas_mcp.core.permissions import (
     default_permissions,
     load_permissions,
     refuse_proctoring_tool,
+    resolve_posture,
     save_permissions,
 )
 from canvas_mcp.core.tenants import clear_school_cache, list_schools, load_school
@@ -152,19 +153,37 @@ def test_permissions_gated_requires_confirm(tmp_path):
 
 def test_bump_k_escalates(tmp_path):
     state = default_permissions()
-    state.categories["canvas_submit"].k_required = 2
-    state.categories["canvas_submit"].k_success = 0
-    state = bump_k_success(state, "canvas_submit", course_id="c1")
-    state = bump_k_success(state, "canvas_submit", course_id="c1")
-    assert state.courses["c1"]["canvas_submit"].posture == "automatic"
+    state.categories["skill_promotion"].k_required = 2
+    state.categories["skill_promotion"].k_success = 0
+    state = bump_k_success(state, "skill_promotion", course_id="c1")
+    state = bump_k_success(state, "skill_promotion", course_id="c1")
+    assert state.courses["c1"]["skill_promotion"].posture == "automatic"
     save_permissions(tmp_path, state)
     reloaded = load_permissions(tmp_path)
-    assert reloaded.courses["c1"]["canvas_submit"].k_success == 2
+    assert reloaded.courses["c1"]["skill_promotion"].k_success == 2
+
+
+def test_canvas_visible_writes_never_load_as_automatic(tmp_path):
+    ensure_user_root(tmp_path)
+    (tmp_path / "calibration" / "permissions.yaml").write_text(
+        "categories:\n"
+        "  canvas_submit: {posture: automatic}\n"
+        "  canvas_discussion_post: {posture: automatic}\n"
+        "courses:\n"
+        "  c1:\n"
+        "    canvas_quiz_submit: {posture: automatic}\n",
+        encoding="utf-8",
+    )
+    state = load_permissions(tmp_path)
+    for cat in ("canvas_submit", "canvas_discussion_post"):
+        assert state.categories[cat].posture == "gated"
+        assert allow_write(state, cat, confirmed=False)[0] is False
+    assert resolve_posture(state, "canvas_quiz_submit", course_id="c1") == "gated"
 
 
 def test_bump_k_cannot_escalate_always_gated():
     state = default_permissions()
-    for cat in ("email_send", "calendar"):
+    for cat in ("email_send", "calendar", "canvas_submit", "canvas_quiz_submit", "canvas_discussion_post"):
         state.categories[cat].k_required = 1
         state.categories[cat].k_success = 0
         state.categories[cat].posture = "gated"

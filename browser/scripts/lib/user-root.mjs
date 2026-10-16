@@ -15,9 +15,16 @@ import path from "node:path";
 
 export const PRODUCT_NAME = process.env.PRODUCT_NAME?.trim() || "Kairos";
 
+/** Same rule as Rust `valid_profile_id` and the native host: a plain directory name. */
+const PROFILE_ID = /^[A-Za-z0-9._-]{1,64}$/;
+
 export function resolveProductUserId() {
   const fromEnv = process.env.PRODUCT_USER_ID?.trim();
-  return fromEnv || "dev";
+  if (!fromEnv) return "dev";
+  if (!PROFILE_ID.test(fromEnv) || fromEnv === "." || fromEnv === "..") {
+    throw new Error(`Invalid PRODUCT_USER_ID: ${JSON.stringify(fromEnv)}`);
+  }
+  return fromEnv;
 }
 
 /** OS-standard application support directory for the product (no user id). */
@@ -57,6 +64,12 @@ export function resolveUserRoot(opts = {}) {
   if (create) {
     fs.mkdirSync(path.join(root, "inbox", "courses"), { recursive: true });
     fs.mkdirSync(path.join(root, "calibration"), { recursive: true });
+    // Grades, notes, SSO cookies and tokens live under here: owner-only.
+    try {
+      fs.chmodSync(root, 0o700);
+    } catch {
+      /* foreign filesystem: best effort */
+    }
   }
 
   if (announce) {

@@ -91,7 +91,8 @@
           ? `Checked ${fmt.relTime(status.lastPollAt)}`
           : "Checking Canvas";
     const refresh = el("button", { class: "pn-quiet", type: "button", text: "Refresh" });
-    refresh.addEventListener("click", async () => {
+    refresh.addEventListener("click", async (event) => {
+      if (!event.isTrusted) return; // a Canvas page script cannot press Kairos buttons
       refresh.disabled = true;
       await send({ type: "poll_now" });
       await render();
@@ -123,7 +124,10 @@
 
   function queueButton(label, suggestion, row) {
     const button = el("button", { class: "pn-secondary", type: "button", text: label });
-    button.addEventListener("click", async () => {
+    button.addEventListener("click", async (event) => {
+      // The stage lives in the Canvas page (open shadow root): only the
+      // student's own click may queue anything, never a synthetic page click.
+      if (!event.isTrusted) return;
       button.disabled = true;
       const reply = await send({ type: "queue_suggestion", suggestion });
       if (reply?.ok) {

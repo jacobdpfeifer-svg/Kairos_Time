@@ -178,7 +178,19 @@ pub fn read_work_surface(user_root: &Path, filters: &Value) -> Value {
     surface
 }
 
+/// A Canvas course id as it names a projection file: digits/letters, `_`, `-`.
+/// It reaches here from the webview and from `kairos://course/<id>` links, so
+/// `../x` must never become part of a path.
+pub fn valid_course_id(course_id: &str) -> bool {
+    !course_id.is_empty()
+        && course_id.len() <= 64
+        && course_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
 pub fn read_course_map(user_root: &Path, course_id: &str) -> Value {
+    if !valid_course_id(course_id) {
+        return json!({ "course": { "id": Value::Null }, "error": "invalid course id" });
+    }
     let health = read_sync_health(user_root);
     let Some(dir) = proj_dir(user_root) else {
         return json!({ "health_state": health.get("state"), "sync_id": health.get("sync_id"), "course": { "id": course_id } });
@@ -192,6 +204,9 @@ pub fn read_course_map(user_root: &Path, course_id: &str) -> Value {
 }
 
 pub fn read_grade_truth(user_root: &Path, course_id: &str) -> Value {
+    if !valid_course_id(course_id) {
+        return json!({ "course_id": Value::Null, "error": "invalid course id" });
+    }
     let Some(dir) = proj_dir(user_root) else {
         return json!({ "course_id": course_id, "canvas_reported": { "status": "cannot_calculate" } });
     };

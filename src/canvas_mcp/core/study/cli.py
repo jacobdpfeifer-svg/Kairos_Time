@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .model import StudyError
+from .model import StudyError, write_private_text
 from .service import StudyService
 
 
@@ -140,6 +140,18 @@ def run_command(service: StudyService, cmd: str, params: dict[str, Any]) -> dict
         return service.import_path(template["path"])
     if cmd.startswith("library-"):
         return _library_command(service, cmd, params)
+    if cmd.startswith("email-draft-") or cmd == "email-send":
+        return _email_command(service, cmd, params)
+    if cmd == "brief-enrich":
+        from .brief_enrich import enrich
+
+        return enrich(
+            service.user_root,
+            str(params.get("course_id") or ""),
+            str(params.get("assignment_id") or ""),
+            session_budget_id=str(service.session().get("id") or "session"),
+            attempt=int(params.get("attempt") or 1),
+        )
     if cmd == "audit-import":
         from .audit_copy import write_audit
 
@@ -176,6 +188,29 @@ def _library_command(service: StudyService, cmd: str, params: dict[str, Any]) ->
         return library.remove_entry(root, str(params.get("id") or ""))
     if cmd == "library-resort":
         return library.resort(root)
+    raise StudyError("validation", f"unknown command {cmd!r}")
+
+
+def _email_command(service: StudyService, cmd: str, params: dict[str, Any]) -> dict[str, Any]:
+    """Local drafts only. ``email-send`` refuses until a provider bridge exists."""
+    from . import email_drafts as e
+
+    root = service.user_root
+    draft_id = str(params.get("draft_id") or "")
+    if cmd == "email-draft-create":
+        return e.create(root, params)
+    if cmd == "email-draft-update":
+        return e.update(root, draft_id, params)
+    if cmd == "email-draft-review":
+        return e.review(root, draft_id)
+    if cmd == "email-draft-list":
+        return e.list_drafts(root)
+    if cmd == "email-draft-get":
+        return e.get(root, draft_id)
+    if cmd == "email-draft-discard":
+        return e.discard(root, draft_id)
+    if cmd == "email-send":
+        return e.send(root, draft_id, str(params.get("confirmation_token") or ""))
     raise StudyError("validation", f"unknown command {cmd!r}")
 
 
@@ -279,9 +314,7 @@ def _serve(root: Path, port: int, zone: str | None) -> int:
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     token = os.environ.get("KAIROS_BRIDGE_TOKEN") or secrets.token_urlsafe(24)
-    token_path = root / "study" / "bridge-token"
-    token_path.parent.mkdir(parents=True, exist_ok=True)
-    token_path.write_text(token, encoding="utf-8")
+    write_private_text(root / "study" / "bridge-token", token)
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, body: dict[str, Any]) -> None:
@@ -313,7 +346,13 @@ def _serve(root: Path, port: int, zone: str | None) -> int:
             if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
                 self._send(415, {"ok": False, "error": {"code": "validation", "message": "content-type must be application/json"}})
                 return
-            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = -1
+            if length < 0:
+                self._send(400, {"ok": False, "error": {"code": "validation", "message": "bad content-length"}})
+                return
             if length > MAX_REQUEST_BYTES:
                 self._send(413, {"ok": False, "error": {"code": "validation", "message": "request too large"}})
                 return
@@ -325,7 +364,7 @@ def _serve(root: Path, port: int, zone: str | None) -> int:
             except StudyError as exc:
                 self._send(200, {"ok": False, "error": {"code": exc.code, "message": exc.message}})
             except Exception as exc:  # noqa: BLE001 - dev bridge reports, never crashes
-                self._send(200, {"ok": False, "error": {"code": "internal", "message": str(exc)}})
+                self._send(200, {"ok": False, "error": {"code": "internal", "message": type(exc).__name__}})
 
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - http.server API
             return  # no request logging: bodies carry study content
@@ -417,15 +456,32 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "serve":
         return _serve(root, args.port, args.zone)
     if args.cmd == "run":
+        # The IPC bridge always answers one JSON envelope: a traceback would
+        # reach the app as "no reply" and could carry study content (F3).
         try:
             body = json.loads(sys.stdin.read() or "{}")
+        except ValueError as exc:
+            _fail("validation", f"request is not JSON: {exc}")
+            return 1
+        try:
+            if not isinstance(body, dict):
+                raise StudyError("validation", "request must be a JSON object")
+            run_params = body.get("params") or {}
+            if not isinstance(run_params, dict):
+                raise StudyError("validation", "params must be an object")
             service = StudyService(root, now=_bridge_now(body) or _now(args), zone=args.zone)
-            result = run_command(service, str(body.get("cmd")), dict(body.get("params") or {}))
+            result = run_command(service, str(body.get("cmd")), run_params)
         except StudyError as exc:
             _fail(exc.code, exc.message)
             return 1
-        except ValueError as exc:
-            _fail("validation", f"request is not JSON: {exc}")
+        except KeyError as exc:
+            _fail("validation", f"missing required parameter {exc.args[0]!r}" if exc.args else "missing required parameter")
+            return 1
+        except (TypeError, ValueError, OverflowError) as exc:
+            _fail("validation", f"invalid parameter: {type(exc).__name__}")
+            return 1
+        except Exception as exc:  # noqa: BLE001 - envelope, never a traceback
+            _fail("internal", f"study core error: {type(exc).__name__}")
             return 1
         print(json.dumps(result))
         return 0

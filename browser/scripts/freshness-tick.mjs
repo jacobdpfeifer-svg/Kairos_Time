@@ -6,7 +6,7 @@
  *   node scripts/freshness-tick.mjs --loop 120   # keep going (no desktop app)
  *   node scripts/freshness-tick.mjs --force-feeds
  *
- * Prints one JSON line per tick: { ok, new_events, deltas_processed, feeds_polled, ... }.
+ * Prints one JSON line per tick: { ok, new_events, briefs_changed, deltas_processed, feeds_polled, ... }.
  */
 import { resolveUserRoot } from "./lib/user-root.mjs";
 import { runFreshnessTick } from "./lib/freshness-run.mjs";

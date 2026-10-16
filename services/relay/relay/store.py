@@ -15,6 +15,7 @@ from .config import (
     MAX_DISPATCHES_PER_SESSION,
     PER_TESTER_CONCURRENCY,
     PRICING_VERSION,
+    STALE_RESERVATION_SECONDS,
 )
 
 SCHEMA = """
@@ -44,7 +45,7 @@ CREATE TABLE IF NOT EXISTS requests (
   updated_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS requests_tester ON requests(tester_id, status);
-CREATE INDEX IF NOT EXISTS requests_session ON requests(session_budget_id);
+CREATE INDEX IF NOT EXISTS requests_tester_session ON requests(tester_id, session_budget_id);
 """
 
 
@@ -132,15 +133,15 @@ class Store:
     # --- budget ---------------------------------------------------------------
 
     def budget(self, conn: sqlite3.Connection, tester_id: str | None = None) -> dict[str, int]:
-        where = "WHERE tester_id=?" if tester_id else ""
-        args: tuple[Any, ...] = (tester_id,) if tester_id else ()
+        # Fixed SQL text; the optional tester filter is a bound parameter
+        # (``? IS NULL`` selects every tester), never string-built.
         row = conn.execute(
-            f"""SELECT
+            """SELECT
                  COALESCE(SUM(CASE WHEN status='completed' THEN settled_cents ELSE 0 END),0) AS settled,
                  COALESCE(SUM(CASE WHEN status IN ('reserved','unknown') THEN reserved_cents ELSE 0 END),0) AS outstanding,
                  COALESCE(SUM(CASE WHEN status='reserved' THEN 1 ELSE 0 END),0) AS inflight
-               FROM requests {where}""",
-            args,
+               FROM requests WHERE (? IS NULL OR tester_id=?)""",
+            (tester_id, tester_id),
         ).fetchone()
         return {"settled": int(row["settled"]), "outstanding": int(row["outstanding"]), "inflight": int(row["inflight"])}
 
@@ -154,6 +155,11 @@ class Store:
                     if existing["tester_id"] != tester.tester_id:
                         raise RelayError("conflict", "request id belongs to another tester", 409)
                     return {"duplicate": True, **dict(existing)}
+                # Reap reservations whose dispatch can no longer be running.
+                conn.execute(
+                    "UPDATE requests SET status='unknown', updated_at=? WHERE status='reserved' AND created_at<?",
+                    (time.time(), time.time() - STALE_RESERVATION_SECONDS),
+                )
                 revoked = conn.execute("SELECT revoked FROM testers WHERE tester_id=?", (tester.tester_id,)).fetchone()
                 if revoked is None or revoked["revoked"]:
                     raise RelayError("revoked", "access has been revoked", 403)
@@ -163,8 +169,11 @@ class Store:
                     raise RelayError("busy", "one request at a time; wait for the current one", 429)
                 if glob["inflight"] >= GLOBAL_CONCURRENCY:
                     raise RelayError("busy", "the service is at capacity; try again shortly", 429)
+                # Session caps are per tester: a shared or guessed session id
+                # must not let one tester burn another's dispatches (F12).
                 session_count = conn.execute(
-                    "SELECT COUNT(*) AS n FROM requests WHERE session_budget_id=? AND status<>'failed'", (session_budget_id,)
+                    "SELECT COUNT(*) AS n FROM requests WHERE tester_id=? AND session_budget_id=? AND status<>'failed'",
+                    (tester.tester_id, session_budget_id),
                 ).fetchone()["n"]
                 if int(session_count) >= MAX_DISPATCHES_PER_SESSION:
                     raise RelayError("session_limit", "this session has used its AI dispatches", 429)
@@ -187,7 +196,8 @@ class Store:
 
     def settle(self, request_id: str, *, usage: dict[str, int] | None, settled_cents: int | None, status: str) -> None:
         """Record the authoritative outcome. Missing usage → keep the reservation as `unknown`."""
-        assert status in ("completed", "unknown", "failed")
+        if status not in ("completed", "unknown", "failed"):
+            raise ValueError(f"unknown settle status {status!r}")
         with self._lock, self._conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute("SELECT status, reserved_cents FROM requests WHERE request_id=?", (request_id,)).fetchone()
@@ -224,7 +234,7 @@ class Store:
         with self._conn() as conn:
             b = self.budget(conn, tester_id)
             counts = conn.execute(
-                "SELECT status, COUNT(*) AS n FROM requests " + ("WHERE tester_id=? " if tester_id else "") + "GROUP BY status",
-                (tester_id,) if tester_id else (),
+                "SELECT status, COUNT(*) AS n FROM requests WHERE (? IS NULL OR tester_id=?) GROUP BY status",
+                (tester_id, tester_id),
             ).fetchall()
         return {**b, "by_status": {r["status"]: int(r["n"]) for r in counts}, "pricing_version": PRICING_VERSION}

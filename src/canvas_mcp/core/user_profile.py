@@ -96,8 +96,13 @@ def _ranked_block(heading: str, items: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _institution_for(identity: OnboardingIdentity) -> str:
-    """Prefer explicit institution; else schools/{slug}.yaml display_name."""
+def _institution_for(identity: OnboardingIdentity, user_root: Path) -> str:
+    """Prefer explicit institution; else schools/{slug}.yaml display_name.
+
+    The fallback reads the school saved under ``user_root`` (the profile being
+    written), never the process's boot profile: onboarding one student must
+    not stamp another student's school into their USER.md (finding F16).
+    """
     if identity.institution.strip():
         return identity.institution.strip()
     slug = identity.school_slug.strip()
@@ -111,12 +116,9 @@ def _institution_for(identity: OnboardingIdentity) -> str:
         pass
     # A school discovered at onboarding has no curated yaml; use the saved profile.
     try:
-        import os
-
         from .tenants import school_for_user
-        from .user_root import resolve_user_root
 
-        school = school_for_user(resolve_user_root(os.environ.get("PRODUCT_USER_ID", "dev")))
+        school = school_for_user(Path(user_root))
         return school.display_name.strip() if school else ""
     except (OSError, ValueError, TypeError):
         return ""
@@ -140,9 +142,9 @@ def apply_onboarding_identity(user_root: Path, identity: OnboardingIdentity) -> 
     user_md = Path(user_root) / "USER.md"
     _seed_user_md_if_missing(user_md)
     _seed_calibration_files(user_root)
-    text = user_md.read_text(encoding="utf-8")
+    text = user_md.read_text(encoding="utf-8", errors="replace")
     years_at_school = _existing_years_at_school(text)
-    institution = _institution_for(identity)
+    institution = _institution_for(identity, user_root)
 
     goals = ", ".join(p.strip() for p in identity.career_priorities if p.strip())
     identity_block = (

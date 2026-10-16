@@ -113,7 +113,8 @@ def exam_window(raw: dict[str, Any]) -> ExamWindow:
             if end is None:
                 end = start
         else:
-            assert end is not None  # both-None returned above
+            if end is None:  # defensive: both-None is handled above
+                return ExamWindow(exam_id, "unknown", None, None)
             cutoff = end - timedelta(hours=1)
         return ExamWindow(exam_id, value, cutoff, end, starts_at=start,
                           source=str(raw.get("source") or "unknown"),

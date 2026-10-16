@@ -177,3 +177,10 @@ var/
 
 # Generated QR codes and NFC link list (rebuild with: cd marketing && npm run codes)
 marketing/codes/
+
+# Secrets and per-user state that must never be committed (security pass 2026-10-14)
+**/auth/
+**/bridge-token
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

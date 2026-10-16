@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 from attacks import LIVE_PHRASINGS
-from conftest import finding
 from kairos_adapter import REPO, study, study_cli
 
 from canvas_mcp.core.study import ai
@@ -92,7 +91,6 @@ def test_canvas_typed_quiz_cannot_be_overridden_open(avery, relay_calls) -> None
 # ---------------------------------------------------------- relay payloads
 
 
-@finding("F5", "relay request_id ignores the corrected context, so the relay replays the old answer")
 def test_corrected_ask_gets_a_new_relay_request(avery, relay_calls) -> None:
     out = study(avery, "ask-create", {"content": "explain the lecture", "content_kind": "text", "course_hint": "HIST 1010", "session_goal": "walkthrough"})
     study(avery, "ask-correct", {"input_id": out["input_id"], "course": "MATH 1300"})
@@ -142,7 +140,6 @@ BAD_REQUESTS = [
 ]
 
 
-@finding("F3", "non-StudyError exceptions escape the bridge as tracebacks, not JSON envelopes")
 @pytest.mark.parametrize("name,request_body", BAD_REQUESTS, ids=[n for n, _ in BAD_REQUESTS])
 def test_bridge_always_answers_json(avery, name: str, request_body: dict) -> None:
     rc, body, err = study_cli(avery, request_body)

@@ -24,6 +24,7 @@ from typing import Any
 import yaml
 
 from .dates import parse_day
+from .untrusted_content import fence_untrusted_inline
 
 KIND_VALUES = ("declarative", "confusable", "procedural", "list", "workflow")
 TEACHABLE_KINDS = ("declarative", "confusable", "procedural", "list")
@@ -252,7 +253,7 @@ def load_items(user_root: Path) -> list[LearnItem]:
     if not path.is_file():
         return []
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        raw = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
     except yaml.YAMLError:
         return []
     if isinstance(raw, dict):
@@ -475,7 +476,7 @@ def reconcile_from_inbox(
             continue
         code = path.stem
         try:
-            text = path.read_text(encoding="utf-8")
+            text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         live = _parse_checkpoint_dates(text)
@@ -749,13 +750,13 @@ def _week_text(user_root: Path, week_md: str | None) -> str:
     path = Path(user_root) / "inbox" / "week.md"
     if not path.is_file():
         return ""
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def _parse_week_rows(text: str) -> list[dict[str, str]]:
     headers: list[str] | None = None
     rows: list[dict[str, str]] = []
-    for line in text.splitlines():
+    for line in text.split("\n"):  # "\n" only: same rule as prompt_assembly._parse_md_table (F1)
         if not line.strip().startswith("|"):
             headers = None
             continue
@@ -970,7 +971,7 @@ def _focus_text(user_root: Path) -> str:
     path = Path(user_root) / "inbox" / "focus.md"
     if not path.is_file():
         return ""
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def _focus_updated(text: str) -> date | None:
@@ -1065,8 +1066,10 @@ def render_coverage_clock(
         "",
     ]
     for row in rows[:3]:
+        # ``label`` is a Canvas assignment title: data, never an instruction (F2).
+        label = fence_untrusted_inline(row["label"], "Canvas title")
         lines.append(
-            f"- {row['course']} | {row['label']} | {row['state']} | {row['line']}"
+            f"- {row['course']} | {label} | {row['state']} | {row['line']}"
         )
     return "\n".join(lines) + "\n"
 
@@ -1337,7 +1340,7 @@ def due_reviews_payload(
     if focus.is_file():
         from .teach_hint import parse_focus_obstacle, parse_focus_open_with
 
-        text = focus.read_text(encoding="utf-8")
+        text = focus.read_text(encoding="utf-8", errors="replace")
         obstacle = parse_focus_obstacle(text) or ""
         open_with = parse_focus_open_with(text) or ""
     if surface.get("focus_stale"):
@@ -1611,7 +1614,7 @@ def load_eval_snapshots(user_root: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         return []
     rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         token = line.strip()
         if not token:
             continue

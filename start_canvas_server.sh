@@ -10,7 +10,22 @@ echo "Starting Canvas MCP Server..." >&2
 ENV_FILE="$SCRIPT_DIR/.env"
 if [ -f "$ENV_FILE" ]; then
     echo "Loading environment variables from .env file: $ENV_FILE" >&2
-    export $(cat "$ENV_FILE" | grep -v '^#' | xargs)
+    # KEY=VALUE lines only, exported verbatim: no word splitting or globbing of
+    # secret values (the old `export $(… | xargs)` split and expanded them),
+    # and never `source`, which would execute whatever the file contains.
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        case "$line" in ''|'#'*) continue ;; esac
+        line="${line#export }"
+        key="${line%%=*}"
+        value="${line#*=}"
+        [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        [ "$key" = "$line" ] && continue
+        if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+            value="${BASH_REMATCH[1]}"
+        fi
+        export "$key=$value"
+    done < "$ENV_FILE"
 else
     echo "Error: .env file not found at $ENV_FILE. Please create one with CANVAS_API_TOKEN and CANVAS_API_URL" >&2
     exit 1
@@ -23,7 +38,7 @@ if [ -z "$CANVAS_API_TOKEN" ] || [ -z "$CANVAS_API_URL" ]; then
 fi
 
 # Go to the script directory
-cd $SCRIPT_DIR
+cd "$SCRIPT_DIR"
 echo "Changed directory to: $(pwd)" >&2
 
 # Run the server using the repo-local venv if present (preferred)

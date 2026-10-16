@@ -11,6 +11,7 @@ from typing import Any
 from .config import (
     MAX_INPUT_TOKENS,
     MAX_OUTPUT_TOKENS,
+    MAX_TESTER_ALLOWANCE_CENTS,
     PRICING,
     PRICING_VERSION,
     PROVIDER_OF,
@@ -25,12 +26,13 @@ from .providers import (
     GeminiProvider,
     Provider,
     build_user_content,
+    validate_brief_proposal,
     validate_proposal,
 )
 from .store import RelayError, Store, Tester
 
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
-PURPOSES = ("generate", "feedback", "hint", "repair")
+PURPOSES = ("generate", "feedback", "hint", "repair", "brief")
 # Fields a client may send. Anything else (model, endpoint, headers, tools,
 # temperature…) is rejected outright rather than ignored.
 ALLOWED_FIELDS = {"request_id", "session_budget_id", "purpose", "source_passages", "stem", "rubric", "submitted_answer", "schema_version", "pricing_version"}
@@ -94,7 +96,15 @@ class RelayService:
             return self._replay(reservation)
 
         started = time.time()
-        result = provider.dispatch(model=model, user_content=build_user_content(request), max_output_tokens=MAX_OUTPUT_TOKENS)
+        try:
+            result = provider.dispatch(model=model, user_content=build_user_content(request), max_output_tokens=MAX_OUTPUT_TOKENS)
+        except BaseException:
+            # Never leave the row "reserved": that holds the tester's (and a
+            # global) concurrency slot forever (F11). Billing is unknown, so
+            # the conservative reservation stays charged.
+            self.store.settle(request["request_id"], usage=None, settled_cents=None, status="unknown")
+            log("dispatch_crashed", request_id=request["request_id"], tester_id=tester.tester_id, model=model)
+            raise
         latency_ms = int((time.time() - started) * 1000)
 
         if result.status == "billing_unknown":
@@ -128,8 +138,15 @@ class RelayService:
             raise RelayError("revoked", "access was revoked during the request", 403) from None
 
         proposal, problem = (None, "")
+        brief = None
         status = result.status
-        if status == "complete":
+        if status == "complete" and request.get("purpose") == "brief":
+            brief, problem = validate_brief_proposal(result.text)
+            if brief is None:
+                status = "malformed"
+            elif brief["status"] == "abstained":
+                status = "abstained"
+        elif status == "complete":
             proposal, problem = validate_proposal(result.text)
             if proposal is None:
                 status = "malformed"
@@ -145,6 +162,7 @@ class RelayService:
             "finish_reason": result.finish_reason,
             "assessment_proposal": proposal,
             "support_rows": (proposal or {}).get("support_rows", []),
+            "brief_proposal": brief,
             "error": problem,
         }
         return self._remember(request["request_id"], response)
@@ -191,8 +209,14 @@ class RelayService:
 
     # --- admin ------------------------------------------------------------------
 
-    def admin_invite(self, label: str, allowance_cents: int | None) -> dict[str, Any]:
-        tester_id, code = self.store.create_invite(label, allowance_cents or self.config.default_tester_allowance_cents)
+    def admin_invite(self, label: str, allowance_cents: Any) -> dict[str, Any]:
+        if allowance_cents is None:
+            allowance = self.config.default_tester_allowance_cents
+        elif isinstance(allowance_cents, int) and not isinstance(allowance_cents, bool) and 0 < allowance_cents <= MAX_TESTER_ALLOWANCE_CENTS:
+            allowance = allowance_cents
+        else:
+            raise RelayError("validation", f"allowance_cents must be an integer from 1 to {MAX_TESTER_ALLOWANCE_CENTS}")
+        tester_id, code = self.store.create_invite(label, allowance)
         log("invite_created", tester_id=tester_id)
         return {"ok": True, "tester_id": tester_id, "invite_code": code}
 

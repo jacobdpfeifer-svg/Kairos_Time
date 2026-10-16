@@ -8,6 +8,11 @@
 import crypto from "node:crypto";
 import { getSchoolConfig } from "./school-config.mjs";
 
+/** Course codes come from school yaml; escape them so one can never act as a pattern. */
+function escapeCode(code) {
+  return String(code).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** @typedef {'high'|'med'|'low'} Confidence */
 /** @typedef {'whiteboard'|'slide'|'handout'|'syllabus_delta'|'homework_problem'|'event_selfie'|'graded_work'|'quiz'|'unknown'} CaptureKind */
 /** @typedef {'update_course_md'|'canvas_upload'|'needs_review'} CaptureAction */
@@ -37,7 +42,7 @@ function ocrCodePatterns() {
     if (entry.patterns?.length) {
       return { code: entry.code, re: entry.patterns[0] };
     }
-    return { code: entry.code, re: new RegExp(`\\b${entry.code}\\b`, "i") };
+    return { code: entry.code, re: new RegExp(`\\b${escapeCode(entry.code)}\\b`, "i") };
   });
 }
 
@@ -50,7 +55,7 @@ function userAliases() {
     code: entry.code,
     patterns: entry.patterns?.length
       ? entry.patterns
-      : [new RegExp(`\\b${entry.code}\\b`, "i")],
+      : [new RegExp(`\\b${escapeCode(entry.code)}\\b`, "i")],
   }));
 }
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import re
+import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
@@ -66,6 +69,33 @@ class StudyError(Exception):
         self.message = message
 
 
+def write_private_text(path: Path, text: str) -> None:
+    """Atomically replace ``path`` with owner-only (0600) contents.
+
+    Mirror of ``core/private_files.py``: the app imports this package as a
+    top-level ``study`` module, so it cannot import its parent package. The
+    temp file is created 0600 with O_EXCL/O_NOFOLLOW, so a secret is never
+    briefly world-readable and a pre-planted symlink is refused.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(path.parent, 0o700)  # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions - 0700 directory, owner-only
+    except OSError:
+        pass
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def require_id(value: Any, what: str) -> str:
     if not isinstance(value, str) or not _ID_RE.match(value):
         raise StudyError("validation", f"{what} must be a short id, got {value!r}")
@@ -123,6 +153,10 @@ class Event:
 
     @classmethod
     def from_line(cls, raw: dict[str, Any]) -> Event:
+        if not isinstance(raw, dict):
+            # A scalar/list line (older schema, sync tool junk) is a damaged
+            # record, handled like any other — never an AttributeError (F14).
+            raise StudyError("validation", "event line is not an object")
         return cls(
             event_id=require_id(raw.get("event_id"), "event_id"),
             type=require_choice(raw.get("type"), EVENT_TYPES, "type"),

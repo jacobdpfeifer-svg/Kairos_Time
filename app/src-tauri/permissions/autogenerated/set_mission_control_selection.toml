@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-mission-control-selection"
+description = "Enables the set_mission_control_selection command without any pre-configured scope."
+commands.allow = ["set_mission_control_selection"]
+
+[[permission]]
+identifier = "deny-set-mission-control-selection"
+description = "Denies the set_mission_control_selection command without any pre-configured scope."
+commands.deny = ["set_mission_control_selection"]

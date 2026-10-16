@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from canvas_mcp.core.study.ai import _validate_relay_url
 from canvas_mcp.core.study.model import StudyError
 from canvas_mcp.core.study.service import StudyService
 
@@ -59,6 +60,25 @@ def T(text: str) -> datetime:
 
 def svc(root: Path, at: str) -> StudyService:
     return StudyService(root, now=T(at), zone=Z)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "http://example.com",
+        "https://trusted.example@attacker.example",
+        "https://relay.example:bad",
+    ],
+)
+def test_relay_url_validation_rejects_unsafe_or_ambiguous_urls(url: str) -> None:
+    with pytest.raises(StudyError):
+        _validate_relay_url(url)
+
+
+@pytest.mark.parametrize("url", ["https://relay.example", "http://127.0.0.1:1421", "http://[::1]:1421"])
+def test_relay_url_validation_allows_expected_urls(url: str) -> None:
+    assert _validate_relay_url(url) == url
 
 
 def assessed_attempt(root: Path) -> str:

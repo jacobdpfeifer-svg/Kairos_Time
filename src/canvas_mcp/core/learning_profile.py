@@ -206,7 +206,7 @@ def load_learning_profile(user_root: Path) -> LearningProfile:
         profile = default_learning_profile()
         save_learning_profile(user_root, profile)
         return profile
-    with path.open(encoding="utf-8") as fh:
+    with path.open(encoding="utf-8", errors="replace") as fh:
         raw = yaml.safe_load(fh) or {}
     if not isinstance(raw, dict):
         return default_learning_profile()
@@ -253,7 +253,7 @@ def _seed_user_md_if_missing(user_md: Path) -> None:
 def _update_user_md(user_root: Path, block: str) -> None:
     user_md = Path(user_root) / "USER.md"
     _seed_user_md_if_missing(user_md)
-    text = user_md.read_text(encoding="utf-8")
+    text = user_md.read_text(encoding="utf-8", errors="replace")
     heading_idx = text.find(_USER_MD_HEADING)
     if heading_idx == -1:
         sep = "" if text.endswith("\n") else "\n"

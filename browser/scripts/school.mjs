@@ -18,9 +18,24 @@ import {
 } from "./lib/school-discovery.mjs";
 import { clearSchoolConfigCache, findCuratedSlugForHost, getSchoolConfig } from "./lib/school-config.mjs";
 
+/**
+ * `--flag value` pairs after the subcommand, read left to right. A value is
+ * never re-read as a flag, so a school name such as "--account-id" cannot
+ * shadow a real option (indexOf would find the value first).
+ */
+function parseFlags(argv) {
+  const flags = {};
+  for (let i = 0; i < argv.length; i += 2) {
+    const key = argv[i];
+    if (typeof key !== "string" || !key.startsWith("--")) break;
+    if (!(key.slice(2) in flags)) flags[key.slice(2)] = argv[i + 1];
+  }
+  return flags;
+}
+const FLAGS = parseFlags(process.argv.slice(3));
+
 function arg(name) {
-  const i = process.argv.indexOf(`--${name}`);
-  return i > -1 ? process.argv[i + 1] : undefined;
+  return Object.hasOwn(FLAGS, name) ? FLAGS[name] : undefined;
 }
 
 function out(obj, code = 0) {

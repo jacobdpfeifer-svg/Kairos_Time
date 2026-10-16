@@ -154,6 +154,37 @@ export const connectors = {
   context: (terms: string[], days = 7) => call<{ events: { id: string; summary: string; start: string | null }[]; emails: { id: string; subject: string; from: string; received: string | null; web_link: string | null }[] }>("context", { terms, days }),
 };
 
+/** Mission Control email drafts: local only. `email-send` refuses until a provider bridge exists. */
+export type EmailDraft = {
+  draft_id: string;
+  status: "draft" | "reviewed";
+  intent: string;
+  to: string[];
+  subject: string;
+  body: string;
+  evidence: { id: string; subject: string; kind: string }[];
+  connector: string;
+  created_at: string;
+  updated_at: string;
+};
+export type SendCapability = { available: boolean; reason: string };
+type DraftFields = { intent?: string; to?: string; subject?: string; body?: string; evidence?: { id: string; subject: string }[]; connector?: string };
+
+export const emailDrafts = {
+  list: () => call<{ drafts: EmailDraft[]; send: SendCapability }>("email-draft-list"),
+  get: (draftId: string) => call<{ draft: EmailDraft; send: SendCapability }>("email-draft-get", { draft_id: draftId }),
+  create: (fields: DraftFields) => call<{ draft: EmailDraft }>("email-draft-create", fields),
+  update: (draftId: string, fields: DraftFields) => call<{ draft: EmailDraft }>("email-draft-update", { draft_id: draftId, ...fields }),
+  review: (draftId: string) => call<{ draft: EmailDraft; fingerprint: string; send: SendCapability }>("email-draft-review", { draft_id: draftId }),
+  discard: (draftId: string) => call<{ draft_id: string }>("email-draft-discard", { draft_id: draftId }),
+};
+
+export const briefs = {
+  /** Explicit, student-triggered only. Sends this assignment's text and cited course materials. */
+  enrich: (courseId: string, assignmentId: string, attempt = 1) =>
+    call<{ status: string; request_id: string; enrichment: unknown }>("brief-enrich", { course_id: courseId, assignment_id: assignmentId, attempt }),
+};
+
 export type LibraryEntry = {
   id: string;
   name: string;

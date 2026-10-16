@@ -6,7 +6,6 @@ import re
 import sys
 
 import pytest
-from conftest import finding
 from kairos_adapter import REPO
 
 sys.path.insert(0, str(REPO / "mcp-servers"))
@@ -40,7 +39,6 @@ def test_permissions_file_cannot_make_sends_automatic(avery, category) -> None:
     assert resolve_posture(load_permissions(avery), category) == "gated"
 
 
-@finding("F15", "the preview hands the token to the same caller; a model can self-confirm with no human in the loop")
 def test_model_cannot_self_confirm_a_send(avery) -> None:
     reset_connector_guards()
     preview = _gate(avery)

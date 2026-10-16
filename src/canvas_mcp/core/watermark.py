@@ -25,7 +25,7 @@ def read_watermark(user_root: Path, name: str) -> float | None:
     path = watermark_path(user_root, name)
     if not path.is_file():
         return None
-    raw = path.read_text(encoding="utf-8").strip()
+    raw = path.read_text(encoding="utf-8", errors="replace").strip()
     if not raw:
         return None
     try:

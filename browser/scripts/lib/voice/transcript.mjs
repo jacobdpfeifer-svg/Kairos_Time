@@ -78,10 +78,11 @@ ${body || "_(no speech captured)_"}
 
   /** @param {string} dir @param {{ endedAt?: Date, status?: string }} [opts] @returns {string} path written */
   save(dir, opts) {
-    fs.mkdirSync(dir, { recursive: true });
+    // Raw speech is personal: owner-only directory and file.
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const file = path.join(dir, `${this.id}.md`);
     const tmp = `${file}.tmp-${process.pid}`;
-    fs.writeFileSync(tmp, this.toMarkdown(opts));
+    fs.writeFileSync(tmp, this.toMarkdown(opts), { mode: 0o600 });
     fs.renameSync(tmp, file);
     return file;
   }

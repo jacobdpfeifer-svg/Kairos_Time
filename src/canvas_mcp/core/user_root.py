@@ -71,10 +71,20 @@ def resolve_user_root(
 
 
 def ensure_user_root(root: Path) -> Path:
-    """Create the standard subdirectory tree under ``root``."""
+    """Create the standard subdirectory tree under ``root``.
+
+    The root and ``auth/`` are owner-only (0700): they hold Canvas SSO
+    cookies, OAuth refresh tokens, grades and private notes, and the directory
+    mode is what keeps every file inside away from other local accounts.
+    """
     root.mkdir(parents=True, exist_ok=True)
     for rel in USER_SUBDIRS:
         (root / rel).mkdir(parents=True, exist_ok=True)
+    for private in (root, root / "auth"):
+        try:
+            os.chmod(private, 0o700)  # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions - 0700 directory, owner-only
+        except OSError:
+            pass
     # Touch empty ledger if missing (append-only file).
     ledger = root / "ledger.jsonl"
     if not ledger.exists():

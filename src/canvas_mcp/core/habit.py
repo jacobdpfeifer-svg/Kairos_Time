@@ -36,7 +36,7 @@ def _school_timezone_name(user_root: Path | None) -> str | None:
     if not slug and user_root is not None:
         path = Path(user_root) / "school_slug"
         if path.is_file():
-            slug = path.read_text(encoding="utf-8").strip()
+            slug = path.read_text(encoding="utf-8", errors="replace").strip()
     if not slug:
         return None
     try:
@@ -83,7 +83,7 @@ def _load_raw(user_root: Path) -> dict[str, Any]:
     if not path.is_file():
         return {}
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        raw = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
     except yaml.YAMLError:
         return {}
     return raw if isinstance(raw, dict) else {}

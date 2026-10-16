@@ -59,8 +59,16 @@ export function saveTab(tab: Tab): void {
   }
 }
 
+// Any website can open a kairos:// link, so every segment is checked before it
+// becomes a route: a course id later names a file in the native layer, and the
+// others are only ever looked up in loaded lists.
+const COURSE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const ITEM_ID = /^[A-Za-z0-9][A-Za-z0-9._:|-]{0,159}$/;
+const GROUP_ID = /^[a-z][a-z-]{0,31}$/;
+
 /** `kairos://week`, `kairos://course/123`, `kairos://item/123/456`, `kairos://study/exam/9`, `kairos://ask`. */
 export function routeFromUrl(url: string): Route | null {
+  if (url.length > 512) return null;
   const m = /^kairos:\/\/([^?#]*)/i.exec(url.trim());
   if (!m) return null;
   let parts: string[];
@@ -70,6 +78,10 @@ export function routeFromUrl(url: string): Route | null {
     return null; // malformed %-escape from an outside link
   }
   const [head, a, b] = parts;
+  if (head === "course" && a !== undefined && !COURSE_ID.test(a)) return null;
+  if (head === "item" && ((a !== undefined && !COURSE_ID.test(a)) || (b !== undefined && !ITEM_ID.test(b)))) return null;
+  if (head === "study" && b !== undefined && !ITEM_ID.test(b)) return null;
+  if (head === "settings" && a !== undefined && !GROUP_ID.test(a)) return null;
   switch (head) {
     case undefined:
     case "today":

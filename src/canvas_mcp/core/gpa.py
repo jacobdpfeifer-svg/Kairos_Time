@@ -240,7 +240,7 @@ def load_credit_hours(path: Path) -> dict[str, float]:
     if not path.is_file():
         return {}
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        raw = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace")) or {}
     except yaml.YAMLError:
         return {}
     if not isinstance(raw, dict):
@@ -260,7 +260,7 @@ def load_completed_terms(path: Path) -> list[list[CourseGrade]]:
     if not path.is_file():
         return []
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        raw = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace")) or {}
     except yaml.YAMLError:
         return []
     terms_raw = raw.get("terms") if isinstance(raw, dict) else raw
@@ -297,7 +297,7 @@ def load_grades_yaml(path: Path) -> list[CourseGrade]:
     if not path.is_file():
         return []
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        raw = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace")) or {}
     except yaml.YAMLError:
         return []
     if not isinstance(raw, dict):
@@ -326,8 +326,10 @@ def scale_for_school(slug: str | None) -> dict[str, float]:
         school = load_school(slug)
         if school.grade_scale:
             return dict(school.grade_scale)
-    except Exception:
-        pass
+    except (ImportError, OSError, ValueError, TypeError):
+        # A missing or malformed optional school profile falls back to the
+        # standard scale; never let a personalization file break GPA display.
+        return dict(DEFAULT_GRADE_SCALE)
     return dict(DEFAULT_GRADE_SCALE)
 
 

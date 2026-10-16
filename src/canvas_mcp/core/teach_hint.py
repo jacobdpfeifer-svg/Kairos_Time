@@ -185,7 +185,7 @@ def write_prior_knowledge(user_root: Path, course_code: str, value: str) -> Path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"prior_knowledge: {value}\n", encoding="utf-8")
         return path
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8", errors="replace")
     line = f"prior_knowledge: {value}"
     if _PRIOR_RE.search(text):
         text = _PRIOR_RE.sub(line, text, count=1)
@@ -262,7 +262,7 @@ def load_nudges(user_root: Path) -> list[Nudge]:
     path = nudge_path(user_root)
     if not path.is_file():
         return []
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
     if not isinstance(raw, list):
         return []
     nudges: list[Nudge] = []
@@ -390,7 +390,7 @@ def write_focus(
     path = focus_path(user_root)
     kept = obstacle
     if obstacle is None and not clear_obstacle and path.is_file():
-        kept = parse_focus_obstacle(path.read_text(encoding="utf-8"))
+        kept = parse_focus_obstacle(path.read_text(encoding="utf-8", errors="replace"))
     if clear_obstacle:
         kept = None
     from .habit import local_today, record_brief_day
@@ -421,8 +421,10 @@ def write_focus(
             on=day,
             now=now,
         )
-    except Exception:
-        pass
+    except (OSError, ValueError, TypeError):
+        # Progress is an optional side effect; keep the brief usable if the
+        # local progress store is unavailable or malformed.
+        return path
     return path
 
 
@@ -436,7 +438,7 @@ def parse_focus_open_with(text: str) -> str | None:
 def _parse_md_table(text: str) -> list[dict[str, str]]:
     headers: list[str] | None = None
     rows: list[dict[str, str]] = []
-    for line in text.splitlines():
+    for line in text.split("\n"):  # "\n" only: same rule as prompt_assembly._parse_md_table (F1)
         if not line.strip().startswith("|"):
             headers = None
             continue

@@ -11,6 +11,7 @@ See docs/architecture/school-personalization.md.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -57,6 +58,10 @@ class SchoolConfig:
     @property
     def api_base(self) -> str:
         return f"{self.canvas_base_url.rstrip('/')}/api/v1"
+
+
+# School slugs are file stems under schools/ (``cu-boulder``, ``canvas-colorado-edu``).
+_SLUG_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$")
 
 
 def _schools_dir() -> Path:
@@ -115,7 +120,14 @@ def _parse_school(raw: dict[str, Any], slug: str) -> SchoolConfig:
 
 @lru_cache(maxsize=32)
 def load_school(slug: str) -> SchoolConfig:
-    """Load ``schools/{slug}.yaml``. Raises FileNotFoundError if missing."""
+    """Load ``schools/{slug}.yaml``. Raises FileNotFoundError if missing.
+
+    ``slug`` reaches here from ``SCHOOL_SLUG``/``{user_root}/school_slug``; it
+    is a file stem, so anything but a plain slug (``../x``, absolute paths) is
+    refused before it can name a file outside ``schools/``.
+    """
+    if not isinstance(slug, str) or not _SLUG_RE.match(slug):
+        raise ValueError(f"Invalid school slug: {slug!r}")
     path = _schools_dir() / f"{slug}.yaml"
     if not path.is_file():
         raise FileNotFoundError(f"Unknown school slug: {slug} ({path})")

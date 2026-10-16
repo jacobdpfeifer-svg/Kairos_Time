@@ -9,6 +9,7 @@ enforcement is verified (config.gemini_bounded).
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -25,6 +26,18 @@ SYSTEM_PROMPT = (
 )
 
 RESPONSE_SCHEMA_VERSION = 1
+
+# Mission Control "fuller brief" (2026-10-15): preparation help for one
+# assignment, never its answers. The client labels every section a proposal.
+BRIEF_INSTRUCTIONS = (
+    "This is preparation help for ONE graded assignment. Do not answer, solve, or draft any "
+    "graded question, problem, or prompt. Propose how to prepare: what to review, in what order, "
+    "what to check, and what is still unknown. Use only the supplied sources and cite each by its "
+    "locator. If the sources are too thin, set status to \"abstained\".\n"
+    "Respond with JSON: {\"schema_version\": 1, \"status\": \"complete|abstained\", "
+    "\"sections\": [{\"id\": string, \"title\": string, \"body\": string, \"locator\": string}], "
+    "\"gaps\": [string]}. At most 5 sections; body is plain text, list lines start with \"- \"."
+)
 
 
 @dataclass
@@ -55,6 +68,9 @@ def build_user_content(request: dict[str, Any]) -> str:
         parts.append(f"[Rubric or key]\n{request['rubric']}")
     if request.get("submitted_answer"):
         parts.append(f"[Student answer]\n{request['submitted_answer']}")
+    if request.get("purpose") == "brief":
+        parts.append(BRIEF_INSTRUCTIONS)
+        return "\n\n".join(parts)
     parts.append(
         "Respond with JSON: {\"schema_version\": 1, \"status\": \"complete|abstained\", "
         "\"outcome\": \"correct|partial|incorrect|uncertain\", \"feedback\": string, "
@@ -89,7 +105,7 @@ class AnthropicProvider:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:  # noqa: S310 - fixed https endpoint
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:  # noqa: S310  # nosec B310 - fixed https provider endpoint (class constant); nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
                 data = json.loads(resp.read().decode("utf-8"))
                 http_status = resp.status
         except urllib.error.HTTPError as exc:
@@ -141,7 +157,7 @@ class GeminiProvider:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:  # noqa: S310
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:  # noqa: S310  # nosec B310 - fixed https provider endpoint (class constant); nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             return ProviderResult(status="failed" if exc.code < 500 else "billing_unknown", http_status=exc.code, error_code=f"http_{exc.code}")
@@ -160,6 +176,19 @@ class GeminiProvider:
         finish = str((cands[0].get("finishReason") if cands else "") or "")
         status = "truncated" if finish == "MAX_TOKENS" else "abstained" if finish in ("SAFETY", "RECITATION") else "complete"
         return ProviderResult(status=status, text=text, usage=usage, finish_reason=finish)
+
+
+# Feedback is model prose shown to a student. A hijacked or confused model must
+# not be able to hand them a link ("log in again at …") or a raw address, so
+# anything URL-shaped is replaced before it leaves the relay (finding F13).
+_LINK_RE = re.compile(
+    r"(?i)\b(?:[a-z][a-z0-9+.-]*://|www\.|mailto:|javascript:|data:)\S+"
+    r"|\b(?:[a-z0-9-]+\.)+(?:com|net|org|edu|io|co|info|biz|xyz|app|dev|me|ly|gl|invalid|site|online|link|click)\b(?:/\S*)?"
+)
+
+
+def scrub_links(text: str) -> str:
+    return _LINK_RE.sub("[link removed]", text)
 
 
 def validate_proposal(text: str) -> tuple[dict[str, Any] | None, str]:
@@ -190,11 +219,44 @@ def validate_proposal(text: str) -> tuple[dict[str, Any] | None, str]:
         status = row.get("status")
         if status not in ("explicit_support", "derivation_under_assumptions", "contradiction", "insufficient_evidence"):
             return None, "support_rows"
-        clean_rows.append({"locator": str(row.get("locator", ""))[:200], "quote": str(row.get("quote", ""))[:600], "status": status})
+        clean_rows.append({"locator": str(row.get("locator", ""))[:200], "quote": scrub_links(str(row.get("quote", ""))[:600]), "status": status})
     return {
         "schema_version": 1,
         "status": data["status"],
         "outcome": outcome if data["status"] == "complete" else "uncertain",
-        "feedback": data["feedback"],
+        "feedback": scrub_links(data["feedback"]),
         "support_rows": clean_rows,
+    }, ""
+
+
+def validate_brief_proposal(text: str) -> tuple[dict[str, Any] | None, str]:
+    """Strict validation for purpose="brief". Off-schema output is a failure,
+    never a partially trusted brief."""
+    try:
+        start = text.index("{")
+        end = text.rindex("}")
+        data = json.loads(text[start : end + 1])
+    except (ValueError, TypeError):
+        return None, "malformed_json"
+    if not isinstance(data, dict) or data.get("schema_version") != RESPONSE_SCHEMA_VERSION:
+        return None, "schema_version"
+    if data.get("status") not in ("complete", "abstained"):
+        return None, "status"
+    sections = data.get("sections")
+    gaps = data.get("gaps", [])
+    if not isinstance(sections, list) or len(sections) > 5 or not isinstance(gaps, list) or len(gaps) > 6:
+        return None, "sections"
+    clean = []
+    for i, sec in enumerate(sections):
+        if not isinstance(sec, dict) or not isinstance(sec.get("title"), str) or not isinstance(sec.get("body"), str):
+            return None, "sections"
+        if len(sec["title"]) > 120 or len(sec["body"]) > 1500:
+            return None, "sections"
+        sid = re.sub(r"[^A-Za-z0-9_-]", "-", str(sec.get("id") or f"ai-{i}"))[:40] or f"ai-{i}"
+        clean.append({"id": f"ai-{sid}", "title": scrub_links(sec["title"]), "body": scrub_links(sec["body"]), "locator": str(sec.get("locator") or "")[:200]})
+    return {
+        "schema_version": 1,
+        "status": data["status"],
+        "sections": clean if data["status"] == "complete" else [],
+        "gaps": [scrub_links(str(g))[:160] for g in gaps if isinstance(g, (str, int, float))],
     }, ""

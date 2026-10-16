@@ -123,12 +123,14 @@ class TestAuditLogging:
             cfg_mod._config = None
             try:
                 init_audit_logging()
-                log_data_access("GET", "/courses/123/users/456", "success")
+                # Nine-digit ids: short ids like "123" also occur by chance in
+                # the microsecond timestamp, which made this test flaky.
+                log_data_access("GET", "/courses/987654321/users/876543219", "success")
                 captured = capsys.readouterr()
                 assert "data_access" in captured.err
                 # Verify endpoint is sanitized (no raw IDs)
-                assert "123" not in captured.err
-                assert "456" not in captured.err
+                assert "987654321" not in captured.err
+                assert "876543219" not in captured.err
             finally:
                 cfg_mod._config = old
                 reset_audit_state()

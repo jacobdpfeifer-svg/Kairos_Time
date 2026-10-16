@@ -89,7 +89,9 @@ class SkillMeta:
 
     @property
     def is_write_skill(self) -> bool:
-        return self.category in WRITE_SKILL_CATEGORIES
+        # An unreviewed provisional skill never gets write tools, whatever
+        # category its own frontmatter claims.
+        return self.category in WRITE_SKILL_CATEGORIES and not self.provisional
 
 
 @dataclass
@@ -177,18 +179,26 @@ def load_skills(user_root: Path) -> list[SkillMeta]:
 
 
 def load_skills_for_routing(user_root: Path | None = None) -> list[SkillMeta]:
-    """User-root skills, falling back to repo-bundled ``skills/``."""
-    if user_root is not None:
-        skills = load_skills(user_root)
-        if skills:
-            return skills
-    skills = []
+    """Repo-bundled ``skills/`` plus user-root skills.
+
+    A user-root skill with the same id overrides the bundled one; it never
+    silently removes every other bundled skill. Provisional skills only add
+    new ids — they cannot replace a reviewed (bundled or active) skill.
+    """
+    bundled: list[SkillMeta] = []
     for skill_md in sorted(bundled_skills_dir().glob("*/SKILL.md")):
         try:
-            skills.append(load_skill(skill_md))
+            bundled.append(load_skill(skill_md))
         except ValueError:
             continue
-    return skills
+    if user_root is None:
+        return bundled
+    by_id = {skill.skill_id: skill for skill in bundled}
+    for skill in load_skills(user_root):
+        if skill.provisional and skill.skill_id in by_id:
+            continue
+        by_id[skill.skill_id] = skill
+    return list(by_id.values())
 
 
 def skill_doc(skill: SkillMeta) -> str:
