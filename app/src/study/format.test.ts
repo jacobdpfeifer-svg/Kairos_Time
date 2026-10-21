@@ -1,3 +1,4 @@
+// Purpose: tests study time formatting
 import { describe, expect, it } from "vitest";
 import { fmtWhen } from "./format";
 

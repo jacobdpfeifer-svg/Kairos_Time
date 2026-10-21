@@ -1,3 +1,4 @@
+// Purpose: study question form and modes
 import { useEffect, useState } from "react";
 import { StudyRequestError, study } from "../study/api";
 import type { AskEnvelope, AskResponse } from "../study/types";

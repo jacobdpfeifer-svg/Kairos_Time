@@ -1,3 +1,4 @@
+// Purpose: drafts a daily exam plan
 export type PlanDay = {
   date: string;
   label: string;

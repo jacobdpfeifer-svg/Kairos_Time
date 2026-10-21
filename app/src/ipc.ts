@@ -1,3 +1,4 @@
+// Purpose: webview bridge to desktop commands
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {

@@ -2,14 +2,15 @@
 
 ## Reporting Security Vulnerabilities
 
-We take the security of Canvas MCP seriously. If you discover a security vulnerability, please follow these guidelines:
+Report vulnerabilities in Kairos privately. This repository also vendors a fork of canvas-mcp; issues that exist only in that upstream belong on the upstream advisory form too.
 
 ### Reporting Process
 
 **DO NOT** open a public GitHub issue for security vulnerabilities. Instead:
 
-1. **Email**: Send details to the maintainer at the email listed in the repository
-2. **GitHub Security Advisory**: Use [GitHub's Security Advisory feature](https://github.com/vishalsachdev/canvas-mcp/security/advisories/new) (preferred)
+1. **Email**: jacobdpfeifer@gmail.com
+2. **GitHub Security Advisory** (preferred): [Kairos_Time advisories](https://github.com/jacobdpfeifer-svg/Kairos_Time/security/advisories/new)
+3. **Upstream canvas-mcp**, when the bug is in vendored code: [canvas-mcp advisories](https://github.com/vishalsachdev/canvas-mcp/security/advisories/new)
 
 ### What to Include
 

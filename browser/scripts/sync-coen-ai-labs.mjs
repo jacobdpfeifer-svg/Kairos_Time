@@ -1,3 +1,4 @@
+// Purpose: runs the ai lab sync
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import path from 'node:path';

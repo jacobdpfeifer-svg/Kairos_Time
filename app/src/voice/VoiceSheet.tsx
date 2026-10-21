@@ -1,3 +1,4 @@
+// Purpose: live voice session sheet
 import { useEffect, useMemo, useState } from "react";
 import { InkRing } from "./InkRing";
 import { readCourseColors } from "../ipc";

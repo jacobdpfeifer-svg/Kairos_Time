@@ -1,3 +1,4 @@
+// Purpose: tests kairos link routing
 import { describe, expect, it } from "vitest";
 import { routeFromUrl } from "./nav";
 

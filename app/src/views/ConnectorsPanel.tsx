@@ -1,3 +1,4 @@
+// Purpose: calendar and email connection settings
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StudyRequestError, connectors, type Connectors } from "../study/api";
 import { fmtWhen } from "../study/format";

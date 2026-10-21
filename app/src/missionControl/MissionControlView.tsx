@@ -1,3 +1,4 @@
+// Purpose: today briefs and operations islands
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { briefs as briefApi } from "../study/api";
 import { AssignmentBriefView } from "./AssignmentBrief";

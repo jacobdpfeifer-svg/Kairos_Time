@@ -1,3 +1,4 @@
+// Purpose: tests open work ranking
 import { describe, expect, it } from "vitest";
 import { rankOpenWork } from "./rank";
 

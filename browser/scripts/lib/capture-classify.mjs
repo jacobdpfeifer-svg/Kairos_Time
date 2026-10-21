@@ -30,9 +30,6 @@ export function getCourseCodes() {
   return courseFileMap().map((e) => e.code);
 }
 
-/** @deprecated Prefer getCourseCodes() — snapshot at first import may be empty. */
-export const COURSE_CODES = getCourseCodes();
-
 /**
  * Primary OCR match: first yaml pattern, or a word-boundary on the code.
  * @returns {{ code: string, re: RegExp }[]}

@@ -188,7 +188,7 @@
   <section class="access" id="access" aria-labelledby="access-title">
     <div class="access-inner">
       <h2 id="access-title">Choose how you'd like to try it.</h2>
-      <p class="section-lede" id="access-lede">Kairos is in a small Mac beta. The signed download is still being prepared, so there are two honest ways to get in line.</p>
+      <p class="section-lede" id="access-lede">Kairos is in a small Mac beta. The signed download is still being prepared. Wait for it here, or read the source on GitHub.</p>
       <div class="access-options">
         <article class="access-option">
           <p class="access-for">For most testers</p>
@@ -199,10 +199,10 @@
         </article>
         <article class="access-option">
           <p class="access-for">For GitHub users</p>
-          <h3>Try from source</h3>
-          <p>If you're comfortable with GitHub, request source instructions. We'll share the right repo access and setup steps directly.</p>
-          <a class="btn btn-outline" href="#waitlist-email" data-beta-path="github">Request GitHub access</a>
-          <p class="access-note">This is for technical beta testers, not the finished install experience.</p>
+          <h3>Read the source</h3>
+          <p>The repository is public. Follow the README there if you are comfortable building the Mac app from source.</p>
+          <a class="btn btn-outline" data-source-link href="https://github.com/jacobdpfeifer-svg/Kairos_Time">View on GitHub</a>
+          <p class="access-note">This is the technical path. Most people should wait for the signed Mac download.</p>
         </article>
       </div>
       <form id="waitlist-form" class="email-form" novalidate>
@@ -211,7 +211,6 @@
           <input id="waitlist-email" type="email" placeholder="you@school.edu" required autocomplete="email">
           <button class="btn" type="submit" id="waitlist-submit">Get early access</button>
         </div>
-        <input id="beta-path" type="hidden" value="mac">
       </form>
       <p class="form-status" id="waitlist-status" role="status" aria-live="polite"></p>
     </div>
@@ -227,6 +226,7 @@
   <p class="fine">Not affiliated with Instructure, Canvas, or your school. &copy; <span id="year">2026</span></p>
   <nav class="footer-links" aria-label="Footer">
     <a href="#privacy">Privacy</a>
+    <a data-source-link href="https://github.com/jacobdpfeifer-svg/Kairos_Time">Source</a>
     <a href="mailto:jacobdpfeifer@gmail.com">Contact</a>
   </nav>
 </footer>

@@ -1,3 +1,4 @@
+// Purpose: school and canvas onboarding
 import { useEffect, useRef, useState } from "react";
 import { schoolLegalText } from "../legal";
 import { LegalText } from "./LegalText";

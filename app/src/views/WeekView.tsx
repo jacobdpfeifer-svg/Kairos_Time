@@ -1,3 +1,4 @@
+// Purpose: weekly capacity and planned days
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addCalendarEvent,

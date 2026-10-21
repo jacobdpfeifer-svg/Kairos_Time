@@ -1,3 +1,4 @@
+// Purpose: light dark and contrast themes
 import { useCallback, useEffect, useState } from "react";
 
 export const THEMES = [

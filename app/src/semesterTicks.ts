@@ -1,3 +1,4 @@
+// Purpose: semester tick size and clustering
 import type { SemesterTick } from "./ipc";
 
 const HEIGHT_FLOOR = 14;

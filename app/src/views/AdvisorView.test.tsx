@@ -1,3 +1,4 @@
+// Purpose: tests advisor view and pacing
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdvisorView, meetingBrief, paces, termsUntil } from "./AdvisorView";

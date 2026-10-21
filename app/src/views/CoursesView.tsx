@@ -1,3 +1,4 @@
+// Purpose: course list and course pages
 import { useEffect, useMemo, useState } from "react";
 import {
   onInboxUpdated,

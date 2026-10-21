@@ -29,12 +29,6 @@ def engage_global_stop(user_root: Path, *, hours: int = 24) -> str:
     return state.global_stop_until
 
 
-def clear_global_stop(user_root: Path) -> None:
-    state = load_permissions(user_root)
-    state.global_stop_until = None
-    save_permissions(user_root, state)
-
-
 UndoHandler = Callable[[dict[str, Any]], bool]
 
 

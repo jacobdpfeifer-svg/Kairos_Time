@@ -1,3 +1,4 @@
+// Purpose: blocks overlapping canvas sync runs
 import fs from "node:fs";
 import path from "node:path";
 

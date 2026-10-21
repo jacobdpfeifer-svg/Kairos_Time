@@ -1,3 +1,4 @@
+// Purpose: shows a drafted exam plan
 import { useMemo, useState } from "react";
 import type { SemesterTick } from "../ipc";
 import { buildExamPlan } from "../examPlan";

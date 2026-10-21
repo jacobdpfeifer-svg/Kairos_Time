@@ -1,3 +1,4 @@
+// Purpose: study times and evidence labels
 export function fmtWhen(iso: string | null | undefined, now: Date = new Date()): string {
   if (!iso) return "";
   const date = new Date(iso);

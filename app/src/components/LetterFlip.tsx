@@ -1,3 +1,4 @@
+// Purpose: animates title letters in sequence
 export function LetterFlip({ text }: { text: string }) {
   return (
     <span className="letter-flip" data-letter-flip="">

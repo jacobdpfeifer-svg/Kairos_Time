@@ -1,3 +1,4 @@
+// Purpose: tests theme and study chrome
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";

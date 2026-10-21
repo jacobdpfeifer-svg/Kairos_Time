@@ -31,20 +31,6 @@
     if (!form) return;
     var input = document.getElementById("waitlist-email");
     var status = document.getElementById("waitlist-status");
-    var path = document.getElementById("beta-path");
-
-    document.querySelectorAll("[data-beta-path]").forEach(function (link) {
-      link.addEventListener("click", function () {
-        if (path) path.value = link.getAttribute("data-beta-path") || "mac";
-        var submit = document.getElementById("waitlist-submit");
-        // One label per intent (MASTER §11): the GitHub path asks for source access.
-        if (submit) submit.textContent = path && path.value === "github" ? "Request source access" : "Get early access";
-        window.setTimeout(function () {
-          input.focus();
-        }, 0);
-      });
-    });
-
     form.addEventListener("submit", function (evt) {
       evt.preventDefault();
       var email = (input.value || "").trim();
@@ -55,12 +41,9 @@
         input.focus();
         return;
       }
-      var wantsGithub = path && path.value === "github";
-      var subject = encodeURIComponent(wantsGithub ? "Kairos beta: GitHub access" : "Kairos beta: early access");
+      var subject = encodeURIComponent("Kairos beta: early access");
       var body = encodeURIComponent(
-        (wantsGithub
-          ? "I'd like GitHub/source instructions for the Kairos beta."
-          : "Please let me know when there's a spot in the Kairos Mac beta.") +
+        "Please let me know when there's a spot in the Kairos Mac beta." +
         "\n\nMy email: " + email + "\n"
       );
       var to = (window.KAIROS_CONFIG && window.KAIROS_CONFIG.contactEmail) || "jacobdpfeifer@gmail.com";
@@ -87,7 +70,16 @@
     var note = document.getElementById("dmg-note");
     if (note) note.textContent = config.downloadNote || "";
     var lede = document.getElementById("access-lede");
-    if (lede) lede.textContent = "Kairos is in a small Mac beta. Download it below, or get in line for source access.";
+    if (lede) lede.textContent = "Kairos is in a small Mac beta. Download it below, or read the source on GitHub.";
+  }
+
+  // Source links follow config.js so the public repo URL lives in one place.
+  function initSourceLinks() {
+    var config = window.KAIROS_CONFIG || {};
+    if (!config.sourceUrl) return;
+    document.querySelectorAll("[data-source-link]").forEach(function (link) {
+      link.href = config.sourceUrl;
+    });
   }
 
   // Phones and tablets can't install a Mac app, so point them at the hand-off page.
@@ -102,6 +94,7 @@
     initReveal();
     initEmailForm();
     initDownload();
+    initSourceLinks();
     initPhoneHandoff();
     var yearEl = document.getElementById("year");
     if (yearEl) yearEl.textContent = String(new Date().getFullYear());

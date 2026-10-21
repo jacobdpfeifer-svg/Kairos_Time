@@ -1,3 +1,4 @@
+// Purpose: guided study practice session
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { StudyRequestError, aiStudy, study, type AiFeedback } from "../study/api";
 import { AskPanel } from "../ask/AskPanel";

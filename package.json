@@ -1,7 +1,7 @@
 {
   "name": "canvas-mcp-code-api",
   "version": "1.0.6",
-  "description": "TypeScript code execution API for Canvas MCP",
+  "description": "TypeScript build for the vendored Canvas code API in src/canvas_mcp/code_api. The Kairos Mac app lives in app/.",
   "type": "module",
   "scripts": {
     "build": "tsc",

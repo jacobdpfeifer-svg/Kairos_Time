@@ -1,3 +1,4 @@
+// Purpose: tests the blot motion engine
 import { describe, expect, it } from "vitest";
 import {
   answerTimeline,

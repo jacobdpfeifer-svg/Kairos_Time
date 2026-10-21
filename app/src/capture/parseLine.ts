@@ -1,3 +1,4 @@
+// Purpose: parses a quick capture line
 export type CaptureCourse = { id: string; label: string; name?: string };
 
 export type ParsedLine = {

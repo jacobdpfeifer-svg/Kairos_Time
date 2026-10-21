@@ -297,11 +297,6 @@ export async function requireLoggedIn(page) {
   }
 }
 
-/** @deprecated Prefer schoolLocalDay for window bounds. */
-export function isoDay(d = new Date()) {
-  return schoolLocalDay(d);
-}
-
 function schoolLocalHour(ms) {
   return Number(
     new Intl.DateTimeFormat("en-US", {
@@ -1614,16 +1609,6 @@ export function shouldIncludeInWeekTable(row) {
   }
 
   return true;
-}
-
-/** @deprecated Prefer classifyOutcomeHint; kept for callers that only want LTI/assessment. */
-export function classifyExternalHint(title, type) {
-  const full = classifyOutcomeHint(title, type);
-  if (!full) return "";
-  if (full.includes("external/LTI") || full.includes("assessment")) {
-    return full.replace(/^outcome:\w+;\s*/, "");
-  }
-  return "";
 }
 
 function submissionComplete(submission) {

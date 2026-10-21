@@ -1,3 +1,4 @@
+// Purpose: tests notification send rules
 import { describe, expect, it } from "vitest";
 import type { SemesterTick } from "../ipc";
 import { DAILY_CAP, EMPTY_NOTIFY_STATE, candidates, decide, isQuiet } from "./policy";

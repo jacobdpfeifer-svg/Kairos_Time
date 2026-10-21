@@ -12,4 +12,7 @@ window.KAIROS_CONFIG = {
   // no backend yet, so this is a mailto address and the copy says nothing was
   // saved. Swap in a form endpoint later (see landing/README.md).
   contactEmail: "jacobdpfeifer@gmail.com",
+
+  // Public source repository. The landing page links here directly.
+  sourceUrl: "https://github.com/jacobdpfeifer-svg/Kairos_Time",
 };

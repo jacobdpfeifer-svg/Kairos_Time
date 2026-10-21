@@ -1,6 +1,6 @@
 # Docs
 
-Product architecture for Kairos (Phase 1).
+Product notes for Kairos. The public entry is the root [`README.md`](../README.md). Dated files below are records of decisions, not the current tour.
 
 | File | Purpose |
 |------|---------|
@@ -10,8 +10,8 @@ Product architecture for Kairos (Phase 1).
 | [`research/study-session-revision-closure-matrix.md`](research/study-session-revision-closure-matrix.md) | Revision acceptance evidence and unresolved specification or integration questions |
 | [`research/funded-ai-access-2026-09-17.md`](research/funded-ai-access-2026-09-17.md) | Funded cloud AI alternatives, recommendation, credential and privacy boundaries |
 | [`research/study-session-deep-research-prompt.md`](research/study-session-deep-research-prompt.md) | Standalone comprehensive research assignment for 5- and 10-minute study sessions |
-| [`../design-system/kairos/MASTER.md`](../design-system/kairos/MASTER.md) | **Living Instrument** design system (2026-09-21) — source of truth for visual craft: stage model, material, tokens, type, geometry, motion, anti-patterns, acceptance test |
-| [`design/spatial-instrument-brief.md`](design/spatial-instrument-brief.md) | Owner product-behavior brief (2026-09-18); its visual direction and style tile are superseded by MASTER where they conflict |
+| [`../design-system/kairos/MASTER.md`](../design-system/kairos/MASTER.md) | **Notebook** visual system (adopted 2026-10-07). Source of truth for the app, extension, and landing page |
+| [`design/spatial-instrument-brief.md`](design/spatial-instrument-brief.md) | Owner product-behavior brief (2026-09-18). Its visual direction is superseded by Notebook |
 | [`architecture.md`](architecture.md) | Truth path, tenants, permissions, skills |
 | [`schools/`](schools/) | Per-school notes for curated overlays |
 | [`architecture/school-personalization.md`](architecture/school-personalization.md) | How the student's school is discovered and what personalization does |

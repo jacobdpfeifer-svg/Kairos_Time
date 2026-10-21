@@ -1,3 +1,4 @@
+// Purpose: runs the notification check loop
 import { useEffect } from "react";
 import {
   isTauri,

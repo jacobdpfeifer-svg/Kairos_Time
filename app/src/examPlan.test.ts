@@ -1,3 +1,4 @@
+// Purpose: tests drafted exam plans
 import { describe, expect, it } from "vitest";
 import { buildExamPlan } from "./examPlan";
 

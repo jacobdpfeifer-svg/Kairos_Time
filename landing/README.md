@@ -7,7 +7,7 @@ Static HTML/CSS/JS marketing site. No build step: open `index.html` directly or 
 - `index.html` — hero (headline + the product page with margin notes), the app in use, "keep the weekend", the grade-math example, how you get started, privacy and what Kairos won't do, early access, footer.
 - `styles.css` — the Notebook design system (`design-system/kairos/MASTER.md`), mirrored from `app/src/styles.css` + `app/src/notebook.css` so the site looks like the app. Light by default; dark follows the visitor's system setting.
 - `app.js` — draws the margin notes and marker swipe in once as they scroll into view (skipped under reduced motion), handles the early-access form, turns on the download button when `config.js` has a release, and shows phones a link to `/go`.
-- `config.js` — the launch switches: `downloadUrl` (null until a real `.dmg` exists), `downloadNote`, `contactEmail`. Edit this file, not the pages, when something goes live.
+- `config.js` — the launch switches: `downloadUrl` (null until a real `.dmg` exists), `downloadNote`, `contactEmail`, `sourceUrl` (the public GitHub repository). Edit this file, not the pages, when something goes live.
 - `funnel.js` — device detection (phone, tablet including an iPad posing as a Mac, Mac, Windows, Chromebook, Linux) and placement parsing. Plain functions; `marketing/test/` runs them in Node.
 - `go/` — where every QR code and NFC tag lands (`/go` and `/go/<placement>`). A phone gets "Send it to my Mac" (Web Share, so AirDrop or Messages to yourself; copy-link and email-yourself fallbacks). A Mac gets the download or early access. Other computers get a waitlist. `?as=phone|mac|windows` previews each. Codes are made in `marketing/`.
 - `vercel.json` — one rewrite: `/go/:placement` serves `go/index.html`.
@@ -33,4 +33,4 @@ There is no backend. Submitting builds a `mailto:` link to `config.js`'s `contac
 
 - Replace the panorama line art in the "weekend" section with real hand-drawn assets (Open Peeps / Open Doodles are CC0 and match the line style) or real footage (Pexels / Mixkit, free license).
 - The access section intentionally keeps the `.dmg` button disabled until a signed, fresh-machine-tested artifact exists. When that gate is met, set `downloadUrl` (and `downloadNote`) in `config.js`. That one change turns on the main page's button, rewrites its access copy, and switches `/go`'s Mac view from early access to the download.
-- The GitHub path currently routes through the email handoff because the repo may still be private. If the repo becomes public and source setup is a supported beta path, replace that path with the public repository URL and keep the source-build caveat visible.
+- The source button and the footer Source link use `sourceUrl` in `config.js`. They go straight to the public repository. The page still says the signed Mac download is the path for most people.

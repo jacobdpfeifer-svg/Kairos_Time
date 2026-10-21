@@ -1,3 +1,4 @@
+// Purpose: today page over mission control
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CourseMap, FreshnessChange, GradeTruth, SemesterSurface, SemesterTick, SyncHealth } from "../ipc";
 import {

@@ -1,3 +1,4 @@
+// Purpose: routes the main student screens
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FirstRun } from "./components/FirstRun";
 import { TodayView } from "./views/TodayView";

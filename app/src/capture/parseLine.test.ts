@@ -1,3 +1,4 @@
+// Purpose: tests quick capture parsing
 import { describe, expect, it } from "vitest";
 import { parseLine } from "./parseLine";
 

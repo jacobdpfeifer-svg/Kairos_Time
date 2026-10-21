@@ -1,3 +1,4 @@
+// Purpose: settings for the desktop app
 import { useEffect, useState } from "react";
 import { advisorWrites, aiStudy, listProfiles, runtimeInfo, setProfile, study, type AiStatus } from "../study/api";
 import type { RuntimeInfo, Status } from "../study/types";

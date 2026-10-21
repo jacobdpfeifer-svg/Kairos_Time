@@ -1,3 +1,4 @@
+// Purpose: tests week plan math
 import { describe, expect, it } from "vitest";
 import type { SemesterTick } from "../ipc";
 import { EMPTY_STATE, buildWeek, capacitySentence, couldWait, estimateMinutes, mondayOf, pileFor, proposePlan, type WeekSnapshot } from "./plan";

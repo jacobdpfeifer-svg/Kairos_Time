@@ -1,3 +1,4 @@
+// Purpose: tests skip cost sentences
 import { describe, expect, it } from "vitest";
 import { consequenceSentence, skipCostFor, type SkipCost } from "./consequence";
 
