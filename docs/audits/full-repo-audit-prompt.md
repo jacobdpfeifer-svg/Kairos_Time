@@ -1,5 +1,7 @@
 # Full-repo audit prompt
 
+**Team review tomorrow?** Prefer [`comprehensive-team-review-prompt.md`](./comprehensive-team-review-prompt.md) and [`skills/audit/SKILL.md`](../../skills/audit/SKILL.md) — they add git/GitHub, landing parity, dead code, reviewer file notes, and mandatory security/latency/UI pass 9.
+
 A standing prompt for a comprehensive, end-to-end audit of this repo. Paste the block below into a **fresh session** (recommend a git worktree — this touches a lot of files) to run it. Two passes, run in this order: **fix pass** first (bounded, mechanical), **think pass** second (open-ended, structural). Don't skip straight to the think pass — you need the fix pass's inventory to reason about structure honestly.
 
 ---

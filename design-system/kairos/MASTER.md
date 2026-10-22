@@ -1,6 +1,6 @@
 # Kairos — Notebook design system
 
-**Source of truth for visual craft** across the desktop app (`app/src`), the Chrome extension (`app/extension-chrome`), and the marketing site (`landing/`). Adopted 2026-10-07 (structure amended 2026-10-13 from [`docs/research/saas-themes-applied-to-kairos-2026-10-13.md`](../../docs/research/saas-themes-applied-to-kairos-2026-10-13.md)) from the three-direction exploration in [`explorations/2026-10-07/`](../explorations/2026-10-07/) (the owner picked `c-notebook.html`). It replaces the Living Instrument / Spatial Instrument systems; where an older doc disagrees with this one, this one wins.
+**Source of truth for visual craft** across the desktop app (`app/src`), the Chrome extension (`app/extension-chrome`), and the marketing site (`landing/`). Adopted 2026-10-07 (structure amended 2026-10-13 from [`docs/research/saas-themes-applied-to-kairos-2026-10-13.md`](../../docs/research/saas-themes-applied-to-kairos-2026-10-13.md)) from the three-direction exploration of 2026-10-07 (the owner picked `c-notebook.html`; the three prototypes were removed from the tree once the system was written down, and stay readable at `git show fe7026e:design-system/explorations/2026-10-07/c-notebook.html`). It replaces the Living Instrument / Spatial Instrument systems; where an older doc disagrees with this one, this one wins.
 
 ## 01 Direction
 
