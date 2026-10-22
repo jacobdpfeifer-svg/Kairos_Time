@@ -1,0 +1,12 @@
+{
+  "id": "notification-sensitive",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "notification-sensitive",
+  "input": {
+    "ideal_workflow": "I want the quietest possible screen.",
+    "frictions": ["staying_calm"],
+    "preference": "quiet_minimal",
+    "constraints": "Too many notifications.",
+    "interrupt_for": ["sync_broken", "every_email"]
+  }
+}

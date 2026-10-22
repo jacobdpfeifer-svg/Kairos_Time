@@ -1,0 +1,11 @@
+{
+  "id": "calendar-planner",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "calendar-planner",
+  "input": {
+    "ideal_workflow": "I live in my calendar and need the week next to class times.",
+    "frictions": ["planning_time"],
+    "preference": "weekly_overview",
+    "requested_integrations": ["Google Calendar", "Google Calendar"]
+  }
+}

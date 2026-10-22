@@ -1,0 +1,13 @@
+{
+  "id": "self-contradicting",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "self-contradicting",
+  "input": {
+    "ideal_workflow": "Give me every notification and the quietest possible view.",
+    "frictions": ["staying_calm"],
+    "preference": "weekly_overview",
+    "constraints": "I want the quietest possible view.",
+    "proposed_template": "quiet-minimal",
+    "interrupt_for": ["due_moved", "not_a_kind"]
+  }
+}

@@ -634,3 +634,99 @@ export async function readGradeTruth(courseId: string): Promise<GradeTruth> {
   if (!isTauri()) return fixtureEnabled() ? fixtureGradeTruth(courseId) : { course_id: courseId };
   return invoke<GradeTruth>("read_grade_truth", { courseId });
 }
+
+/**
+ * The accepted workspace lives in the profile directory, never in localStorage.
+ * The webview is shared by every profile (see resolveOnboarded in App.tsx).
+ */
+export type WorkspaceHistoryEntry = { ts: string; name: string | null };
+export type WorkspaceRead = { spec: import("./workspace/contracts").WorkspaceSpec | null; notice: string | null; history: WorkspaceHistoryEntry[] };
+
+export async function readWorkspaceSpec(): Promise<WorkspaceRead> {
+  if (!isTauri()) return { spec: null, notice: null, history: [] };
+  return invoke<WorkspaceRead>("read_workspace_spec");
+}
+
+export async function writeAcceptedSpec(spec: WorkspaceRead["spec"]): Promise<WorkspaceRead["spec"]> {
+  if (!spec) return spec;
+  if (!isTauri()) return spec;
+  return invoke<WorkspaceRead["spec"]>("write_accepted_spec", { spec });
+}
+
+export async function listWorkspaceHistory(): Promise<WorkspaceHistoryEntry[]> {
+  if (!isTauri()) return [];
+  const raw = await invoke<{ entries?: WorkspaceHistoryEntry[] }>("list_workspace_history");
+  return raw.entries ?? [];
+}
+
+export async function revertWorkspace(ts: string): Promise<WorkspaceRead["spec"]> {
+  return invoke<WorkspaceRead["spec"]>("revert_workspace", { ts });
+}
+
+export type ProposedWorkspace = import("./workspace/patch").ProposedWorkspace;
+
+/** The studio draft. Outside the desktop app this stays in memory. */
+export async function readProposedWorkspace(): Promise<ProposedWorkspace | null> {
+  if (!isTauri()) return null;
+  const raw = await invoke<ProposedWorkspace | null>("read_proposed_workspace");
+  if (!raw || typeof raw !== "object" || !raw.spec) return null;
+  return raw;
+}
+
+export async function writeProposedWorkspace(doc: ProposedWorkspace): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("write_proposed_workspace", { doc });
+}
+
+export async function discardProposedWorkspace(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("discard_proposed_workspace");
+}
+
+/** Interview draft only. A file whose status is not draft is refused by the shell. */
+export async function readWorkflowDraft(): Promise<unknown | null> {
+  if (!isTauri()) return null;
+  const raw = await invoke<unknown>("read_workflow_draft");
+  return raw && typeof raw === "object" ? raw : null;
+}
+
+export async function writeWorkflowDraft(draft: unknown): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("write_workflow_draft", { draft });
+}
+
+export async function startVoiceServer(): Promise<{ ok: true; port: number } | { ok: false; reason: string }> {
+  if (!isTauri()) return { ok: false, reason: "Voice isn't available on this Mac. You can type the same answers." };
+  try {
+    const raw = await invoke<{ ok?: boolean; port?: number; reason?: string }>("start_voice_server");
+    if (raw?.ok && raw.port) return { ok: true, port: raw.port };
+    return { ok: false, reason: raw?.reason || "Voice didn't start. You can type the same answers." };
+  } catch {
+    return { ok: false, reason: "Voice didn't start. You can type the same answers." };
+  }
+}
+
+export type WorkspaceUsageEvent =
+  | { event: "open_surface"; surface: string; day: string }
+  | { event: "dwell"; surface: string; seconds: number }
+  | { event: "expand_block"; block_id: string; day: string };
+
+export async function readWorkspaceUsage(): Promise<unknown> {
+  if (!isTauri()) return null;
+  return invoke("read_workspace_usage");
+}
+
+export async function recordWorkspaceUsage(event: WorkspaceUsageEvent): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("record_workspace_usage", { event });
+}
+
+export async function readWorkspaceAmendments(): Promise<unknown> {
+  if (!isTauri()) return null;
+  return invoke("read_workspace_amendments");
+}
+
+export async function writeWorkspaceAmendments(doc: unknown): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("write_workspace_amendments", { doc });
+}

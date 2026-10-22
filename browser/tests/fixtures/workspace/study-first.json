@@ -1,0 +1,10 @@
+{
+  "id": "study-first",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "study-first",
+  "input": {
+    "ideal_workflow": "I would rather practice than reread the week.",
+    "frictions": ["turning_notes_into_study", "starting_work"],
+    "preference": "study_first"
+  }
+}

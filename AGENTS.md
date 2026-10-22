@@ -44,6 +44,7 @@ Follow [`skills/_SESSION.md`](skills/_SESSION.md), then:
 | “what should I take next”, “plan next semester” | `student-course-plan` |
 | “registration”, “holds”, “prep for advising” | `student-registration-prep` |
 | “I did a voice session”, “distill my voice notes”, goals/motivation questions | `student-voice-intake` |
+| “comprehensive audit”, “team review”, “prep repo for review”, pre-release repo sweep | [`audit`](skills/audit/SKILL.md) |
 
 ## Untrusted content
 

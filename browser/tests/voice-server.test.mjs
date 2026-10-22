@@ -72,7 +72,11 @@ describe("host / origin allowlist", () => {
     assert.equal(isAllowedHost("evil.example:8787", 8787), false);
     assert.equal(isAllowedHost("localhost:9999", 8787), false);
     assert.equal(isAllowedOrigin("http://localhost:8787", 8787), true);
+    assert.equal(isAllowedOrigin("http://tauri.localhost", 8787), true);
+    assert.equal(isAllowedOrigin("tauri://localhost", 8787), true);
+    assert.equal(isAllowedOrigin("http://localhost:1420", 8787), true);
     assert.equal(isAllowedOrigin("https://evil.example", 8787), false);
+    assert.equal(isAllowedOrigin("http://tauri.localhost.evil.example", 8787), false);
     assert.equal(isAllowedOrigin(undefined, 8787), false);
   });
 });
@@ -95,7 +99,7 @@ describe("HTTP", () => {
 
   it("exposes course codes and model to the page", async () => {
     const res = await get("/api/context");
-    assert.deepEqual(JSON.parse(res.body), { model: "fake-model", modes: ["goals", "checkin", "class"], courses: ["CSCI1200"], hasGoals: false });
+    assert.deepEqual(JSON.parse(res.body), { model: "fake-model", modes: ["goals", "checkin", "class", "onboarding"], courses: ["CSCI1200"], hasGoals: false });
   });
 
   it("rejects a foreign Host header (DNS rebinding)", async () => {

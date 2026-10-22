@@ -1,12 +1,8 @@
 // Purpose: routes the main student screens
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FirstRun } from "./components/FirstRun";
-import { TodayView } from "./views/TodayView";
 import { SettingsView } from "./views/SettingsView";
-import { StudyPathView } from "./views/StudyPathView";
-import { AdvisorView } from "./views/AdvisorView";
-import { WeekView } from "./views/WeekView";
-import { ALL_FILES, CoursesView } from "./views/CoursesView";
+import { ALL_FILES } from "./views/CoursesView";
 import { FileDrop } from "./components/FileDrop";
 import { IconCalendar, IconHome, IconPlan, IconSettings, IconSources, IconStudy, IconUpload } from "./components/Icons";
 import { Wordmark } from "./components/Wordmark";
@@ -25,6 +21,12 @@ import { friendlyRelative } from "./format";
 import { kindLabel } from "./semesterTicks";
 import { parseLine } from "./capture/parseLine";
 import { weekPlan } from "./week/api";
+import { isSurface } from "./workspace/contracts";
+import { noteInvalidWorkspace, useWorkspace } from "./workspace/store";
+import { WorkspaceRenderer, type WorkspaceHost } from "./workspace/WorkspaceRenderer";
+import { WorkspaceStudioScreen } from "./workspace/WorkspaceStudio";
+import { WorkspaceAmendment } from "./workspace/WorkspaceAmendment";
+import { useWorkspaceUsage } from "./workspace/usage";
 
 export type { Tab } from "./nav";
 
@@ -83,7 +85,10 @@ export function App() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const { setTheme } = useTheme();
 
+  const navigated = useRef(false);
+  const [openingSettled, setOpeningSettled] = useState(false);
   const navigate = useCallback((next: Route) => {
+    navigated.current = true;
     // "Add files" became the files on each course page (2026-10-13).
     if (next.tab === "upload") next = { tab: "courses", courseId: ALL_FILES };
     setRoute(AVAILABLE.includes(next.tab) ? next : { tab: "today" });
@@ -91,7 +96,22 @@ export function App() {
   const go = useCallback((tab: Tab) => navigate({ tab }), [navigate]);
 
   const prefs = usePrefs();
-  useNotifications(Boolean(onboarded && prefs?.notifications));
+  const workspace = useWorkspace();
+  const home = workspace.spec.home;
+  const homeRedirectPending =
+    workspace.loaded && !navigated.current && !route.studio && !!home && isSurface(home) && home !== route.tab;
+  useNotifications(Boolean(onboarded && prefs?.notifications), workspace.spec.quiet?.interrupt_for);
+  useWorkspaceUsage(
+    Boolean(onboarded) && workspace.loaded && workspace.fromDisk && openingSettled && !route.studio && !homeRedirectPending,
+    isSurface(route.tab) ? route.tab : null,
+  );
+
+  useEffect(() => {
+    if (!workspace.loaded || navigated.current || route.studio) return;
+    const nextHome = workspace.spec.home;
+    if (!nextHome || !isSurface(nextHome) || nextHome === route.tab) return;
+    setRoute({ tab: nextHome });
+  }, [workspace.loaded, workspace.spec, route.studio, route.tab]);
 
   // kairos:// links (menu bar, capture shortcut, the Chrome extension, macOS)
   // reduce to the same small route the sidebar and ⌘K use.
@@ -113,10 +133,17 @@ export function App() {
   useEffect(() => {
     if (!onboarded) return;
     let alive = true;
+    setOpeningSettled(false);
     // A link that launched Kairos arrived before this listener existed.
+    // Usage waits until this check finishes, so the restored tab is not counted as the first open.
     void takePendingLink()
-      .then((url) => alive && url && followLink(url))
-      .catch(() => undefined);
+      .then((url) => {
+        if (alive && url) followLink(url);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) setOpeningSettled(true);
+      });
     const unlisten = onDeepLink((url) => {
       if (!alive) return;
       followLink(url);
@@ -275,6 +302,7 @@ export function App() {
       })),
       { id: "do:plan", group: "Do", label: "Plan this week", keywords: "schedule week defer review", run: () => go("week") },
       { id: "do:practice", group: "Do", label: "Start practice", keywords: "study quiz me review", run: () => navigate({ tab: "study", practice: true }) },
+      { id: "do:workspace", group: "Do", label: "Design my workspace", keywords: "studio layout blocks appearance", run: () => navigate({ tab: "today", studio: true }) },
       ...THEMES.map((t) => ({
         id: `do:theme:${t.id}`,
         group: "Do" as const,
@@ -341,13 +369,16 @@ export function App() {
 
   if (!onboarded) {
     return (
-      <FirstRun
-        onDone={() => {
-          localStorage.setItem("pn_onboarded", "1");
-          setOnboarded(true);
-          go("today");
-        }}
-      />
+      <>
+        <FirstRun
+          onDone={() => {
+            localStorage.setItem("pn_onboarded", "1");
+            setOnboarded(true);
+            go("today");
+          }}
+        />
+        <VoiceSheet />
+      </>
     );
   }
 
@@ -405,41 +436,43 @@ export function App() {
           <kbd>{MOD}K</kbd>
         </button>
       </nav>
-      <main id="main" className="workspace-main" role="tabpanel" aria-labelledby={`tab-${tab}`} tabIndex={-1}>
-        {tab === "today" && (
-          <TodayView
-            lastAsk={lastAsk}
-            openItem={route.itemId ? { courseId: route.courseId, itemId: route.itemId } : null}
-            onStudy={(t) => navigate(t ? { tab: "study", examId: t.id } : { tab: "study" })}
-            onAsk={(initial) => openAsk(initial)}
-            onOpenWeek={() => go("week")}
-          />
-        )}
-        {tab === "week" && (
-          <WeekView onToast={setToast} onStudy={(t) => navigate({ tab: "study", examId: t.id })} />
-        )}
-        {tab === "study" && (
-          <StudyPathView
-            examId={route.examId}
-            practice={route.practice}
-            onOpenExam={(examId) => navigate({ tab: "study", examId })}
-            onPractice={(examId) => navigate({ tab: "study", examId, practice: true })}
-            onBack={() => navigate({ tab: "study" })}
-            onGoToSources={() => navigate({ tab: "courses" })}
-            onOpenCourse={(courseId) => navigate({ tab: "courses", courseId })}
-          />
-        )}
-        {tab === "advisor" && <AdvisorView />}
-        {tab === "courses" && (
-          <CoursesView
-            courseId={route.courseId}
-            filesVersion={filesVersion}
-            onOpenCourse={(courseId) => navigate({ tab: "courses", courseId })}
-            onBack={() => navigate({ tab: "courses" })}
-            onStudy={(t) => navigate({ tab: "study", examId: t.id })}
+      <main id="main" className="workspace-main" role="tabpanel" aria-labelledby={route.studio ? undefined : `tab-${tab}`} aria-label={route.studio ? "Design my workspace" : undefined} tabIndex={-1}>
+        {route.studio ? (
+          <WorkspaceStudioScreen accepted={workspace.spec} loaded={workspace.loaded} onClose={() => setRoute((current) => ({ ...current, studio: false }))} />
+        ) : (
+          <>
+        {isSurface(tab) && workspace.fromDisk && <WorkspaceAmendment spec={workspace.spec} surface={tab} />}
+        {isSurface(tab) && (
+          <WorkspaceRenderer
+            surface={tab}
+            spec={workspace.spec}
+            snapshot={{ ticks: items }}
+            onInvalid={noteInvalidWorkspace}
+            host={
+              {
+                lastAsk,
+                openItem: route.itemId ? { courseId: route.courseId, itemId: route.itemId } : null,
+                onStudyToday: (t) => navigate(t ? { tab: "study", examId: t.id } : { tab: "study" }),
+                onAsk: (initial) => openAsk(initial),
+                onOpenWeek: () => go("week"),
+                onToast: setToast,
+                onStudyTick: (t) => navigate({ tab: "study", examId: t.id }),
+                examId: route.examId,
+                practice: route.practice,
+                onOpenExam: (examId) => navigate({ tab: "study", examId }),
+                onPractice: (examId) => navigate({ tab: "study", examId, practice: true }),
+                onBack: () => navigate({ tab: "study" }),
+                onGoToSources: () => navigate({ tab: "courses" }),
+                onOpenCourse: (courseId) => navigate({ tab: "courses", courseId }),
+                courseId: route.courseId,
+                filesVersion,
+              } satisfies WorkspaceHost
+            }
           />
         )}
         {tab === "settings" && <SettingsView key={route.group ?? "default"} initialGroup={route.group} />}
+          </>
+        )}
       </main>
       {cmdOpen && <CommandBar commands={commands} addRow={addRow} onClose={() => setCmdOpen(false)} onAsk={(q) => openAsk(null, q)} />}
       {ask && (

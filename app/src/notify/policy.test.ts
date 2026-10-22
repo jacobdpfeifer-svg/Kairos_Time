@@ -1,7 +1,7 @@
 // Purpose: tests notification send rules
 import { describe, expect, it } from "vitest";
 import type { SemesterTick } from "../ipc";
-import { DAILY_CAP, EMPTY_NOTIFY_STATE, candidates, decide, isQuiet } from "./policy";
+import { DAILY_CAP, EMPTY_NOTIFY_STATE, candidates, decide, isQuiet, maskNotes } from "./policy";
 
 const NOON = new Date(2026, 9, 14, 12, 0);
 
@@ -53,6 +53,17 @@ describe("notification policy", () => {
     expect(decide(notes, first.state, new Date(2026, 9, 14, 15)).send).toHaveLength(0);
     const tomorrow = decide(notes, first.state, new Date(2026, 9, 15, 9));
     expect(tomorrow.send.map((n) => n.key)).toEqual(["k3", "k4"]);
+  });
+
+  it("keeps high-stakes and a broken sign-in when due-date notices are narrowed", () => {
+    const notes = candidates({
+      now: NOON,
+      health: { state: "blocked", surfaces_enabled: false },
+      changes: [{ key: "d1", kind: "due_changed", label: "Due date moved", title: "Quiz 2", detected_at: new Date(2026, 9, 14, 9).toISOString(), detail: { to: new Date(2026, 9, 17, 10).toISOString() } }],
+      ticks: [tick({})],
+    });
+    expect(maskNotes(notes, ["high_stakes_48h", "sync_broken"]).map((n) => n.key)).toEqual(["sync-blocked:2026-10-14", "soon:1300:item-a1"]);
+    expect(maskNotes(notes).map((n) => n.key)).toEqual(notes.map((n) => n.key));
   });
 
   it("sends nothing at night but keeps the notes for the morning", () => {

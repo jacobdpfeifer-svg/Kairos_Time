@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-write-proposed-workspace"
+description = "Enables the write_proposed_workspace command without any pre-configured scope."
+commands.allow = ["write_proposed_workspace"]
+
+[[permission]]
+identifier = "deny-write-proposed-workspace"
+description = "Denies the write_proposed_workspace command without any pre-configured scope."
+commands.deny = ["write_proposed_workspace"]

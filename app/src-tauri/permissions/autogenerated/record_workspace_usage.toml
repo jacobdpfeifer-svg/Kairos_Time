@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-record-workspace-usage"
+description = "Enables the record_workspace_usage command without any pre-configured scope."
+commands.allow = ["record_workspace_usage"]
+
+[[permission]]
+identifier = "deny-record-workspace-usage"
+description = "Denies the record_workspace_usage command without any pre-configured scope."
+commands.deny = ["record_workspace_usage"]

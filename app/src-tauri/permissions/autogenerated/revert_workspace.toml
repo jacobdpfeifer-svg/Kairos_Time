@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-revert-workspace"
+description = "Enables the revert_workspace command without any pre-configured scope."
+commands.allow = ["revert_workspace"]
+
+[[permission]]
+identifier = "deny-revert-workspace"
+description = "Denies the revert_workspace command without any pre-configured scope."
+commands.deny = ["revert_workspace"]

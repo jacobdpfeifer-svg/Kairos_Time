@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-workflow-draft"
+description = "Enables the read_workflow_draft command without any pre-configured scope."
+commands.allow = ["read_workflow_draft"]
+
+[[permission]]
+identifier = "deny-read-workflow-draft"
+description = "Denies the read_workflow_draft command without any pre-configured scope."
+commands.deny = ["read_workflow_draft"]

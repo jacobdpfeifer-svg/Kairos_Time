@@ -1,5 +1,5 @@
 // Purpose: tests the app shell
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,6 +34,15 @@ vi.mock("./ipc", () => ({
       },
     ],
   }),
+  readWorkspaceSpec: vi.fn().mockResolvedValue({ spec: null, notice: null, history: [] }),
+  readProposedWorkspace: vi.fn().mockResolvedValue(null),
+  writeProposedWorkspace: vi.fn().mockResolvedValue(undefined),
+  discardProposedWorkspace: vi.fn().mockResolvedValue(undefined),
+  writeAcceptedSpec: vi.fn(async (spec: unknown) => spec),
+  readWorkspaceUsage: vi.fn().mockResolvedValue(null),
+  readWorkspaceAmendments: vi.fn().mockResolvedValue(null),
+  writeWorkspaceAmendments: vi.fn().mockResolvedValue(undefined),
+  recordWorkspaceUsage: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("./study/api", () => ({
   study: { askPending: vi.fn().mockResolvedValue({ ok: true, ask: null }), askCurrent: vi.fn().mockResolvedValue({ ok: true, ask: null }) },
@@ -111,7 +120,9 @@ vi.mock("./views/SettingsView", () => ({
 }));
 
 import { App } from "./App";
-import { readSchoolProfile } from "./ipc";
+import { readSchoolProfile, readWorkspaceSpec, recordWorkspaceUsage, takePendingLink } from "./ipc";
+import { DEFAULT_SPEC } from "./workspace/contracts";
+import { resetWorkspaceStore } from "./workspace/store";
 
 const SCHOOL = {
   slug: "canvas-example-edu",
@@ -134,8 +145,11 @@ async function openWorkspace() {
 describe("App shell", () => {
   beforeEach(() => {
     localStorage.clear();
+    resetWorkspaceStore();
     tauri.on = true;
     vi.mocked(readSchoolProfile).mockReset();
+    vi.mocked(readWorkspaceSpec).mockResolvedValue({ spec: null, notice: null, history: [] });
+    vi.mocked(takePendingLink).mockResolvedValue(null);
   });
 
   it("runs first run for a profile with no school even when another profile set the shared flag", async () => {
@@ -144,6 +158,42 @@ describe("App shell", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "First run" })).toBeInTheDocument();
     expect(localStorage.getItem("pn_onboarded")).toBeNull();
+  });
+
+  it("opens on the workspace home screen", async () => {
+    vi.mocked(recordWorkspaceUsage).mockClear();
+    localStorage.setItem("pn_tab", "today");
+    vi.mocked(readWorkspaceSpec).mockResolvedValue({ spec: { ...DEFAULT_SPEC, home: "week" }, notice: null, history: [] });
+    localStorage.setItem("pn_onboarded", "1");
+    vi.mocked(readSchoolProfile).mockResolvedValue(SCHOOL);
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Week view" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Week" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Today" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(recordWorkspaceUsage).toHaveBeenCalledWith(expect.objectContaining({ event: "open_surface", surface: "week" }));
+    });
+    const opens = vi.mocked(recordWorkspaceUsage).mock.calls.map((call) => call[0] as { event?: string; surface?: string }).filter((event) => event.event === "open_surface");
+    expect(opens[0]).toMatchObject({ surface: "week" });
+    expect(opens.some((event) => event.surface === "today")).toBe(false);
+  });
+
+  it("a deep link wins over the home screen", async () => {
+    vi.mocked(recordWorkspaceUsage).mockClear();
+    localStorage.setItem("pn_tab", "today");
+    vi.mocked(readWorkspaceSpec).mockResolvedValue({ spec: { ...DEFAULT_SPEC, home: "week" }, notice: null, history: [] });
+    vi.mocked(takePendingLink).mockResolvedValue("kairos://study");
+    localStorage.setItem("pn_onboarded", "1");
+    vi.mocked(readSchoolProfile).mockResolvedValue(SCHOOL);
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Study path" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Study" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => {
+      expect(recordWorkspaceUsage).toHaveBeenCalledWith(expect.objectContaining({ event: "open_surface", surface: "study" }));
+    });
+    const opens = vi.mocked(recordWorkspaceUsage).mock.calls.map((call) => call[0] as { event?: string; surface?: string }).filter((event) => event.event === "open_surface");
+    expect(opens[0]).toMatchObject({ surface: "study" });
+    expect(opens.some((event) => event.surface === "today")).toBe(false);
   });
 
   it("opens on Today, and maps an old saved Home tab onto it", async () => {
@@ -219,5 +269,17 @@ describe("App shell", () => {
     expect(screen.getByRole("combobox")).toBeInTheDocument();
     await act(async () => links.handler?.("https://evil.example/today"));
     expect(screen.getByRole("combobox")).toBeInTheDocument();
+  });
+
+  it("opens Design my workspace from the command bar and from kairos://workspace", async () => {
+    const user = await openWorkspace();
+    await user.keyboard("{Meta>}k{/Meta}");
+    await user.type(await screen.findByRole("combobox"), "design my workspace");
+    await user.click(await screen.findByRole("option", { name: /Design my workspace/ }));
+    expect(await screen.findByRole("heading", { name: "Design my workspace" })).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Week" }));
+    expect(screen.queryByRole("heading", { name: "Design my workspace" })).not.toBeInTheDocument();
+    await act(async () => links.handler?.("kairos://workspace"));
+    expect(await screen.findByRole("heading", { name: "Design my workspace" })).toBeInTheDocument();
   });
 });

@@ -7,7 +7,10 @@
  *
  * Contract: docs in plugins/README.md (modeled on cu-boulder-campusgroups).
  */
+import { CONNECTOR_REGISTRY } from "./connector-registry-data.mjs";
 import { getSchoolConfig } from "./school-config.mjs";
+
+export { CONNECTOR_REGISTRY, isReviewedConnector } from "./connector-registry-data.mjs";
 
 /**
  * @typedef {object} ConnectorEntry
@@ -27,22 +30,6 @@ import { getSchoolConfig } from "./school-config.mjs";
  *   `required-on-mcp-write` — MCP writes must use ConfirmationGuard
  *   `n/a` — read-only connector (still no Bucket-B automation)
  */
-
-/** @type {readonly ConnectorEntry[]} */
-export const CONNECTOR_REGISTRY = Object.freeze([
-  {
-    id: "cu-boulder/campusgroups",
-    school: "cu-boulder",
-    slug: "campusgroups",
-    name: "CampusGroups",
-    bucket: "A",
-    pluginDir: "plugins/cu-boulder-campusgroups",
-    shim: "browser/scripts/lib/campusgroups-session.mjs",
-    surface: "web",
-    writeCapable: true,
-    confirmationGuard: "required-on-mcp-write",
-  },
-]);
 
 /**
  * Refuse registry entries the contract does not allow. Runs at module load so a

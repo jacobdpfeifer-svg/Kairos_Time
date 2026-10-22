@@ -13,6 +13,7 @@ describe("routeFromUrl", () => {
     expect(routeFromUrl("kairos://settings/canvas")).toEqual({ tab: "settings", group: "canvas" });
     expect(routeFromUrl("kairos://capture")).toEqual({ tab: "today", capture: true });
     expect(routeFromUrl("kairos://ask")).toEqual({ tab: "today", ask: true });
+    expect(routeFromUrl("kairos://workspace")).toEqual({ tab: "today", studio: true });
   });
 
   it("ignores a link it does not know", () => {

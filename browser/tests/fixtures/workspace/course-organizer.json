@@ -1,0 +1,11 @@
+{
+  "id": "course-organizer",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "course-organizer",
+  "input": {
+    "ideal_workflow": "I work one class at a time and forget the other courses.",
+    "frictions": ["remembering_course_context"],
+    "preference": "course_by_course",
+    "proposed_template": "weekly-planner"
+  }
+}

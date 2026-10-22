@@ -82,6 +82,16 @@ export function candidates({
   return out;
 }
 
+/** Drop notes the accepted workspace has narrowed away. Missing list keeps all three kinds. */
+export function maskNotes(notes: Note[], interruptFor?: readonly string[]): Note[] {
+  if (!interruptFor) return notes;
+  const allowed = new Set(interruptFor);
+  return notes.filter((note) => {
+    const kind = note.key.startsWith("sync-blocked:") ? "sync_broken" : note.key.startsWith("moved:") ? "due_moved" : note.key.startsWith("soon:") ? "high_stakes_48h" : "";
+    return kind !== "" && allowed.has(kind);
+  });
+}
+
 /** What to send now, and the state to keep. Unsent notes wait for the next check. */
 export function decide(
   notes: Note[],

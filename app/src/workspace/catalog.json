@@ -1,0 +1,165 @@
+{
+  "capabilities": [
+    {
+      "id": "today.next_action",
+      "label": "One clear next action",
+      "blurb": "Today, with the next thing to start and what changed in Canvas.",
+      "surfaces": [
+        "today"
+      ],
+      "component": "TodayView",
+      "sizes": [
+        "full"
+      ],
+      "props": {},
+      "supports": [
+        "finding_next_action",
+        "starting_work",
+        "staying_calm"
+      ],
+      "requires": [],
+      "max_instances": 1,
+      "availability": "available",
+      "tier": "local",
+      "weight": 10
+    },
+    {
+      "id": "week.plan",
+      "label": "Weekly time plan",
+      "blurb": "The week, with what needs you and a plan you can accept.",
+      "surfaces": [
+        "week"
+      ],
+      "component": "WeekView",
+      "sizes": [
+        "full"
+      ],
+      "props": {},
+      "supports": [
+        "planning_time",
+        "tracking_deadlines",
+        "starting_work"
+      ],
+      "requires": [],
+      "max_instances": 1,
+      "availability": "available",
+      "tier": "local",
+      "weight": 20
+    },
+    {
+      "id": "courses.sources",
+      "label": "Course files and source context",
+      "blurb": "Your courses, with grades, open work, and files.",
+      "surfaces": [
+        "courses"
+      ],
+      "component": "CoursesView",
+      "sizes": [
+        "full"
+      ],
+      "props": {},
+      "supports": [
+        "remembering_course_context"
+      ],
+      "requires": [],
+      "max_instances": 1,
+      "availability": "available",
+      "tier": "local",
+      "weight": 30
+    },
+    {
+      "id": "study.practice",
+      "label": "Practice and study sessions",
+      "blurb": "Study, with exam tracks and practice.",
+      "surfaces": [
+        "study"
+      ],
+      "component": "StudyPathView",
+      "sizes": [
+        "full"
+      ],
+      "props": {},
+      "supports": [
+        "turning_notes_into_study",
+        "starting_work"
+      ],
+      "requires": [],
+      "max_instances": 1,
+      "availability": "available",
+      "tier": "local",
+      "weight": 40
+    },
+    {
+      "id": "advisor.plan",
+      "label": "Academic planning and advising",
+      "blurb": "A snapshot for planning and advising.",
+      "surfaces": [
+        "advisor"
+      ],
+      "component": "AdvisorView",
+      "sizes": [
+        "full"
+      ],
+      "props": {},
+      "supports": [
+        "planning_time"
+      ],
+      "requires": [],
+      "max_instances": 1,
+      "availability": "available",
+      "tier": "local",
+      "weight": 50
+    }
+  ],
+  "templates": [
+    {
+      "id": "calm-daily",
+      "label": "Calm daily focus",
+      "preference": "one_next_step",
+      "blocks": [
+        "today.next_action",
+        "today.changes",
+        "capture.quick"
+      ]
+    },
+    {
+      "id": "weekly-planner",
+      "label": "Weekly planner",
+      "preference": "weekly_overview",
+      "blocks": [
+        "week.plan",
+        "today.next_action",
+        "today.changes"
+      ]
+    },
+    {
+      "id": "course-command",
+      "label": "Course command center",
+      "preference": "course_by_course",
+      "blocks": [
+        "courses.sources",
+        "today.next_action",
+        "capture.quick"
+      ]
+    },
+    {
+      "id": "study-first",
+      "label": "Study-first",
+      "preference": "study_first",
+      "blocks": [
+        "study.practice",
+        "courses.sources",
+        "today.next_action"
+      ]
+    },
+    {
+      "id": "quiet-minimal",
+      "label": "Quiet minimal",
+      "preference": "quiet_minimal",
+      "blocks": [
+        "today.next_action",
+        "capture.quick"
+      ]
+    }
+  ]
+}

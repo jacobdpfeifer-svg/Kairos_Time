@@ -18,6 +18,8 @@ export type Route = {
   practice?: boolean;
   /** Settings: the group to open. */
   group?: string;
+  /** Design my workspace, over the current section. */
+  studio?: boolean;
 };
 
 export type TabSpec = { id: Tab; label: string; key?: string };
@@ -104,6 +106,8 @@ export function routeFromUrl(url: string): Route | null {
       return { tab: "today", ask: true };
     case "settings":
       return a ? { tab: "settings", group: a } : { tab: "settings" };
+    case "workspace":
+      return { tab: "today", studio: true };
     default:
       return null;
   }

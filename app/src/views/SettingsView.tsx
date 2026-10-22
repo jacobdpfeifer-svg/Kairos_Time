@@ -6,9 +6,12 @@ import { THEMES, useTheme } from "../theme";
 import { DEFAULT_APP_PREFS, readExtensionStatus, checkCanvasSession, exportCanvas, isTauri, openCanvasSso, saveLearningProfile, syncCanvas, type LearningProfileAnswers } from "../ipc";
 import { savePrefs, usePrefs } from "../prefs";
 import { MOD } from "../nav";
+import { AskedFor } from "./AskedFor";
 import { ConnectorsPanel } from "./ConnectorsPanel";
 import { SourcesView } from "./SourcesView";
 import { BriefSettings } from "../missionControl/BriefSettings";
+import { WorkspaceAppearance } from "../workspace/WorkspaceAppearance";
+import { useWorkspace } from "../workspace/store";
 
 /** Older deep links and saved groups from before the groups were folded together. */
 const LEGACY_GROUPS: Record<string, string> = {
@@ -20,6 +23,7 @@ const LEGACY_GROUPS: Record<string, string> = {
 
 export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
   const { theme, setTheme, motion, setMotion } = useTheme();
+  const workspace = useWorkspace();
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [profiles, setProfiles] = useState<{ current: string; profiles: string[]; root: string } | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
@@ -127,6 +131,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
         <span className="check-box" aria-hidden="true" />
         Reduce motion (also follows your system setting)
       </label>
+      <WorkspaceAppearance state={workspace} onRevert={(ts) => void workspace.revert(ts)} />
       </>
       )}
 
@@ -242,6 +247,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
       <>
       <h2>Calendar and email</h2>
       <ConnectorsPanel />
+      <AskedFor />
       </>
       )}
 

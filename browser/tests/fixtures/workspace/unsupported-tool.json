@@ -1,0 +1,11 @@
+{
+  "id": "unsupported-tool",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "unsupported-tool",
+  "input": {
+    "ideal_workflow": "I keep my class notes in Notion.",
+    "frictions": ["remembering_course_context"],
+    "preference": "course_by_course",
+    "requested_integrations": ["Notion"]
+  }
+}

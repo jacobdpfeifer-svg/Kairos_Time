@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getSchoolConfig, schoolDay } from "./school-config.mjs";
 import { hasConnector, listConnectorsForSchool } from "./connector-registry.mjs";
+import { parseAskedForNames, reconcileToolGapsMarkdown } from "./tool-request-state.mjs";
 import {
   resolveInboxDir as resolveInboxDirFromUserRoot,
   resolveUserRoot,
@@ -1444,8 +1445,10 @@ export function formatToolsSection(inventory) {
 /**
  * Flag Bucket-A tools with no registry entry. Does not write or fetch code.
  * @param {{ code: string, courseName: string, tools: object[] }[]} inventories
+ * @param {{ today?: string, file?: string }} [options]
+ *   `file` overrides the inbox path for tests. Production sync omits it.
  */
-export function writeToolGapsFile(inventories, { today } = {}) {
+export function writeToolGapsFile(inventories, { today, file = TOOL_GAPS_PATH } = {}) {
   const syncDay = today || schoolLocalDay();
   const schoolSlug = getSchoolConfig().slug || "";
   /** @type {Map<string, { name: string, slug: string, courses: Set<string> }>} */
@@ -1499,9 +1502,17 @@ ${table}
 ${registered || "_None registered for this school._"}
 `;
 
-  fs.mkdirSync(INBOX_DIR, { recursive: true });
-  fs.writeFileSync(TOOL_GAPS_PATH, md, "utf8");
-  return { path: TOOL_GAPS_PATH, gapCount: gapRows.length };
+  let kept = [];
+  try {
+    if (fs.existsSync(file)) kept = parseAskedForNames(fs.readFileSync(file, "utf8"));
+  } catch {
+    kept = [];
+  }
+  const body = kept.length ? reconcileToolGapsMarkdown(md, kept) : md;
+
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, body, "utf8");
+  return { path: file, gapCount: gapRows.length };
 }
 
 export function classifyOutcomeHint(

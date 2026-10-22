@@ -16,6 +16,8 @@ mod prefs;
 mod runtime;
 mod semester;
 mod shortcut;
+mod voice_bridge;
+mod workspace;
 
 use std::sync::{Arc, Mutex};
 
@@ -145,12 +147,26 @@ fn main() {
             commands::record_brief_feedback,
             commands::export_brief_feedback,
             commands::read_grade_truth,
+            commands::read_workspace_spec,
+            commands::write_accepted_spec,
+            commands::list_workspace_history,
+            commands::revert_workspace,
+            commands::read_proposed_workspace,
+            commands::write_proposed_workspace,
+            commands::discard_proposed_workspace,
+            commands::read_workspace_usage,
+            commands::record_workspace_usage,
+            commands::read_workspace_amendments,
+            commands::write_workspace_amendments,
             commands::add_calendar_event,
             commands::dismiss_calendar_suggestion,
             commands::open_external_url,
             commands::runtime_info,
             commands::set_profile,
             commands::list_profiles,
+            commands::read_workflow_draft,
+            commands::write_workflow_draft,
+            commands::start_voice_server,
         ])
         .setup(|app| {
             // Resolve bundled resources vs dev checkout once; share with every command.
@@ -295,13 +311,16 @@ fn main() {
         .expect("error while building Kairos");
 
     app.run(|handle, event| {
+        if let RunEvent::Exit = event {
+            voice_bridge::stop();
+        }
         // Clicking the Dock icon while the window is hidden brings it back.
         #[cfg(target_os = "macos")]
         if let RunEvent::Reopen { .. } = event {
             let _ = dock::show_workspace(handle);
         }
         #[cfg(not(target_os = "macos"))]
-        let _ = (handle, event);
+        let _ = handle;
     });
 }
 

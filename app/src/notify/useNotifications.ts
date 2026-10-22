@@ -9,7 +9,7 @@ import {
   readSemester,
   readSyncHealth,
 } from "../ipc";
-import { EMPTY_NOTIFY_STATE, candidates, decide, type NotifyState } from "./policy";
+import { EMPTY_NOTIFY_STATE, candidates, decide, maskNotes, type NotifyState } from "./policy";
 
 const STATE_KEY = "pn_notify_state";
 const EVERY_MS = 15 * 60 * 1000;
@@ -32,7 +32,7 @@ function saveState(state: NotifyState) {
 }
 
 /** One pass: read what Kairos already knows, apply the policy, send what's due. */
-export async function checkOnce(now = new Date()): Promise<number> {
+export async function checkOnce(now = new Date(), interruptFor?: readonly string[]): Promise<number> {
   const { isPermissionGranted, sendNotification } = await import("@tauri-apps/plugin-notification");
   if (!(await isPermissionGranted())) return 0;
   const [dash, semester, health, calendar] = await Promise.all([
@@ -41,12 +41,15 @@ export async function checkOnce(now = new Date()): Promise<number> {
     readSyncHealth().catch(() => null),
     readCalendarSurface().catch(() => null),
   ]);
-  const notes = candidates({
-    changes: dash?.changes ?? [],
-    ticks: semester ? semester.courses.flatMap((c) => c.ticks) : [],
-    health,
-    now,
-  });
+  const notes = maskNotes(
+    candidates({
+      changes: dash?.changes ?? [],
+      ticks: semester ? semester.courses.flatMap((c) => c.ticks) : [],
+      health,
+      now,
+    }),
+    interruptFor,
+  );
   const classes = (calendar?.canvas_events ?? []).map((e) => ({ start: e.start, end: e.end }));
   const { send, state } = decide(notes, loadState(), now, classes);
   saveState(state);
@@ -55,14 +58,14 @@ export async function checkOnce(now = new Date()): Promise<number> {
 }
 
 /** Runs only while the student has notifications on; checks after each sync and every 15 minutes. */
-export function useNotifications(enabled: boolean) {
+export function useNotifications(enabled: boolean, interruptFor?: readonly string[]) {
   useEffect(() => {
     if (!enabled || !isTauri()) return;
     let busy = false;
     const run = () => {
       if (busy) return;
       busy = true;
-      void checkOnce()
+      void checkOnce(new Date(), interruptFor)
         .catch(() => 0)
         .finally(() => {
           busy = false;
@@ -75,5 +78,5 @@ export function useNotifications(enabled: boolean) {
       window.clearInterval(timer);
       for (const s of subs) void s.then((fn) => fn());
     };
-  }, [enabled]);
+  }, [enabled, interruptFor]);
 }

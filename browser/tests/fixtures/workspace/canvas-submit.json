@@ -1,0 +1,12 @@
+{
+  "id": "canvas-submit",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "canvas-submit",
+  "input": {
+    "ideal_workflow": "Submit my Canvas assignments for me.",
+    "frictions": ["tracking_deadlines"],
+    "preference": "one_next_step",
+    "requested_integrations": ["Canvas submit"],
+    "proposed_template": "weekly-planner"
+  }
+}

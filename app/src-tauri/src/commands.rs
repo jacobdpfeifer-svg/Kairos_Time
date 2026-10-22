@@ -9,6 +9,7 @@ use crate::inbox;
 use crate::runtime::{self, Runtime};
 use crate::prefs;
 use crate::semester;
+use crate::workspace;
 use serde::Serialize;
 use std::sync::{atomic::{AtomicU8, Ordering}, Arc};
 use std::thread;
@@ -27,7 +28,9 @@ fn emit_inbox_updated(app: &AppHandle) {
 }
 
 /// Run blocking work (Python, Node, network) off the main thread. Non-async
-/// Tauri commands run on the main thread, so a sync there froze the window.
+/// Tauri commands run on the main thread, so any command that waits on a child
+/// process has to be `async` and enter through here. A sync command that calls
+/// `Command::output` freezes the window for the whole wait.
 async fn blocking<T: Send + 'static>(job: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(job)
         .await
@@ -91,16 +94,19 @@ pub async fn search_schools(rt: Rt<'_>, term: String) -> Result<serde_json::Valu
 
 /// Save the school the student picked (or the Canvas address they pasted) to
 /// `{user_root}/school/profile.json`; every later SSO/sync shell reads it.
+///
+/// The school script is a Node process. Like every other child wait, it runs
+/// through `blocking` so the webview thread is not the one that waits.
 #[tauri::command]
-pub fn choose_school(
+pub async fn choose_school(
     rt: Rt<'_>,
     host: String,
     name: String,
     account_id: Option<i64>,
     manual: Option<bool>,
 ) -> Result<serde_json::Value, String> {
-    let host = host.trim();
-    let name = name.trim();
+    let host = host.trim().to_string();
+    let name = name.trim().to_string();
     // Values go to school.mjs as `--flag value` pairs; one that starts with
     // "-" (or is absurdly long) is not a school and could pose as a flag.
     if host.is_empty() || host.len() > 253 || host.starts_with('-') {
@@ -109,15 +115,22 @@ pub fn choose_school(
     if name.len() > 200 || name.starts_with('-') {
         return Err("That school name is not valid.".into());
     }
-    let account = account_id.map(|n| n.to_string());
-    let mut args: Vec<&str> = vec!["choose", "--host", host, "--name", name];
-    if let Some(a) = account.as_deref() {
-        args.extend(["--account-id", a]);
-    }
-    if manual.unwrap_or(false) {
-        args.extend(["--source", "manual"]);
-    }
-    let parsed = daemon::run_school_script(&rt, &args)?;
+    let rt_child = Arc::clone(&rt);
+    let parsed = blocking(move || {
+        let account = account_id.map(|n| n.to_string());
+        let mut owned = vec!["choose".to_string(), "--host".to_string(), host, "--name".to_string(), name];
+        if let Some(a) = account {
+            owned.push("--account-id".to_string());
+            owned.push(a);
+        }
+        if manual.unwrap_or(false) {
+            owned.push("--source".to_string());
+            owned.push("manual".to_string());
+        }
+        let args: Vec<&str> = owned.iter().map(String::as_str).collect();
+        daemon::run_school_script(&rt_child, &args)
+    })
+    .await?;
     let profile = parsed.get("profile").cloned().unwrap_or(serde_json::Value::Null);
     if let Some(slug) = profile.get("slug").and_then(|v| v.as_str()) {
         inbox::save_school_slug(&rt.user_root, slug)?;
@@ -150,7 +163,7 @@ pub fn save_onboarding(rt: Rt<'_>, school_slug: String) -> Result<(), String> {
 
 /// Save the onboarding learning-profile games' answers (see docs/design/learning-profile.md).
 #[tauri::command]
-pub fn save_learning_profile(
+pub async fn save_learning_profile(
     rt: Rt<'_>,
     practice_format: String,
     autonomy: String,
@@ -158,31 +171,38 @@ pub fn save_learning_profile(
     check_depth: String,
     if_then: Option<String>,
 ) -> Result<(), String> {
-    daemon::run_save_learning_profile(
-        &rt,
-        &practice_format,
-        &autonomy,
-        &chunk_size,
-        &check_depth,
-        if_then.as_deref().unwrap_or(""),
-    )
+    let rt = Arc::clone(&rt);
+    let if_then = if_then.unwrap_or_default();
+    blocking(move || {
+        daemon::run_save_learning_profile(
+            &rt,
+            &practice_format,
+            &autonomy,
+            &chunk_size,
+            &check_depth,
+            &if_then,
+        )
+    })
+    .await
 }
 
 /// Due retrieval checks (at most two). Does not invent cards from the week list.
 #[tauri::command]
-pub fn read_due_reviews(rt: Rt<'_>) -> Result<serde_json::Value, String> {
-    daemon::run_due_reviews(&rt)
+pub async fn read_due_reviews(rt: Rt<'_>) -> Result<serde_json::Value, String> {
+    let rt = Arc::clone(&rt);
+    blocking(move || daemon::run_due_reviews(&rt)).await
 }
 
 /// Student-scored retrieval. Dock checks of scheduled items pass same_session=false.
 #[tauri::command]
-pub fn record_review_outcome(
+pub async fn record_review_outcome(
     rt: Rt<'_>,
     item_id: String,
     outcome: String,
     same_session: Option<bool>,
 ) -> Result<serde_json::Value, String> {
-    daemon::run_record_review_outcome(&rt, &item_id, &outcome, same_session.unwrap_or(false))
+    let rt = Arc::clone(&rt);
+    blocking(move || daemon::run_record_review_outcome(&rt, &item_id, &outcome, same_session.unwrap_or(false))).await
 }
 
 /// Study workspace bridge. `request` = {"cmd": .., "params": {..}}; the reply is
@@ -406,6 +426,79 @@ pub fn read_course_map(rt: Rt<'_>, course_id: String) -> serde_json::Value {
 #[tauri::command]
 pub fn read_grade_truth(rt: Rt<'_>, course_id: String) -> serde_json::Value {
     canvas::read_grade_truth(&rt.user_root, &course_id)
+}
+
+#[tauri::command]
+pub fn read_workspace_spec(rt: Rt<'_>) -> serde_json::Value {
+    workspace::read_workspace_spec(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn write_accepted_spec(rt: Rt<'_>, spec: serde_json::Value) -> Result<serde_json::Value, String> {
+    workspace::write_accepted_spec(&rt.user_root, spec)
+}
+
+#[tauri::command]
+pub fn list_workspace_history(rt: Rt<'_>) -> serde_json::Value {
+    workspace::list_workspace_history(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn revert_workspace(rt: Rt<'_>, ts: String) -> Result<serde_json::Value, String> {
+    workspace::revert_workspace(&rt.user_root, &ts)
+}
+
+#[tauri::command]
+pub fn read_proposed_workspace(rt: Rt<'_>) -> serde_json::Value {
+    workspace::read_proposed(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn write_proposed_workspace(rt: Rt<'_>, doc: serde_json::Value) -> Result<serde_json::Value, String> {
+    workspace::write_proposed(&rt.user_root, doc)
+}
+
+#[tauri::command]
+pub fn discard_proposed_workspace(rt: Rt<'_>) -> Result<(), String> {
+    workspace::discard_proposed(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn read_workflow_draft(rt: Rt<'_>) -> Result<serde_json::Value, String> {
+    workspace::read_workflow_draft(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn write_workflow_draft(rt: Rt<'_>, draft: serde_json::Value) -> Result<serde_json::Value, String> {
+    workspace::write_workflow_draft(&rt.user_root, &draft)
+}
+
+#[tauri::command]
+pub fn start_voice_server(rt: Rt<'_>) -> serde_json::Value {
+    match crate::voice_bridge::start(&rt) {
+        Ok(value) => value,
+        Err(reason) => serde_json::json!({ "ok": false, "reason": reason }),
+    }
+}
+
+#[tauri::command]
+pub fn read_workspace_usage(rt: Rt<'_>) -> serde_json::Value {
+    workspace::read_workspace_usage(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn record_workspace_usage(rt: Rt<'_>, event: serde_json::Value) -> Result<serde_json::Value, String> {
+    workspace::record_workspace_usage(&rt.user_root, &event)
+}
+
+#[tauri::command]
+pub fn read_workspace_amendments(rt: Rt<'_>) -> serde_json::Value {
+    workspace::read_workspace_amendments(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn write_workspace_amendments(rt: Rt<'_>, doc: serde_json::Value) -> Result<serde_json::Value, String> {
+    workspace::write_workspace_amendments(&rt.user_root, doc)
 }
 
 #[tauri::command]

@@ -1,0 +1,10 @@
+{
+  "id": "empty-answers",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "empty-answers",
+  "input": {
+    "ideal_workflow": "Ok",
+    "frictions": [],
+    "constraints": ""
+  }
+}

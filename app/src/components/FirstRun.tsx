@@ -8,26 +8,39 @@ import {
   chooseSchool,
   onStudySyncProgress,
   openCanvasSso,
+  readSyncHealth,
+  readSyncProgress,
   saveOnboarding,
   searchSchools,
   syncStudySourcesIpc,
-  readSyncHealth,
-  readSyncProgress,
+  readWorkflowDraft,
+  writeAcceptedSpec,
+  writeWorkflowDraft,
   type SchoolMatch,
   type SchoolProfile,
   type SyncProgressCourse,
 } from "../ipc";
 import { runtimeInfo } from "../study/api";
+import { DEFAULT_SPEC } from "../workspace/contracts";
+import { proposalFromDraft } from "../workspace/fromDraft";
+import { draftFromStored } from "../workspace/interview";
+import { specFromTemplate, suggestTemplates } from "../workspace/templates";
+import { WorkspaceStudio } from "../workspace/WorkspaceStudio";
+import type { ProposedWorkspace } from "../workspace/patch";
+import { startOnboardingVoice } from "../voice/onboardingSession";
+import { voicePresence } from "../voice/presence";
 import { ConnectCanvasMark, useReducedMotion } from "./ConnectCanvasMark";
+import { TypedInterview } from "../workspace/TypedInterview";
 
 /*
  * First run (MASTER §10, §12): one question per screen.
  *   school -> the student finds their school by name (public Instructure search)
  *             or pastes their Canvas address. Nothing is hard-coded.
  *   canvas -> SSO into that school's Canvas.
- *   sync   -> classes arrive, then Home.
+ *   sync      -> classes arrive
+ *   workspace -> a reviewed starting point, or the standard layout
  */
-type Step = "school" | "canvas" | "sync";
+type Step = "school" | "canvas" | "sync" | "workspace";
 
 function shortName(name: string): string {
   // Keep campus names ("University of Michigan - Ann Arbor"); drop only a trailing
@@ -87,6 +100,14 @@ export function FirstRun({
   const [syncing, setSyncing] = useState(false);
   const [syncFailed, setSyncFailed] = useState(false);
   const [syncAttempt, setSyncAttempt] = useState(0);
+  const [choosing, setChoosing] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<"choose" | "type" | "studio">("choose");
+  const [proposal, setProposal] = useState<ProposedWorkspace | null>(null);
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const [voiceLive, setVoiceLive] = useState(false);
+  const [talking, setTalking] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [accepting, setAccepting] = useState(false);
   const [blocker, setBlocker] = useState<string | null>(null);
   const termsButton = useRef<HTMLButtonElement | null>(null);
   const termsClose = useRef<HTMLButtonElement | null>(null);
@@ -225,7 +246,7 @@ export function FirstRun({
               fail(NO_COURSES);
               return;
             }
-            doneRef.current();
+            setStep("workspace");
           })
           .catch((e) => {
             if (!cancelled) fail(e instanceof Error ? e.message : String(e));
@@ -280,6 +301,60 @@ export function FirstRun({
       setSession("missing");
     } finally {
       setSsoBusy(false);
+    }
+  };
+
+  const suggestions = suggestTemplates({ preference: "one_next_step", frictions: [] });
+  const recommended = suggestions[0];
+
+  const showProposal = async (draft: { created_at?: string }) => {
+    setWorkspaceError(null);
+    try {
+      await writeWorkflowDraft(draft);
+      setProposal(proposalFromDraft(draft));
+      setWorkspaceMode("studio");
+    } catch {
+      setWorkspaceError("Kairos couldn't open that workspace. You can try again, or do this later.");
+    }
+  };
+
+  const openSavedDraft = async () => {
+    try {
+      const draft = draftFromStored(await readWorkflowDraft());
+      if (!draft) {
+        setVoiceNote("Kairos couldn't read that draft. You can type the same answers.");
+        return;
+      }
+      await showProposal(draft);
+    } catch {
+      setVoiceNote("Kairos couldn't read that draft. You can type the same answers.");
+    }
+  };
+
+  const talk = async () => {
+    setVoiceNote(null);
+    setTalking(true);
+    try {
+      const started = await startOnboardingVoice(() => {
+        void openSavedDraft();
+      });
+      if (!started.ok) setVoiceNote(started.reason);
+      else setVoiceLive(true);
+    } finally {
+      setTalking(false);
+    }
+  };
+
+  const chooseWorkspace = async (template: (typeof suggestions)[number]) => {
+    setAccepting(true);
+    setWorkspaceError(null);
+    try {
+      await writeAcceptedSpec(specFromTemplate(template, new Date().toISOString()));
+      doneRef.current();
+    } catch {
+      setWorkspaceError("Kairos couldn't save that workspace. You can try again, or do this later.");
+    } finally {
+      setAccepting(false);
     }
   };
 
@@ -475,13 +550,79 @@ export function FirstRun({
                 >
                   Sign in again
                 </button>
-                <button type="button" className="link" onClick={() => doneRef.current()}>
+                <button type="button" className="link" onClick={() => setStep("workspace")}>
                   Continue without classes
                 </button>
               </div>
             </>
           )}
           {!syncFailed && <TrailDoodle />}
+        </section>
+      )}
+
+      {step === "workspace" && workspaceMode === "studio" && proposal && (
+        <WorkspaceStudio
+          accepted={DEFAULT_SPEC}
+          proposal={proposal}
+          reducedMotion={reduced}
+          onClose={() => doneRef.current()}
+          onPlaybackNarration={
+            voiceLive
+              ? (line) => {
+                  if (line) voicePresence.set({ state: "speaking", reply: line });
+                  else if (voicePresence.get().state === "speaking") voicePresence.set({ state: "done", reply: voicePresence.get().reply });
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {step === "workspace" && workspaceMode === "type" && (
+        <TypedInterview onDraft={(draft) => void showProposal(draft)} onLater={() => doneRef.current()} />
+      )}
+
+      {step === "workspace" && workspaceMode === "choose" && recommended && (
+        <section className="nb-step" aria-labelledby="workspace-title">
+          <h1 id="workspace-title" ref={heading} tabIndex={-1}>
+            How should Kairos start?
+          </h1>
+          <p className="nb-lede">The recommended start is {recommended.label}.</p>
+          <button type="button" className="primary" disabled={accepting} onClick={() => void chooseWorkspace(recommended)}>
+            Start with the recommended one
+          </button>
+          <button type="button" className="link" aria-expanded={choosing} onClick={() => setChoosing((open) => !open)}>
+            Choose from three
+          </button>
+          {choosing && (
+            <ul className="nb-results" aria-label="Workspaces">
+              {suggestions.map((template) => (
+                <li key={template.id}>
+                  <button type="button" disabled={accepting} onClick={() => void chooseWorkspace(template)}>
+                    <strong>{template.label}</strong>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {voiceNote && (
+            <p className="nb-help" role="status">
+              {voiceNote}
+            </p>
+          )}
+          {workspaceError && (
+            <p className="error" role="alert">
+              {workspaceError}
+            </p>
+          )}
+          <button type="button" disabled={talking} onClick={() => void talk()}>
+            Talk it through
+          </button>
+          <button type="button" onClick={() => setWorkspaceMode("type")}>
+            Type it instead
+          </button>
+          <button type="button" className="link" onClick={() => doneRef.current()}>
+            Do this later
+          </button>
         </section>
       )}
 

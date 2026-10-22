@@ -29,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'none'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost ws://127.0.0.1:* http://127.0.0.1:*; object-src 'none'; base-uri 'self'; form-action 'none'"
     },
     "trayIcon": {
       "iconPath": "icons/trayTemplate.png",
@@ -61,6 +61,7 @@
     },
     "macOS": {
       "minimumSystemVersion": "12.0",
+      "infoPlist": "Info.plist",
       "signingIdentity": "Developer ID Application: Jacob Pfeifer (BHFNTM69P2)",
       "dmg": {
         "background": "dmg/background.png",

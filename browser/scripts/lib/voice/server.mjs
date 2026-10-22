@@ -27,9 +27,20 @@ export function isAllowedHost(host, port) {
   return host === `localhost:${port}` || host === `127.0.0.1:${port}`;
 }
 
+/** App webviews that may open the loopback bridge. Not a wildcard. */
+const APP_ORIGINS = new Set([
+  "http://tauri.localhost",
+  "https://tauri.localhost",
+  "tauri://localhost",
+  "http://localhost:1420",
+  "http://127.0.0.1:1420",
+]);
+
 /** @param {string | undefined} origin @param {number} port */
 export function isAllowedOrigin(origin, port) {
-  return origin === `http://localhost:${port}` || origin === `http://127.0.0.1:${port}`;
+  if (!origin) return false;
+  if (origin === `http://localhost:${port}` || origin === `http://127.0.0.1:${port}`) return true;
+  return APP_ORIGINS.has(origin.replace(/\/$/, ""));
 }
 
 function readOr(file, fallback = "") {
@@ -162,7 +173,8 @@ export function createVoiceServer({ config, paths, connectLive, staticDir, log =
     const courseCodes = listCourseCodes(paths.coursesDir);
     const course = mode === "class" && courseCodes.includes(msg.course) ? msg.course : "";
     const id = makeSessionId();
-    const tools = createToolHandlers({ paths, sessionId: id, courseCodes });
+    const onboarding = mode === "onboarding";
+    const tools = createToolHandlers({ paths, sessionId: id, courseCodes, onboarding });
     const systemInstruction = buildSystemInstruction({
       mode,
       course,
@@ -172,7 +184,7 @@ export function createVoiceServer({ config, paths, connectLive, staticDir, log =
       courseCodes,
       today: denverDay(),
     });
-    const declarations = buildToolDeclarations(courseCodes);
+    const declarations = buildToolDeclarations(courseCodes, { onboarding });
     return new VoiceSession({
       connectLive,
       buildConfig: ({ handle }) =>

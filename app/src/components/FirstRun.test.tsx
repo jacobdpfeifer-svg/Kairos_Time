@@ -25,11 +25,17 @@ vi.mock("../ipc", () => ({
   onStudySyncProgress: vi.fn().mockResolvedValue(() => undefined),
   readSyncHealth: vi.fn().mockResolvedValue({ state: "fresh_complete", sync_id: "sync-test", as_of: "2026-10-12T00:00:00Z" }),
   readSyncProgress: vi.fn().mockResolvedValue({ phase: "done", courses: [{ id: "1", label: "TEST" }] }),
+  writeAcceptedSpec: vi.fn().mockResolvedValue({}),
+  writeProposedWorkspace: vi.fn().mockResolvedValue(undefined),
+  discardProposedWorkspace: vi.fn().mockResolvedValue(undefined),
+  readWorkflowDraft: vi.fn().mockResolvedValue(null),
+  writeWorkflowDraft: vi.fn().mockResolvedValue(undefined),
+  startVoiceServer: vi.fn().mockResolvedValue({ ok: false, reason: "Voice isn't available on this Mac. You can type the same answers." }),
 }));
 
 vi.mock("../study/api", () => ({ runtimeInfo: vi.fn().mockResolvedValue(null) }));
 
-import { chooseSchool, openCanvasSso, readSyncHealth, readSyncProgress, saveOnboarding, syncStudySourcesIpc } from "../ipc";
+import { chooseSchool, openCanvasSso, readSyncHealth, readSyncProgress, saveOnboarding, syncStudySourcesIpc, writeAcceptedSpec } from "../ipc";
 import { runtimeInfo } from "../study/api";
 
 async function pickOhioState(user: ReturnType<typeof userEvent.setup>) {
@@ -117,7 +123,10 @@ describe("FirstRun", () => {
     expect(alert).not.toHaveTextContent(/exit status/);
     expect(onDone).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Try again" }));
-    await vi.waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("heading", { name: "How should Kairos start?" })).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Do this later" }));
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   it("finishes on a fresh partial sync but not on a stale projection", async () => {
@@ -133,7 +142,10 @@ describe("FirstRun", () => {
     expect(alert).not.toHaveTextContent(/projection|verification/i);
     expect(onDone).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Try again" }));
-    await vi.waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("heading", { name: "How should Kairos start?" })).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Do this later" }));
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   it("says plainly when Canvas answers with no current classes", async () => {
@@ -188,5 +200,64 @@ describe("FirstRun", () => {
     });
     render(<FirstRun onDone={() => undefined} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/incomplete, so it can't connect to Canvas/);
+  });
+
+  it("offers a reviewed workspace after sync, and Do this later does not write one", async () => {
+    vi.mocked(writeAcceptedSpec).mockClear();
+    const onDone = vi.fn();
+    const user = userEvent.setup();
+    render(<FirstRun startStep="workspace" onDone={onDone} />);
+    expect(screen.getByRole("heading", { name: "How should Kairos start?" })).toBeInTheDocument();
+    expect(screen.getByText(/Calm daily focus/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Choose from three" }));
+    const choices = screen.getAllByRole("button", { name: /Calm daily focus|Course command center|Quiet minimal/ });
+    expect(choices.length).toBeLessThanOrEqual(3);
+    await user.click(screen.getByRole("button", { name: "Do this later" }));
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(writeAcceptedSpec).not.toHaveBeenCalled();
+  });
+
+  it("saves the recommended workspace as accepted by the student", async () => {
+    vi.mocked(writeAcceptedSpec).mockClear();
+    const onDone = vi.fn();
+    const user = userEvent.setup();
+    render(<FirstRun startStep="workspace" onDone={onDone} />);
+    expect(screen.getByRole("button", { name: "Talk it through" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Type it instead" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Start with the recommended one" }));
+    expect(onDone).toHaveBeenCalledTimes(1);
+    const spec = vi.mocked(writeAcceptedSpec).mock.calls[0][0];
+    expect(spec?.status).toBe("accepted");
+    expect(spec?.accepted_by).toBe("student");
+    expect(spec?.origin).toMatchObject({ kind: "template", template_id: "calm-daily" });
+    expect(spec?.surfaces.today?.slots?.length).toBeGreaterThan(0);
+    expect(spec?.surfaces.week?.slots?.length).toBeGreaterThan(0);
+    expect(spec?.surfaces.courses?.slots?.length).toBeGreaterThan(0);
+    expect(spec?.surfaces.study?.slots?.length).toBeGreaterThan(0);
+    expect(spec?.surfaces.advisor?.slots?.length).toBeGreaterThan(0);
+  });
+
+  it("types the same questions into a workspace without a voice server", async () => {
+    const user = userEvent.setup();
+    render(<FirstRun startStep="workspace" onDone={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: "Type it instead" }));
+    expect(screen.getByRole("heading", { name: /most friction/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tracking deadlines" }));
+    for (let i = 0; i < 7; i += 1) {
+      await user.click(screen.getByRole("button", { name: "Skip this question" }));
+    }
+    expect(screen.getByText(/Kairos can't connect that/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Skip this question" }));
+    await user.click(screen.getByRole("button", { name: "See the workspace" }));
+    expect(await screen.findByRole("heading", { name: "Design my workspace" })).toBeInTheDocument();
+  });
+
+  it("keeps typing available when voice cannot start", async () => {
+    const user = userEvent.setup();
+    render(<FirstRun startStep="workspace" onDone={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: "Talk it through" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(/type the same answers/i);
+    expect(screen.getByRole("button", { name: "Type it instead" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Do this later" })).toBeInTheDocument();
   });
 });

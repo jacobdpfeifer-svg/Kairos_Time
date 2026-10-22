@@ -1,0 +1,132 @@
+{
+  "spec": {
+    "schema_version": 1,
+    "status": "proposed",
+    "spec_id": "ws_weekly_planner",
+    "created_at": "2026-10-21T18:00:00.000Z",
+    "origin": {
+      "kind": "interview",
+      "template_id": "weekly-planner",
+      "draft_session_id": "deadline-tracker"
+    },
+    "density": "comfortable",
+    "home": "week",
+    "surfaces": {
+      "today": {
+        "slots": [
+          "b_today_next_action"
+        ]
+      },
+      "week": {
+        "slots": [
+          "b_week_plan"
+        ]
+      },
+      "courses": {
+        "slots": []
+      },
+      "study": {
+        "slots": []
+      },
+      "advisor": {
+        "slots": [
+          "b_advisor_plan"
+        ]
+      }
+    },
+    "blocks": {
+      "b_today_next_action": {
+        "capability": "today.next_action",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      },
+      "b_week_plan": {
+        "capability": "week.plan",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      },
+      "b_advisor_plan": {
+        "capability": "advisor.plan",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      }
+    },
+    "quiet": {
+      "interrupt_for": [
+        "due_moved",
+        "high_stakes_48h",
+        "sync_broken"
+      ]
+    },
+    "requested_integrations": [],
+    "entitlement": "local"
+  },
+  "patches": [
+    {
+      "op": "set_density",
+      "density": "comfortable"
+    },
+    {
+      "op": "set_home",
+      "home": "week"
+    },
+    {
+      "op": "set_quiet",
+      "interrupt_for": [
+        "due_moved",
+        "high_stakes_48h",
+        "sync_broken"
+      ]
+    },
+    {
+      "op": "place",
+      "surface": "today",
+      "block_id": "b_today_next_action",
+      "index": 0,
+      "block": {
+        "capability": "today.next_action",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      },
+      "narration": "One clear next action is here because you said \"I lose track after Sunday.\""
+    },
+    {
+      "op": "place",
+      "surface": "week",
+      "block_id": "b_week_plan",
+      "index": 0,
+      "block": {
+        "capability": "week.plan",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      },
+      "narration": "Weekly time plan is here because you said \"I lose track after Sunday.\""
+    },
+    {
+      "op": "place",
+      "surface": "advisor",
+      "block_id": "b_advisor_plan",
+      "index": 0,
+      "block": {
+        "capability": "advisor.plan",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      },
+      "narration": "Academic planning and advising is here because you said \"I lose track after Sunday.\""
+    },
+    {
+      "op": "done"
+    }
+  ],
+  "rationale": {
+    "b_today_next_action": "One clear next action is here because you said \"I lose track after Sunday.\"",
+    "b_week_plan": "Weekly time plan is here because you said \"I lose track after Sunday.\"",
+    "b_advisor_plan": "Academic planning and advising is here because you said \"I lose track after Sunday.\""
+  }
+}

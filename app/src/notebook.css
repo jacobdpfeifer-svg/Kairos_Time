@@ -523,6 +523,136 @@ p.home-statement {
   }
 }
 
+.settings-workspace {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.settings-workspace p {
+  margin: 0;
+}
+.settings-history {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  width: 100%;
+}
+.settings-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* ---------- Workspace studio ---------- */
+.studio {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 4px 48px;
+}
+.studio h1 {
+  margin-bottom: 8px;
+}
+.studio-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 18px 0;
+}
+.studio-surfaces {
+  margin-top: 18px;
+}
+.studio-surface {
+  border-top: 1px solid var(--hairline);
+}
+.studio-surface h2 {
+  margin: 0;
+  font-size: inherit;
+}
+.studio-surface-header {
+  width: 100%;
+  text-align: left;
+  min-height: 44px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.studio-block {
+  padding: 12px 0;
+  border-top: 1px solid var(--hairline);
+}
+.studio-block-title {
+  margin: 0;
+  font-weight: 600;
+}
+.studio-block p {
+  margin: 4px 0 0;
+}
+.studio-block-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.studio-block-actions button {
+  min-height: 44px;
+}
+.studio-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  margin-bottom: 8px;
+}
+.studio-asked ul,
+.studio-diff {
+  margin: 16px 0 0;
+  padding: 0;
+}
+.studio-asked ul {
+  list-style: none;
+}
+.studio-asked li,
+.studio-diff p {
+  margin: 0;
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline);
+}
+.studio-nudge {
+  margin: 16px 0 0;
+}
+.studio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 20px;
+}
+.studio-actions button {
+  min-height: 44px;
+}
+@keyframes studio-settle {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.studio-block.is-new {
+  animation: studio-settle 200ms var(--ease);
+}
+:root[data-motion="reduced"] .studio-block.is-new {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-block.is-new { animation: none; }
+}
+
 /* ---------- Onboarding (MASTER §10): one question per screen ---------- */
 .nb-onboarding {
   min-height: 100vh;
@@ -596,9 +726,13 @@ p.home-statement {
   box-shadow: none;
 }
 .first-run .nb-results button:hover:not(:disabled),
-.first-run .nb-results button:focus-visible {
+.first-run .nb-results button:focus-visible,
+.first-run .nb-results button[aria-pressed="true"] {
   background: var(--hl-soft);
   color: var(--hl-ink);
+}
+.nb-onboarding > .studio {
+  width: min(640px, 100%);
 }
 .nb-results .muted {
   font-size: 13px;
@@ -1055,11 +1189,11 @@ p.home-statement {
 }
 .voice-label {
   margin: 0;
-  font-family: var(--font-hand);
-  font-size: 22px;
+  font-family: var(--font-ui);
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1;
-  color: var(--pen);
+  line-height: 1.2;
+  color: var(--fg);
 }
 .voice-caption {
   margin: 0;
@@ -2493,4 +2627,45 @@ ul.rows > li:last-child {
   .mc-island {
     transition: none;
   }
+}
+
+.amend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.amend-row p {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+.amend-row button {
+  min-height: 44px;
+}
+
+.asked-for {
+  margin-top: 28px;
+}
+.asked-for ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.asked-for li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.asked-for li p {
+  margin: 0;
+}
+.asked-for button.link {
+  min-height: 44px;
+  padding: 10px 4px;
 }

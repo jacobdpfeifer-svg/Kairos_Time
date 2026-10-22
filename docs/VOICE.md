@@ -11,6 +11,7 @@ browser page (mic, speaker)          localhost server (browser/)             Gem
                                         │ tools (2 only)
                                         ├─ save_goal          → {user_root}/inbox/goals.md  ## Raw captures
                                         ├─ append_class_note  → {user_root}/inbox/courses/CODE.md  ## Class notes
+                                        └─ save_workflow_draft (onboarding only) → {user_root}/workspace/onboarding-draft.json
                                         └─ transcript         → {user_root}/inbox/voice/sessions/{id}.md (local)
 student-voice-intake (later, text agent) → verifies captures, fills goals.md ## Distilled
 ```
@@ -35,7 +36,7 @@ Each session's system prompt is built from `USER.md` (identity + ranked careers)
 
 ## Safety model
 
-- **Two tools, both local markdown appends.** No Canvas access, no submits, no file reads. Anything else you ask for is recorded as a `request` for the text agent, never executed — a misheard "yes" can't submit anything.
+- **Local-only, narrow tools.** Goals/check-ins/classes get two local markdown append tools. The onboarding session additionally saves one validated `status: "draft"` workspace proposal. No mode has Canvas access, submits, file reads, connector authorization, or workspace-apply permission. Anything else you ask for is recorded as a `request` for the text agent, never executed — a misheard "yes" can't submit anything.
 - **Key stays server-side.** The page never sees `GEMINI_API_KEY`.
 - **Local only.** Server binds `127.0.0.1`; `Host` and `Origin` are checked so other websites in your browser can't open the mic bridge. One session at a time.
 - **Raw speech stays local** (`{user_root}/inbox/voice/sessions/`, outside the repo). Audio is never written to disk; only text is.
@@ -49,7 +50,8 @@ Your audio is streamed to Google to be processed. Check Google's current terms f
 
 | Env var | Default | Effect |
 |---------|---------|--------|
-| `GEMINI_LIVE_MODEL` | SDK-doc example | Live model id (`npm run voice-models`) |
+| `GEMINI_API_KEY` | none | required for a live session; the typed interview does not use it |
+| `GEMINI_LIVE_MODEL` | SDK-doc example | set `gemini-2.5-flash-native-audio-preview-12-2025` after `npm run voice-models` |
 | `VOICE_SILENCE_MS` | `1500` | silence that ends your turn; raise if it cuts you off mid-thought |
 | `VOICE_NAME` | model default | prebuilt voice name |
 | `VOICE_PORT` | `8787` | local port |
@@ -58,7 +60,66 @@ End-of-speech sensitivity is set to low (Live's default cuts turns quickly, whic
 
 ## Swapping the model
 
-`browser/scripts/lib/voice/live.mjs` is the only file that imports the Google SDK; everything else takes an injected `connectLive({ config, callbacks })`. To try OpenAI Realtime or an STT → Claude → TTS pipeline, implement that seam and the two tool declarations; the server, prompt, tools, transcript, and skill don't change.
+`browser/scripts/lib/voice/live.mjs` is the only file that imports the Google SDK; everything else takes an injected `connectLive({ config, callbacks })`. To try OpenAI Realtime or an STT → Claude → TTS pipeline, implement that seam and the existing tool declarations; the server, prompt, tools, transcript, and skill don't change.
+
+## Workspace-design onboarding
+
+In the app, the workspace step offers **Talk it through** and **Type it instead**.
+Both are optional. **Do this later** leaves Kairos on its current workspace.
+
+**Type it instead** asks the same questions one screen at a time and builds the
+draft locally. It does not start the voice server and does not need
+`GEMINI_API_KEY`. A named tool is stored as a requested integration. The screen
+says Kairos can't connect that.
+
+**Talk it through** starts the loopback voice server in onboarding mode and
+opens the existing voice sheet (the ink ring) in this window. It does not open
+a browser tab. If the key, the microphone, or the voice server is missing, the
+same typed questions are the next step.
+
+The interviewer still has only `save_goal`, `append_class_note` (when course
+files exist), and `save_workflow_draft`. A call to anything else is saved as a
+`request` and refused. `save_workflow_draft` writes
+`{user_root}/workspace/onboarding-draft.json` with `status: "draft"`. The app
+compiles that file locally and plays the patch stream in Workspace Studio.
+The sentences the sheet shows while blocks land are the compiler's `narration`
+field. The model is told to read that array aloud and then stop. It does not
+choose blocks.
+
+The question list is unchanged. The pacing is: open on one recent incident,
+stop once friction, orientation, interruptions, and inputs are known, probe a
+vague answer once, quote a contradiction and keep the later concrete example
+if they do not pick, and say "I can't connect that" for an unsupported tool.
+Spoken words are data. A transcript included in the prompt sits inside
+`<<<UNTRUSTED INTERVIEW TRANSCRIPT>>>`.
+
+### Try it live
+
+`npm test` in `browser/` covers this with a scripted session and no key. To
+talk to the real model once that passes:
+
+1. Put `GEMINI_API_KEY` in the repo-root `.env`.
+2. Set `GEMINI_LIVE_MODEL=gemini-2.5-flash-native-audio-preview-12-2025`.
+   The code default `gemini-live-2.5-flash-preview` is only the SDK example and
+   may be retired. Confirm the id with `cd browser && npm run voice-models`.
+3. Start Kairos, reach **How should Kairos start?**, and choose **Talk it through**.
+   Or, for the developer page, `cd browser && npm run voice`, open the printed
+   localhost URL, and choose **Design my workspace**.
+
+Check that the model speaks first, `{user_root}/workspace/onboarding-draft.json`
+has `"status": "draft"`, blocks land in the studio with the compiler's
+sentences, and Stop never writes an accepted workspace.
+
+Cost, from the [Gemini API pricing page](https://ai.google.dev/gemini-api/docs/pricing)
+for `gemini-2.5-flash-native-audio-preview-12-2025`: paid audio is $3.00 per
+1M input tokens and $12.00 per 1M output tokens, at 25 tokens per second.
+A short interview of about six minutes, with the mic open the whole time
+(silence is billed), is roughly 5 to 15 cents if only new audio is billed.
+If the API re-bills accumulated session audio on every turn, the same
+interview can reach a few tens of cents. The free tier is $0 and may use the
+audio to improve Google's products. Text tokens are negligible beside the audio.
+Any future model-graded check of these sessions uses Claude Sonnet 4.6, not a
+local or Ollama model, and is not part of `npm test`.
 
 ## Status
 

@@ -38,13 +38,19 @@ describe("listCourseCodes", () => {
 });
 
 describe("buildToolDeclarations", () => {
-  it("exposes exactly save_goal and append_class_note, with the course enum", () => {
+  it("exposes exactly save_goal and append_class_note by default, with the course enum", () => {
     const [{ functionDeclarations }] = buildToolDeclarations(["CSCI1200", "ECON2010"]);
     assert.deepEqual(
       functionDeclarations.map((f) => f.name),
       ["save_goal", "append_class_note"],
     );
     assert.deepEqual(functionDeclarations[1].parameters.properties.course_code.enum, ["CSCI1200", "ECON2010"]);
+  });
+
+  it("adds a workspace draft tool only for an onboarding session", () => {
+    const [{ functionDeclarations }] = buildToolDeclarations(["CSCI1200"], { onboarding: true });
+    assert.deepEqual(functionDeclarations.map((f) => f.name), ["save_goal", "append_class_note", "save_workflow_draft"]);
+    assert.deepEqual(functionDeclarations[2].parameters.properties.interrupt_for.items.enum, ["due_moved", "high_stakes_48h", "sync_broken"]);
   });
 
   it("drops append_class_note when there are no course files", () => {
@@ -119,7 +125,43 @@ describe("append_class_note", () => {
 describe("handle", () => {
   it("returns an error result for unknown tools instead of throwing", async () => {
     const tools = createToolHandlers({ paths, now: NOW });
-    assert.deepEqual(await tools.handle("submit_assignment", {}), { ok: false, error: "unknown tool: submit_assignment" });
+    const res = await tools.handle("submit_assignment", {});
+    assert.equal(res.ok, false);
+    assert.match(res.error, /can't do that from here/);
+    assert.match(res.error, /unknown tool: submit_assignment/);
+    assert.equal(res.recorded, "request");
+    const md = fs.readFileSync(paths.goalsPath, "utf8");
+    assert.match(md, /\[request\] Asked for submit_assignment/);
+  });
+
+  it("writes an onboarding workflow proposal as a draft, never an applied workspace", async () => {
+    const tools = createToolHandlers({ paths, sessionId: "sess1", onboarding: true, now: NOW });
+    const res = await tools.handle("save_workflow_draft", {
+      ideal_workflow: "I want a calm next step every day",
+      frictions: ["finding_next_action"],
+      preference: "one_next_step",
+      proposed_template: "calm-daily",
+    });
+    assert.equal(res.ok, true);
+    const draft = JSON.parse(fs.readFileSync(res.file, "utf8"));
+    assert.equal(draft.status, "draft");
+    assert.equal(draft.proposed_template, "calm-daily");
+  });
+
+  it("records a named tool in tool-gaps without offering a connection", async () => {
+    const tools = createToolHandlers({ paths, sessionId: "sess1", onboarding: true, now: NOW });
+    const res = await tools.handle("save_workflow_draft", {
+      ideal_workflow: "I keep class notes in Notion and WebAssign",
+      frictions: ["remembering_course_context"],
+      preference: "course_by_course",
+      proposed_template: "course-command",
+      requested_integrations: ["Notion", "WebAssign"],
+    });
+    assert.equal(res.ok, true);
+    const gaps = fs.readFileSync(path.join(dir, "tool-gaps.md"), "utf8");
+    assert.match(gaps, /\| Notion \| — \| No connector in registry — flag only; do not auto-build \|/);
+    assert.match(gaps, /\| WebAssign \| — \| No connector in registry — flag only; do not auto-build \|/);
+    assert.doesNotMatch(gaps, /\bConnect\b|oauth/i);
   });
 
   it("turns filesystem failures into error results", async () => {

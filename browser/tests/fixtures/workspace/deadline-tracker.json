@@ -1,0 +1,12 @@
+{
+  "id": "deadline-tracker",
+  "now": "2026-10-21T18:00:00.000Z",
+  "sessionId": "deadline-tracker",
+  "input": {
+    "ideal_workflow": "I lose track after Sunday.",
+    "frictions": ["tracking_deadlines", "planning_time", "finding_next_action"],
+    "preference": "weekly_overview",
+    "constraints": "The week falls apart after Sunday.",
+    "proposed_template": "calm-daily"
+  }
+}

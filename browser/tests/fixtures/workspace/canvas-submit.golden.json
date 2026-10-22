@@ -1,0 +1,116 @@
+{
+  "spec": {
+    "schema_version": 1,
+    "status": "proposed",
+    "spec_id": "ws_calm_daily",
+    "created_at": "2026-10-21T18:00:00.000Z",
+    "origin": {
+      "kind": "interview",
+      "template_id": "calm-daily",
+      "draft_session_id": "canvas-submit"
+    },
+    "density": "comfortable",
+    "home": "today",
+    "surfaces": {
+      "today": {
+        "slots": [
+          "b_today_next_action"
+        ]
+      },
+      "week": {
+        "slots": [
+          "b_week_plan"
+        ]
+      },
+      "courses": {
+        "slots": []
+      },
+      "study": {
+        "slots": []
+      },
+      "advisor": {
+        "slots": []
+      }
+    },
+    "blocks": {
+      "b_today_next_action": {
+        "capability": "today.next_action",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      },
+      "b_week_plan": {
+        "capability": "week.plan",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      }
+    },
+    "quiet": {
+      "interrupt_for": [
+        "due_moved",
+        "high_stakes_48h",
+        "sync_broken"
+      ]
+    },
+    "requested_integrations": [
+      {
+        "name": "Canvas submit",
+        "state": "not_available",
+        "heard_at": "2026-10-21T18:00:00.000Z"
+      }
+    ],
+    "entitlement": "local"
+  },
+  "patches": [
+    {
+      "op": "set_density",
+      "density": "comfortable"
+    },
+    {
+      "op": "set_home",
+      "home": "today"
+    },
+    {
+      "op": "set_quiet",
+      "interrupt_for": [
+        "due_moved",
+        "high_stakes_48h",
+        "sync_broken"
+      ]
+    },
+    {
+      "op": "place",
+      "surface": "today",
+      "block_id": "b_today_next_action",
+      "index": 0,
+      "block": {
+        "capability": "today.next_action",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      },
+      "narration": "One clear next action is here because you said \"Submit my Canvas assignments for me.\""
+    },
+    {
+      "op": "place",
+      "surface": "week",
+      "block_id": "b_week_plan",
+      "index": 0,
+      "block": {
+        "capability": "week.plan",
+        "size": "full",
+        "props": {},
+        "visible_when": "always"
+      },
+      "narration": "Weekly time plan is here because you said \"Submit my Canvas assignments for me.\""
+    },
+    {
+      "op": "done"
+    }
+  ],
+  "rationale": {
+    "b_today_next_action": "One clear next action is here because you said \"Submit my Canvas assignments for me.\"",
+    "b_week_plan": "Weekly time plan is here because you said \"Submit my Canvas assignments for me.\""
+  }
+}
