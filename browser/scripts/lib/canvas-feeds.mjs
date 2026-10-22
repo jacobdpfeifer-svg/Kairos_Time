@@ -98,7 +98,12 @@ export function feedList(feeds) {
   } catch {
     origin = null;
   }
-  if (feeds?.ics && safeFeedUrl(feeds.ics)) list.push({ url: feeds.ics, cls: "ics", course_id: null, course_name: null });
+  // A feed capture without a valid Canvas base is not trustworthy enough to
+  // drive network requests. Do not degrade into an arbitrary HTTPS fetcher.
+  if (!origin) return list;
+  // The calendar URL is a bearer link too. Keep it on the Canvas origin that
+  // produced the capture, just like per-course feeds.
+  if (feeds?.ics && safeFeedUrl(feeds.ics, origin)) list.push({ url: feeds.ics, cls: "ics", course_id: null, course_name: null });
   for (const [id, c] of Object.entries(feeds?.courses || {})) {
     // Course feeds are captured from the student's own Canvas pages; never poll another host.
     if (c.announcements && safeFeedUrl(c.announcements, origin)) list.push({ url: c.announcements, cls: "announcements", course_id: id, course_name: c.name });
@@ -213,7 +218,9 @@ function icsEvents(items, seen, { baselined, detectedAt }) {
 }
 
 async function fetchFeed(fetchImpl, url) {
-  const res = await fetchImpl(url, { redirect: "follow", headers: { Accept: "application/atom+xml, text/calendar, */*" } });
+  // Never follow a bearer-feed redirect to an unexpected host. The feed is
+  // already origin-validated by feedList; a redirect must remain a failure.
+  const res = await fetchImpl(url, { redirect: "manual", headers: { Accept: "application/atom+xml, text/calendar, */*" } });
   if (!res.ok) return { ok: false, status: res.status, text: "" };
   const declared = Number(res.headers?.get?.("content-length") || 0);
   if (declared > MAX_FEED_BYTES) return { ok: false, status: 413, text: "" };

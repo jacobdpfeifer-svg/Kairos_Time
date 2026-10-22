@@ -12,7 +12,7 @@ import {
   summarySignature,
 } from "../scripts/lib/freshness/classify.mjs";
 import { atomObject, parseAtom, parseIcs } from "../scripts/lib/freshness/feeds-parse.mjs";
-import { announcementEvents, captureIsStale, feedHash, feedLinksFromHtml, pollFeeds, splitIcsSummary } from "../scripts/lib/canvas-feeds.mjs";
+import { announcementEvents, captureIsStale, feedHash, feedLinksFromHtml, feedList, pollFeeds, splitIcsSummary } from "../scripts/lib/canvas-feeds.mjs";
 import { diffGenerations } from "../scripts/lib/canvas-changes.mjs";
 import { computeSkipCosts } from "../scripts/lib/skip-cost.mjs";
 import { buildDashboard, pickNextStep } from "../scripts/lib/freshness-dashboard.mjs";
@@ -239,6 +239,7 @@ describe("feed parsing", () => {
 describe("feed watcher", () => {
   const feeds = {
     captured_at: isoAt(NOW - DAY),
+    base: "https://canvas.example.edu/",
     ics: "https://canvas.example.edu/feeds/calendars/user_SECRET1.ics",
     courses: {
       12: {
@@ -259,6 +260,28 @@ describe("feed watcher", () => {
     };
     return { calls, fetchImpl };
   }
+
+  it("polls only https feeds on the captured Canvas origin", () => {
+    assert.equal(feedList({ ...feeds, base: "" }).length, 0);
+    assert.equal(feedList({ ...feeds, base: "not a url" }).length, 0);
+    const foreign = feedList({
+      ...feeds,
+      ics: "https://evil.example/secret.ics",
+      courses: { 12: { ...feeds.courses[12], announcements: "https://other.example/a.atom", content: feeds.courses[12].content } },
+    });
+    assert.deepEqual(foreign.map((f) => f.cls), ["content"]);
+  });
+
+  it("treats a feed redirect as a failed poll and does not read the body", async () => {
+    const fetchImpl = async (_url, init) => {
+      assert.equal(init.redirect, "manual");
+      return { ok: false, status: 302, text: async () => { throw new Error("redirect body was read"); } };
+    };
+    const { events, polled } = await pollFeeds({ feeds, now: NOW, fetchImpl, force: true });
+    assert.equal(events.length, 0);
+    assert.equal(polled.length, 3);
+    assert.ok(polled.every((p) => p.ok === false && p.status === 302));
+  });
 
   const recentAnn = { path: "discussion_topics/discussion_topic_55", title: "Exam moved", updated: isoAt(NOW - DAY), content: "&lt;p&gt;The midterm moved to Tuesday.&lt;/p&gt;" };
   const oldAnn = { path: "discussion_topics/discussion_topic_40", title: "Welcome", updated: isoAt(NOW - 20 * DAY) };

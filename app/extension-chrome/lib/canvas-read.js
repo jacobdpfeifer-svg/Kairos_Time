@@ -75,7 +75,10 @@ export async function canvasGet(base, pathWithQuery, { fetchImpl = fetch } = {})
       method: "GET",
       credentials: "include",
       headers: { Accept: "application/json" },
-      redirect: "follow",
+      // A Canvas response must not turn this GET-only reader into an open
+      // redirector. A redirect is treated as unavailable and is never
+      // followed to another origin.
+      redirect: "manual",
     });
   } catch {
     return { ok: false, status: 0, json: null };

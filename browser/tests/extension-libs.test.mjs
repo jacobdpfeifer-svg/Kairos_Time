@@ -37,6 +37,19 @@ test("canvasGet only ever sends GET", async () => {
   await assert.rejects(() => canvasGet("https://canvas.myschool.edu/", "/api/v1/courses/1/quizzes/2/submissions", { fetchImpl }));
 });
 
+test("canvasGet does not follow a redirect", async () => {
+  const urls = [];
+  const fetchImpl = async (url, init) => {
+    urls.push(String(url));
+    assert.equal(init.redirect, "manual");
+    return { status: 302, text: async () => "{\"ok\":true}" };
+  };
+  const res = await canvasGet("https://canvas.myschool.edu/", "/api/v1/users/self/activity_stream/summary", { fetchImpl });
+  assert.equal(res.ok, false);
+  assert.equal(res.status, 302);
+  assert.deepEqual(urls, ["https://canvas.myschool.edu/api/v1/users/self/activity_stream/summary"]);
+});
+
 test("Canvas pages map to the graded work they are about", () => {
   assert.deepEqual(workFromUrl("https://c.example.edu/courses/12/assignments/34"), { courseId: "12", kind: "assignment", id: "34" });
   assert.deepEqual(workFromUrl("https://c.example.edu/courses/12/quizzes/9/take"), { courseId: "12", kind: "quiz", id: "9" });
