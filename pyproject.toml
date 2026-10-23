@@ -140,8 +140,8 @@ pythonpath = ["src"]
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
-    "ruff>=0.16.10",
-    "black>=26.10.0",
+    "ruff>=0.17.1",
+    "black>=26.10.1",
     "mypy>=2.4.0,<3",
     # Declared so the workflow-permission policy tests actually run in CI. They
     # use importorskip, so relying on a transitive PyYAML would let the gate
