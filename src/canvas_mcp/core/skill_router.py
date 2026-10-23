@@ -1,3 +1,4 @@
+# Reviewer: ranks SKILL.md bundles for a student intent. It does not call Canvas or post anything.
 """Skill router — load active + provisional SKILL.md bundles.
 
 Anthropic / Hermes / agentskills.io compatible. Every skill MUST declare

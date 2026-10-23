@@ -70,11 +70,12 @@ pub fn read_events(user_root: &Path) -> Vec<CalendarEvent> {
     read_jsonl(&events_path(user_root))
 }
 
+fn read_dismissed(path: &Path) -> Vec<String> {
+    fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
 pub fn read_suggestions(user_root: &Path) -> Vec<CalendarSuggestion> {
-    let dismissed: Vec<String> = fs::read_to_string(dismissed_path(user_root))
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_default();
+    let dismissed = read_dismissed(&dismissed_path(user_root));
     read_jsonl::<CalendarSuggestion>(&suggestions_path(user_root))
         .into_iter()
         .filter(|s| !dismissed.iter().any(|id| id == &s.source_message_id))
@@ -129,23 +130,73 @@ pub fn append_event(user_root: &Path, mut event: CalendarEvent) -> Result<Calend
     Ok(event)
 }
 
+pub fn remove_event(user_root: &Path, id: &str) -> Result<(), String> {
+    if id.is_empty() || too_long(id, 128) {
+        return Err("invalid event id".into());
+    }
+    // Undo drops one line and copies the rest through byte for byte. Rebuilding
+    // the file from parsed rows would silently delete any line this build cannot
+    // read and strip any field a later one adds.
+    let path = events_path(user_root);
+    let Ok(body) = fs::read_to_string(&path) else {
+        return Ok(());
+    };
+    let mut out = String::with_capacity(body.len());
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let matches_id = serde_json::from_str::<CalendarEvent>(trimmed).is_ok_and(|event| event.id == id);
+        if matches_id {
+            continue;
+        }
+        out.push_str(trimmed);
+        out.push('\n');
+    }
+    write_atomic(&path, &out)
+}
+
+/// Every rewrite of a student-owned file goes through a temp file and a rename,
+/// so a crash or a full disk cannot leave a truncated calendar behind.
+fn write_atomic(target: &Path, body: &str) -> Result<(), String> {
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let name = target.file_name().and_then(|n| n.to_str()).unwrap_or("calendar");
+    let tmp = target.with_file_name(format!("{name}.tmp-{}", std::process::id()));
+    fs::write(&tmp, body).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600));
+    }
+    fs::rename(&tmp, target).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
+}
+
 pub fn dismiss_suggestion(user_root: &Path, source_message_id: &str) -> Result<(), String> {
     if source_message_id.is_empty() || too_long(source_message_id, 300) {
         return Err("invalid suggestion id".into());
     }
     let path = dismissed_path(user_root);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let mut ids: Vec<String> = fs::read_to_string(&path)
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_default();
+    let mut ids = read_dismissed(&path);
     if !ids.iter().any(|id| id == source_message_id) {
         ids.push(source_message_id.to_string());
     }
-    fs::write(path, serde_json::to_string_pretty(&ids).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    Ok(())
+    write_atomic(&path, &serde_json::to_string_pretty(&ids).map_err(|e| e.to_string())?)
+}
+
+pub fn restore_suggestion(user_root: &Path, source_message_id: &str) -> Result<(), String> {
+    if source_message_id.is_empty() || too_long(source_message_id, 300) {
+        return Err("invalid suggestion id".into());
+    }
+    let path = dismissed_path(user_root);
+    let mut ids = read_dismissed(&path);
+    ids.retain(|id| id != source_message_id);
+    write_atomic(&path, &serde_json::to_string_pretty(&ids).map_err(|e| e.to_string())?)
 }
 
 #[cfg(test)]
@@ -176,6 +227,28 @@ mod tests {
         let rows = read_events(&dir);
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].title, "Chain rule block");
+        // A line this build cannot parse must survive someone else's undo.
+        {
+            use std::io::Write as _;
+            let mut file = OpenOptions::new().append(true).open(events_path(&dir)).unwrap();
+            writeln!(file, "{{not json").unwrap();
+        }
+        remove_event(&dir, "cal-1").unwrap();
+        assert!(read_events(&dir).is_empty());
+        assert!(fs::read_to_string(events_path(&dir)).unwrap().contains("{not json"));
+        // Removing an id that is not there is not an error and changes nothing.
+        remove_event(&dir, "cal-404").unwrap();
+        assert!(fs::read_to_string(events_path(&dir)).unwrap().contains("{not json"));
+        fs::write(
+            suggestions_path(&dir),
+            "{\"source_message_id\":\"msg-1\",\"title\":\"Block\",\"start\":\"2026-09-21T18:00:00Z\",\"end\":\"2026-09-21T19:00:00Z\"}\n",
+        )
+        .unwrap();
+        assert_eq!(read_suggestions(&dir).len(), 1);
+        dismiss_suggestion(&dir, "msg-1").unwrap();
+        assert!(read_suggestions(&dir).is_empty());
+        restore_suggestion(&dir, "msg-1").unwrap();
+        assert_eq!(read_suggestions(&dir).len(), 1);
         let _ = fs::remove_dir_all(&dir);
     }
 }

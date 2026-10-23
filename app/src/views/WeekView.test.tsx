@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { SemesterSurface } from "../ipc";
 import { Toast, type ToastState } from "../components/Toast";
 import { resetPreviewStore } from "../week/api";
-import { WeekView } from "./WeekView";
+import { WeekView, type Suggestion } from "./WeekView";
 
 // Wednesday, Oct 14 2026 at 9:00 local.
 const NOW = new Date(2026, 9, 14, 9, 0, 0);
@@ -34,11 +34,20 @@ const surface: SemesterSurface = {
   ],
 };
 
-function Harness({ changes = [] as never[] }) {
+const block = {
+  id: "msg-1",
+  dismissId: "msg-1",
+  title: "Chain rule block",
+  start: at(15),
+  end: at(15),
+  why: "Problem set 5 is due Friday.",
+};
+
+function Harness({ changes = [] as never[], suggestions }: { changes?: never[]; suggestions?: Suggestion[] }) {
   const [toast, setToast] = useState<ToastState | null>(null);
   return (
     <div className="workspace">
-      <WeekView surface={surface} changes={changes} now={NOW} onToast={setToast} onStudy={() => undefined} />
+      <WeekView surface={surface} changes={changes} suggestions={suggestions} now={NOW} onToast={setToast} onStudy={() => undefined} />
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </div>
   );
@@ -76,6 +85,41 @@ describe("WeekView", () => {
     expect(await within(screen.getByRole("region", { name: /Friday/ })).findByText("Reading notes")).toBeInTheDocument();
   });
 
+  it("brings a row all the way back when the student undoes a move out of the week", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.type(await screen.findByLabelText(/How many hours outside class/), "1");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    const wait = await screen.findByRole("region", { name: "Could wait" });
+    const waiting = within(wait).getAllByRole("listitem");
+    const moved = within(waiting[0]).getByRole("strong").textContent ?? "";
+    expect(moved).not.toBe("");
+    await user.click(within(waiting[0]).getByRole("button", { name: "Do it next week" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("moved to");
+    // The row left the week, so it is off the days entirely.
+    expect(screen.queryByRole("listitem", { name: moved })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    // Nothing paints a row out from under the commit: it is simply back on its
+    // day, not left behind mid-exit.
+    expect(await screen.findByRole("listitem", { name: moved })).toBeInTheDocument();
+  });
+
+  it("keeps a done capture on the week and brings it back from the row", async () => {
+    const user = userEvent.setup();
+    resetPreviewStore({
+      items: [{ id: "cap-1", title: "Email the TA", course: null, due_at: null, day: "2026-10-14", source: "typed", created_at: "x" }],
+    });
+    render(<Harness />);
+    const row = await screen.findByRole("listitem", { name: "Email the TA" });
+    await user.click(within(row).getByRole("button", { name: "Done" }));
+    const done = await screen.findByRole("region", { name: "Done" });
+    expect(within(done).getByText("Email the TA")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Marked Email the TA done.");
+    await user.click(within(done).getByRole("button", { name: "Not done" }));
+    expect(await screen.findByRole("listitem", { name: "Email the TA" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Done" })).not.toBeInTheDocument();
+  });
+
   it("plans the week in three steps and only uses the order after a yes", async () => {
     const user = userEvent.setup();
     render(<Harness />);
@@ -106,5 +150,31 @@ describe("WeekView", () => {
     await user.click(within(fyi).getByRole("button", { name: "To needs you" }));
     expect(await screen.findByRole("heading", { name: "Needs you, 2" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("from now on");
+  });
+
+  it("marks an accepted block in place instead of taking the row away", async () => {
+    const user = userEvent.setup();
+    render(<Harness suggestions={[block]} />);
+    await user.click(await screen.findByRole("button", { name: "Add it" }));
+    await user.click(screen.getByRole("button", { name: "Add to my calendar" }));
+    // §16.5: the row the student acted on stays where it was.
+    const added = await screen.findByRole("button", { name: "Added" });
+    expect(added).toBeDisabled();
+    expect(screen.getByText("Chain rule block")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Added Chain rule block to your Kairos calendar.");
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByRole("button", { name: "Add it" })).toBeEnabled();
+  });
+
+  it("leaves a way back on the page when a block is declined, not only on the toast", async () => {
+    const user = userEvent.setup();
+    render(<Harness suggestions={[block]} />);
+    await user.click(await screen.findByRole("button", { name: "Not now" }));
+    const blocks = screen.getByRole("region", { name: "Suggested work blocks" });
+    // The toast can be queued behind another live Undo, so the row carries one.
+    expect(within(blocks).getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(within(blocks).queryByRole("button", { name: "Add it" })).not.toBeInTheDocument();
+    await user.click(within(blocks).getByRole("button", { name: "Undo" }));
+    expect(within(blocks).getByRole("button", { name: "Add it" })).toBeInTheDocument();
   });
 });

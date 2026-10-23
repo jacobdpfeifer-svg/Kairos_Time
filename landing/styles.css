@@ -40,7 +40,6 @@
   --r-page: 14px;
   --r-control: 10px;
   --r-tag: 6px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font: "Gabarito", system-ui, sans-serif;
   --hand: "Caveat", "Comic Neue", cursive;
   color-scheme: light;
@@ -154,7 +153,7 @@ p {
   white-space: nowrap;
   cursor: pointer;
   box-shadow: 3px 3px 0 var(--hl);
-  transition: transform 110ms var(--ease), box-shadow 110ms var(--ease);
+  transition: transform var(--t-tap) var(--ease-press), box-shadow var(--t-tap) var(--ease-press);
 }
 .btn:hover {
   transform: translate(-1px, -1px);
@@ -838,19 +837,19 @@ section h2 {
 @media (prefers-reduced-motion: no-preference) {
   .js .mark {
     background-size: 0% 100%;
-    transition: background-size 600ms var(--ease) 200ms;
+    transition: background-size var(--t-draw) var(--ease-mark) 200ms;
   }
   .js .mark.in {
     background-size: 100% 100%;
   }
   .js .note {
     opacity: 0;
-    transition: opacity 400ms var(--ease);
+    transition: opacity var(--t-settle) var(--ease-mark);
   }
   .js .note path {
     stroke-dasharray: 160;
     stroke-dashoffset: 160;
-    transition: stroke-dashoffset 700ms var(--ease) 150ms;
+    transition: stroke-dashoffset var(--t-draw) var(--ease-mark) 150ms;
   }
   .js .note.in {
     opacity: 1;
@@ -862,9 +861,6 @@ section h2 {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
-  }
-  .btn {
-    transition: none;
   }
 }
 
@@ -959,7 +955,7 @@ section h2 {
   font: 700 16px/1 var(--font);
   white-space: nowrap;
   cursor: pointer;
-  transition: transform 110ms var(--ease);
+  transition: transform var(--t-tap) var(--ease-press);
 }
 .btn-secondary:active {
   transform: translateY(1px);

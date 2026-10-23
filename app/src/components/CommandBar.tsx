@@ -150,7 +150,9 @@ export function CommandBar({
               onClick={() => run(cmd)}
             >
               <span className="cmd-label">{cmd.label}</span>
-              {(cmd.keys || cmd.hint) && <span className="cmd-hint">{cmd.keys || cmd.hint}</span>}
+              {(cmd.keys || cmd.hint) && (
+                <span className={cmd.id.startsWith("add:") ? "cmd-hint cmd-parse" : "cmd-hint"}>{cmd.keys || cmd.hint}</span>
+              )}
             </li>
           );
         })}

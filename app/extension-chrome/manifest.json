@@ -54,6 +54,7 @@
     {
       "resources": [
         "ui/dashboard.css",
+        "ui/motion.css",
         "lib/format.js",
         "fonts/*.woff2",
         "brand/*.svg"

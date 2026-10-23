@@ -42,7 +42,7 @@ Trace these paths until each one either ends or you can name the break:
 | Plugins | `plugins/`, `browser/scripts/lib/connector-registry.mjs`, `action-runner.mjs` |
 | Deep links and prefs | `kairos://` via `app/src/nav.ts`, `app/src-tauri` prefs/shortcut/dock/notify |
 | Skill routing | `skills/_SESSION.md`, `AGENTS.md` skill index, `canvas_mcp.core.skill_router` |
-| Shared extension code | `tools/vendor-shared.mjs` generating `app/extension-chrome/shared/` from `browser/scripts/lib/freshness/` |
+| Shared extension code | `app/extension-chrome/tools/vendor-shared.mjs` generating `app/extension-chrome/shared/` from `browser/scripts/lib/freshness/` |
 | Voice | `browser/scripts/lib/voice/`, `app/src/voice/`, tools limited to `save_goal` and `append_class_note` |
 
 For each connection record:

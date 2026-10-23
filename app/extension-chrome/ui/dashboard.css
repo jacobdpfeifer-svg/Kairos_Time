@@ -1,3 +1,4 @@
+@import url("motion.css");
 /*
  * Kairos on the Canvas dashboard — Notebook design system (design-system/kairos/MASTER.md).
  * A white page with a hairline that sits naturally on Canvas: one subject (the next step),
@@ -6,6 +7,7 @@
 :host {
   all: initial;
   display: block;
+  contain: layout paint;
   margin: 0 0 24px;
 
   /* legacy names kept so the component rules below keep working */
@@ -38,9 +40,6 @@
   --radius-stage: 14px;
   --radius-control: 10px;
   --radius-row: 7px;
-  --motion-settle: 200ms;
-  --motion-commit: 110ms;
-  --motion-chrome: 140ms;
 }
 
 * {
@@ -54,17 +53,15 @@
   font: 400 var(--type-ui) / 1.35 var(--font-ui);
   border-radius: var(--radius-stage);
   padding: 20px 24px 24px;
-  animation: pn-settle var(--motion-settle) ease-out both;
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--t-settle) var(--ease-mark), transform var(--t-settle) var(--ease-mark);
 }
 
-@keyframes pn-settle {
-  from {
+@starting-style {
+  .pn-stage {
     opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+    transform: translateY(var(--travel-settle));
   }
 }
 
@@ -124,7 +121,7 @@ button {
   color: var(--muted);
   letter-spacing: inherit;
   text-transform: inherit;
-  transition: color var(--motion-chrome) ease-out, background-color var(--motion-chrome) ease-out;
+  transition: color var(--t-near) var(--ease-press), background-color var(--t-near) var(--ease-press);
 }
 
 .pn-quiet:hover {
@@ -226,7 +223,7 @@ button {
   color: #fff;
   font-weight: 500;
   text-decoration: none;
-  transition: background-color var(--motion-chrome) ease-out, transform var(--motion-commit) ease-out;
+  transition: background-color var(--t-near) var(--ease-press), transform var(--t-tap) var(--ease-press);
 }
 
 .pn-primary:hover {
@@ -243,7 +240,7 @@ button {
   border-radius: var(--radius-control);
   border: 1px solid var(--hairline);
   color: var(--fg);
-  transition: border-color var(--motion-chrome) ease-out;
+  transition: border-color var(--t-near) var(--ease-press);
 }
 
 .pn-secondary:hover {
@@ -394,18 +391,6 @@ a.pn-row-title:hover {
   border-color: transparent;
   color: var(--success);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .pn-stage {
-    animation: none;
-  }
-  .pn-primary,
-  .pn-secondary,
-  .pn-quiet {
-    transition: none;
-  }
-}
-
 
 /* ---------- Notebook overrides ---------- */
 .pn-stage {

@@ -18,6 +18,13 @@ import type { WorkspaceCapability } from "./catalog";
 export const PATCH_OPS = ["place", "remove", "reorder", "set_props", "set_density", "rename", "set_home", "set_quiet", "done"] as const;
 export type PatchOp = (typeof PATCH_OPS)[number];
 
+/**
+ * Pacing for the live build. 220ms is narration and comprehension, not a
+ * stagger. A student sees this once, so it is exempt from the 30–40ms
+ * stagger cap in MASTER §15.5. Do not shorten it toward that cap.
+ * The artifact is already complete, the reveal can be skipped, and nothing
+ * here claims work is still in progress (MASTER §15.6).
+ */
 export const REPLAY_MS = 220;
 
 type Narration = { narration?: string };

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-remove-calendar-event"
+description = "Enables the remove_calendar_event command without any pre-configured scope."
+commands.allow = ["remove_calendar_event"]
+
+[[permission]]
+identifier = "deny-remove-calendar-event"
+description = "Denies the remove_calendar_event command without any pre-configured scope."
+commands.deny = ["remove_calendar_event"]

@@ -1,4 +1,6 @@
 /**
+ * Reviewer: static Bucket-A registry. Missing tools are flagged, never fetched.
+ *
  * Static, human-curated Bucket-A connector registry.
  *
  * Connectors are versioned under plugins/ and land only via reviewed PRs.

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-restore-calendar-suggestion"
+description = "Enables the restore_calendar_suggestion command without any pre-configured scope."
+commands.allow = ["restore_calendar_suggestion"]
+
+[[permission]]
+identifier = "deny-restore-calendar-suggestion"
+description = "Denies the restore_calendar_suggestion command without any pre-configured scope."
+commands.deny = ["restore_calendar_suggestion"]

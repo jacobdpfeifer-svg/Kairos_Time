@@ -16,6 +16,7 @@ import {
 import { kindLabel } from "../semesterTicks";
 import { friendlyRelative, friendlyWhen } from "../format";
 import { consequenceSentence, skipCostFor, type SkipCosts } from "../consequence";
+import { Crossfade } from "../components/MotionDialog";
 import { CourseMapLedger } from "../components/CourseMapLedger";
 import { ItemSheet } from "../components/ItemSheet";
 import { FilesPanel, UploadView } from "./UploadView";
@@ -221,7 +222,11 @@ function CoursePage({
       <BackLink onBack={onBack} />
       <span className="course-tag">{course.label}</span>
       <h1 id="course-heading">{course.name || course.label}</h1>
-      {line && <p className="course-grade">{line}</p>}
+      {line && (
+        <p className="course-grade">
+          <Crossfade text={line} />
+        </p>
+      )}
       {grade?.lead?.why && <p className="muted course-grade-why">{grade.lead.why}</p>}
       {map?.course?.html_url && (
         <button type="button" className="link" onClick={() => void openExternalUrl(map.course?.html_url as string)}>
@@ -247,7 +252,11 @@ function CoursePage({
                       <span className="row-meta">
                         {kindLabel(t.kind)}, {friendlyWhen(t.due_at as string)}
                       </span>
-                      {cons && <span className="row-meta">{cons}</span>}
+                      {cons && (
+                        <span className="row-meta">
+                          <Crossfade text={cons} />
+                        </span>
+                      )}
                     </span>
                     <span className="row-when">{friendlyRelative(t.due_at as string, today)}</span>
                   </button>

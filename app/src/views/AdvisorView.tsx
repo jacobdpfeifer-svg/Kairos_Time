@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { EMPTY_ADVISOR, onInboxUpdated, readAdvisorSnapshot, type AdvisorSnapshot } from "../ipc";
-import { useDialog } from "../components/useDialog";
+import { MotionDialog } from "../components/MotionDialog";
 import { advisorWrites } from "../study/api";
 
 /**
@@ -446,14 +446,14 @@ export function AdvisorView() {
 
 /** Paste the audit in its three parts, dated. Nothing is inferred from a blob. */
 function AuditSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const ref = useDialog<HTMLDivElement>(onClose, { initialFocus: "textarea" });
   const [form, setForm] = useState({ taken_on: new Date().toISOString().slice(0, 10), catalog_year: "", complete: "", in_progress: "", still_needed: "", remaining_credits: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
   return (
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div ref={ref} className="plan-sheet sheet" role="dialog" aria-modal="true" aria-labelledby="audit-title" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
+    <MotionDialog onClose={onClose} className="plan-sheet sheet" labelledBy="audit-title" initialFocus="textarea">
+      {(close) => (
+      <>
         <h2 id="audit-title">Add your degree audit</h2>
         <p className="muted">Open your audit in your school's portal and copy each part. One requirement per line is easiest. Kairos never signs in to the portal.</p>
         <form
@@ -507,26 +507,27 @@ function AuditSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
             <button type="submit" className="primary" disabled={busy}>
               {busy ? "Saving" : "Save my audit"}
             </button>
-            <button type="button" className="ghost" onClick={onClose}>
+            <button type="button" className="ghost" onClick={close}>
               Cancel
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </>
+      )}
+    </MotionDialog>
   );
 }
 
 /** The three Program lines Advisor reads from USER.md, asked where they're used. */
 function ProfileSheet({ s, onClose, onSaved }: { s: AdvisorSnapshot; onClose: () => void; onSaved: () => void }) {
-  const ref = useDialog<HTMLDivElement>(onClose, { initialFocus: "input" });
   const [form, setForm] = useState({ program: s.program || "", catalog_year: s.catalog_year || "", target_term: s.target_grad_term || "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
   return (
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div ref={ref} className="confirm-sheet sheet" role="dialog" aria-modal="true" aria-labelledby="profile-title" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
+    <MotionDialog onClose={onClose} className="confirm-sheet sheet" labelledBy="profile-title" initialFocus="input">
+      {(close) => (
+      <>
         <h2 id="profile-title">Your program</h2>
         <form
           className="audit-form"
@@ -565,12 +566,13 @@ function ProfileSheet({ s, onClose, onSaved }: { s: AdvisorSnapshot; onClose: ()
             <button type="submit" className="primary" disabled={busy}>
               {busy ? "Saving" : "Save"}
             </button>
-            <button type="button" className="ghost" onClick={onClose}>
+            <button type="button" className="ghost" onClick={close}>
               Cancel
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </>
+      )}
+    </MotionDialog>
   );
 }

@@ -45,6 +45,7 @@ Follow [`skills/_SESSION.md`](skills/_SESSION.md), then:
 | “registration”, “holds”, “prep for advising” | `student-registration-prep` |
 | “I did a voice session”, “distill my voice notes”, goals/motivation questions | `student-voice-intake` |
 | “comprehensive audit”, “team review”, “prep repo for review”, pre-release repo sweep | [`audit`](skills/audit/SKILL.md) |
+| a handed-over video/talk/article to research and apply, “go deeper than this”, “what should we take from this” | [`source-to-spec`](skills/source-to-spec/SKILL.md) |
 
 ## Untrusted content
 

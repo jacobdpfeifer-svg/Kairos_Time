@@ -1,3 +1,4 @@
+@import url("ui/motion.css");
 /*
  * Side panel — Notebook design system (design-system/kairos/MASTER.md):
  * a clean page, hairline rows, one highlighter, ink buttons. Light by default,
@@ -34,7 +35,6 @@
   --font-hand: "PN Caveat", cursive;
   --radius-control: 10px;
   --radius-row: 7px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -77,17 +77,15 @@ body {
 main {
   flex: 1;
   padding: 18px 16px 24px;
-  animation: pn-settle 200ms var(--ease) both;
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--t-settle) var(--ease-mark), transform var(--t-settle) var(--ease-mark);
 }
 
-@keyframes pn-settle {
-  from {
+@starting-style {
+  main {
     opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+    transform: translateY(var(--travel-settle));
   }
 }
 
@@ -274,7 +272,7 @@ button {
   background: var(--sheet);
   color: var(--fg);
   font-weight: 600;
-  transition: transform 110ms var(--ease), border-color 140ms var(--ease);
+  transition: transform var(--t-tap) var(--ease-press), border-color var(--t-near) var(--ease-press);
 }
 
 .pn-secondary:hover {
@@ -302,7 +300,7 @@ button {
   color: var(--bg);
   font-weight: 700;
   box-shadow: 3px 3px 0 var(--hl);
-  transition: transform 110ms var(--ease), box-shadow 110ms var(--ease);
+  transition: transform var(--t-tap) var(--ease-press), box-shadow var(--t-tap) var(--ease-press);
 }
 .pn-primary:active {
   transform: translate(3px, 3px);
@@ -337,14 +335,4 @@ button {
   gap: 8px;
   padding: 10px 16px;
   border-top: 1px solid var(--hairline);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  main {
-    animation: none;
-  }
-  .pn-secondary,
-  .pn-primary {
-    transition: none;
-  }
 }

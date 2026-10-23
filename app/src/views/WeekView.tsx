@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addCalendarEvent,
   dismissCalendarSuggestion,
+  removeCalendarEvent,
+  restoreCalendarSuggestion,
   onFreshnessUpdated,
   onInboxUpdated,
   openExternalUrl,
@@ -17,9 +19,10 @@ import {
 import { kindLabel } from "../semesterTicks";
 import { friendlyRelative, friendlyWhen } from "../format";
 import { consequenceSentence, skipCostFor, type SkipCosts } from "../consequence";
+import { useFlip, type FlipCue } from "../motion";
+import { Crossfade, MotionDialog } from "../components/MotionDialog";
 import { ConfirmSheet } from "../components/ConfirmSheet";
 import { ItemSheet } from "../components/ItemSheet";
-import { useDialog } from "../components/useDialog";
 import type { ToastState } from "../components/Toast";
 import { ChangeRows } from "./TodayView";
 import { onPlanChanged, weekPlan, WeekPlanError } from "../week/api";
@@ -47,7 +50,18 @@ import {
  * accepted plan never reorders itself.
  */
 
-type Suggestion = { id: string; title: string; start: string; end: string; why: string; dismissId?: string };
+export type Suggestion = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  why: string;
+  dismissId?: string;
+  /** Confirmed in place. Stays until the student leaves the week. */
+  added?: boolean;
+  /** Declined. Collapsed to one line that still carries the way back. */
+  collapsed?: boolean;
+};
 
 const ESTIMATES = [15, 30, 45, 60, 90, 120, 180, 240];
 
@@ -55,6 +69,7 @@ export function WeekView({
   surface: surfaceProp,
   changes: changesProp,
   snapshot: snapProp,
+  suggestions: suggestionsProp,
   now: nowProp,
   onToast,
   onStudy,
@@ -62,6 +77,7 @@ export function WeekView({
   surface?: SemesterSurface;
   changes?: FreshnessChange[];
   snapshot?: WeekSnapshot;
+  suggestions?: Suggestion[];
   now?: Date;
   onToast: (t: ToastState) => void;
   onStudy: (tick: SemesterTick) => void;
@@ -70,13 +86,14 @@ export function WeekView({
   const [changes, setChanges] = useState<FreshnessChange[]>(changesProp ?? []);
   const [snap, setSnap] = useState<WeekSnapshot | null>(snapProp ?? null);
   const [costs, setCosts] = useState<SkipCosts>({});
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>(suggestionsProp ?? []);
   const [error, setError] = useState("");
   const [synced, setSynced] = useState(0);
   const [planning, setPlanning] = useState(false);
   const [confirm, setConfirm] = useState<Suggestion | null>(null);
   const [sheet, setSheet] = useState<SemesterTick | null>(null);
   const [hoursDraft, setHoursDraft] = useState("");
+  const flipCue = useRef<FlipCue>({ holdId: null, instant: false });
   const live = !surfaceProp;
   const now = useMemo(() => nowProp ?? new Date(), [nowProp, synced]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -174,12 +191,15 @@ export function WeekView({
   );
 
   const deferRow = useCallback(
-    (row: PlanRow, to?: string) => {
+    (row: PlanRow, to?: string, fromKey = false) => {
+      flipCue.current = fromKey ? { holdId: null, instant: true } : { holdId: row.id, instant: false };
       const target = to ?? addDays(row.day, 1);
       const prior = snap?.state.deferrals[row.id];
       void run("defer", { item_id: row.id, to: target }, `${row.title} moved to ${dayLabel(target, dayKey(now)).toLowerCase()}.`, () =>
         prior ? weekPlan("defer", { item_id: row.id, to: prior.to }) : weekPlan("undefer", { item_id: row.id })
-      );
+      ).then((next) => {
+        if (!next) flipCue.current = { holdId: null, instant: false };
+      });
     },
     [run, snap, now]
   );
@@ -190,6 +210,15 @@ export function WeekView({
     for (const c of changes) out[pileFor(c, snap)].push(c);
     return out;
   }, [changes, snap]);
+
+  const flipSig = model
+    ? [
+        model.days.map((d) => d.rows.map((r) => r.id).join(",")).join("|"),
+        model.done.map((r) => r.id).join(","),
+        (["needs_you", "changed", "fyi"] as const).map((p) => piles[p].map((c) => c.key).join(",")).join("|"),
+      ].join(";")
+    : "";
+  const flipRef = useFlip<HTMLElement>(flipSig, flipCue);
 
   if (error && !model) {
     return (
@@ -218,7 +247,7 @@ export function WeekView({
   const weekEnd = addDays(model.week, 6);
 
   return (
-    <section className="week scene-paper" aria-labelledby="week-heading">
+    <section className="week scene-paper" aria-labelledby="week-heading" ref={flipRef}>
       <header className="week-head">
         <div>
           <h1 id="week-heading">This week</h1>
@@ -284,7 +313,11 @@ export function WeekView({
                         {[r.course, `about ${formatMinutes(r.minutes)}`].filter(Boolean).join(", ")}
                         {late ? ". Next week is after it's due." : ""}
                       </span>
-                      {cons && <span className="row-meta">{cons}</span>}
+                      {cons && (
+                        <span className="row-meta">
+                          <Crossfade text={cons} />
+                        </span>
+                      )}
                     </span>
                     <button type="button" onClick={() => deferRow(r, nextMonday)}>
                       Do it next week
@@ -310,7 +343,7 @@ export function WeekView({
           <h2 id="left-heading" className="today-section-title">
             Left from before today
           </h2>
-          <PlanRows rows={model.leftovers} now={now} onDefer={(r) => deferRow(r, model.today)} deferLabel="Do it today" onOpen={(r) => open(r)} onDone={(r) => done(r)} onEstimate={estimate} />
+          <PlanRows rows={model.leftovers} now={now} onDefer={(r, fromKey) => deferRow(r, model.today, fromKey)} deferLabel="Do it today" onOpen={(r) => open(r)} onDone={(r) => done(r)} onEstimate={estimate} />
         </section>
       )}
 
@@ -337,12 +370,35 @@ export function WeekView({
               {d.rows.length === 0 ? (
                 <p className="muted week-empty">Nothing planned.</p>
               ) : (
-                <PlanRows rows={d.rows} now={now} onDefer={(r) => deferRow(r)} deferLabel="Defer" onOpen={(r) => open(r)} onDone={(r) => done(r)} onEstimate={estimate} />
+                <PlanRows rows={d.rows} now={now} onDefer={(r, fromKey) => deferRow(r, undefined, fromKey)} deferLabel="Defer" onOpen={(r) => open(r)} onDone={(r) => done(r)} onEstimate={estimate} />
               )}
             </section>
           );
         })}
       </div>
+
+      {model.done.length > 0 && (
+        <section aria-labelledby="done-heading">
+          <h2 id="done-heading" className="today-section-title">
+            Done
+          </h2>
+          <ul className="rows plan-rows">
+            {model.done.map((r) => (
+              <li key={r.id} data-flip={r.id} aria-label={r.title}>
+                <div className="row">
+                  <span className="row-main">
+                    <strong className="row-title">{r.title}</strong>
+                    <span className="row-meta">{[r.course, "you added this"].filter(Boolean).join(", ")}</span>
+                  </span>
+                  <button type="button" onClick={() => undone(r)}>
+                    Not done
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {suggestions.length > 0 && (
         <section aria-labelledby="blocks-heading">
@@ -351,33 +407,41 @@ export function WeekView({
           </h2>
           <p className="muted">Each one waits for your yes, and only goes on your Kairos calendar.</p>
           <ul className="rows">
-            {suggestions.map((s) => (
-              <li key={s.id}>
-                <div className="row">
-                  <span className="row-main">
-                    <strong>{s.title}</strong>
-                    <span className="row-meta">
-                      {friendlyWhen(s.start)}. {s.why}
+            {suggestions.map((s) =>
+              s.collapsed ? (
+                // The row that leaves still holds the way back. A toast can be
+                // queued behind another Undo, so it is never the only one (§16.4).
+                <li key={s.id} className="suggestion is-declined">
+                  <div className="row">
+                    <span className="row-main">
+                      <span className="row-meta">{s.title} won't be suggested again.</span>
                     </span>
-                  </span>
-                  <span className="row-actions">
-                    <button type="button" onClick={() => setConfirm(s)}>
-                      Add it
+                    <button type="button" className="link" onClick={() => undecline(s)}>
+                      Undo
                     </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => {
-                        setSuggestions((all) => all.filter((x) => x.id !== s.id));
-                        if (s.dismissId) void dismissCalendarSuggestion(s.dismissId);
-                      }}
-                    >
-                      Not now
-                    </button>
-                  </span>
-                </div>
-              </li>
-            ))}
+                  </div>
+                </li>
+              ) : (
+                <li key={s.id} className="suggestion">
+                  <div className="row">
+                    <span className="row-main">
+                      <strong>{s.title}</strong>
+                      <span className="row-meta">
+                        {friendlyWhen(s.start)}. {s.why}
+                      </span>
+                    </span>
+                    <span className="row-actions">
+                      <button type="button" disabled={s.added} onClick={() => setConfirm(s)}>
+                        {s.added ? "Added" : "Add it"}
+                      </button>
+                      <button type="button" className="ghost" disabled={s.added} onClick={() => decline(s)}>
+                        Not now
+                      </button>
+                    </span>
+                  </div>
+                </li>
+              )
+            )}
           </ul>
         </section>
       )}
@@ -407,10 +471,18 @@ export function WeekView({
             const s = confirm;
             setConfirm(null);
             try {
-              await addCalendarEvent({ kind: "personal", title: s.title, start: s.start, end: s.end, note: s.why });
-              setSuggestions((all) => all.filter((x) => x.id !== s.id));
+              const saved = await addCalendarEvent({ kind: "personal", title: s.title, start: s.start, end: s.end, note: s.why });
+              setSuggestions((all) => all.map((x) => (x.id === s.id ? { ...x, added: true } : x)));
               if (s.dismissId) void dismissCalendarSuggestion(s.dismissId);
-              onToast({ message: `Added ${s.title} to your Kairos calendar.`, id: Date.now() });
+              onToast({
+                message: `Added ${s.title} to your Kairos calendar.`,
+                id: Date.now(),
+                undo: async () => {
+                  await removeCalendarEvent(saved.id);
+                  if (s.dismissId) await restoreCalendarSuggestion(s.dismissId);
+                  setSuggestions((all) => all.map((x) => (x.id === s.id ? { ...x, added: false } : x)));
+                },
+              });
             } catch {
               setError("The block didn't save.");
             }
@@ -450,7 +522,30 @@ export function WeekView({
 
   function done(r: PlanRow) {
     if (!r.captured) return;
-    void run("done", { item_id: r.id }, `Marked ${r.title} done.`, () => weekPlan("done", { item_id: r.id, undo: true }));
+    flipCue.current = { holdId: r.id, instant: false };
+    void run("done", { item_id: r.id }, `Marked ${r.title} done.`, () => weekPlan("done", { item_id: r.id, undo: true })).then((next) => {
+      if (!next) flipCue.current = { holdId: null, instant: false };
+    });
+  }
+
+  function undone(r: PlanRow) {
+    flipCue.current = { holdId: r.id, instant: false };
+    void run("done", { item_id: r.id, undo: true }, `${r.title} is back on the week.`, () => weekPlan("done", { item_id: r.id })).then((next) => {
+      if (!next) flipCue.current = { holdId: null, instant: false };
+    });
+  }
+
+  function decline(s: Suggestion) {
+    setSuggestions((all) => all.map((x) => (x.id === s.id ? { ...x, collapsed: true } : x)));
+    if (s.dismissId) void dismissCalendarSuggestion(s.dismissId);
+    onToast({ message: `${s.title} won't be suggested again.`, id: Date.now(), undo: () => undecline(s) });
+  }
+
+  function undecline(s: Suggestion) {
+    if (s.dismissId) {
+      void restoreCalendarSuggestion(s.dismissId).catch(() => setError("That suggestion didn't come back."));
+    }
+    setSuggestions((all) => all.map((x) => (x.id === s.id ? { ...x, collapsed: false } : x)));
   }
 
   function estimate(r: PlanRow, minutes: number) {
@@ -479,7 +574,7 @@ function PlanRows({
 }: {
   rows: PlanRow[];
   now: Date;
-  onDefer: (r: PlanRow) => void;
+  onDefer: (r: PlanRow, fromKey?: boolean) => void;
   deferLabel: string;
   onOpen: (r: PlanRow) => void;
   onDone: (r: PlanRow) => void;
@@ -499,7 +594,7 @@ function PlanRows({
       items[i - 1]?.focus();
     } else if (e.key === "d" && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
-      onDefer(r);
+      onDefer(r, true);
     } else if (e.key === "Enter" && e.target === e.currentTarget) {
       e.preventDefault();
       onOpen(r);
@@ -508,7 +603,15 @@ function PlanRows({
   return (
     <ul className="rows plan-rows" ref={list}>
       {rows.map((r) => (
-        <li key={r.id} data-row tabIndex={0} onKeyDown={(e) => onKey(e, r)} style={{ ["--course" as string]: r.color ?? undefined }} aria-label={r.title}>
+        <li
+          key={r.id}
+          data-row
+          data-flip={r.id}
+          tabIndex={0}
+          onKeyDown={(e) => onKey(e, r)}
+          style={{ ["--course" as string]: r.color ?? undefined }}
+          aria-label={r.title}
+        >
           <div className="row">
             <span className="row-main">
               {r.tick || r.html_url ? (
@@ -648,7 +751,6 @@ function PlanSheet({
   onClose: () => void;
   onAccept: (days: Record<string, string>) => Promise<void>;
 }) {
-  const ref = useDialog<HTMLDivElement>(onClose);
   const [step, setStep] = useState(0);
   const [bring, setBring] = useState<Set<string>>(() => new Set(model.leftovers.map((r) => r.id)));
   const [busy, setBusy] = useState(false);
@@ -659,11 +761,12 @@ function PlanSheet({
   const steps = ["What changed", "Left over", "Proposed order"];
 
   return (
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div ref={ref} className="plan-sheet sheet" role="dialog" aria-modal="true" aria-labelledby="plan-title" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
+    <MotionDialog onClose={onClose} className="plan-sheet sheet" labelledBy="plan-title">
+      {(close) => (
+        <>
         <header className="ask-sheet-head">
           <h2 id="plan-title">Plan this week</h2>
-          <button type="button" className="ghost" onClick={onClose}>
+          <button type="button" className="ghost" onClick={close}>
             Close
           </button>
         </header>
@@ -764,7 +867,8 @@ function PlanSheet({
             </button>
           )}
         </div>
-      </div>
-    </div>
+        </>
+      )}
+    </MotionDialog>
   );
 }

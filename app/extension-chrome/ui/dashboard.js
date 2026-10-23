@@ -42,6 +42,13 @@
 
   const host = document.createElement("div");
   host.id = "kairos-stage";
+  const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const applyMotion = () => {
+    if (motionQuery.matches) host.setAttribute("data-motion", "reduced");
+    else host.removeAttribute("data-motion");
+  };
+  applyMotion();
+  motionQuery.addEventListener("change", applyMotion);
   const root = host.attachShadow({ mode: "open" });
   const css = document.createElement("link");
   css.rel = "stylesheet";

@@ -96,18 +96,7 @@
   --type-label: 13px;
   --type-label-tracking: 0;
 
-  /* --- motion (MASTER §09) --- */
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-out: var(--ease);
-  --motion-press: 110ms;
-  --motion-chrome: 140ms;
-  --motion-settle: 200ms;
-  --motion-sheet: 240ms;
-  --motion-reveal: 320ms;
-  --motion-draw: 600ms;
-  --motion-commit: 110ms;
-  --motion-pulse: 1800ms;
-  --motion-showcase: 600ms;
+  /* Motion tokens: design-system/kairos/motion.css (MASTER §15.2). */
 
   /* glass is retired; these resolve to plain sheets */
   --glass-tint: var(--sheet);
@@ -160,8 +149,8 @@ button {
   border-radius: var(--radius-inner);
   padding: 0.4rem 0.75rem;
   font: inherit;
-  transition: background 160ms ease-out, border-color 160ms ease-out,
-    color 160ms ease-out, opacity 160ms ease-out;
+  transition: background-color var(--t-near) var(--ease-press), border-color var(--t-near) var(--ease-press),
+    color var(--t-near) var(--ease-press), opacity var(--t-near) var(--ease-press);
 }
 
 button:hover:not(:disabled) {
@@ -220,13 +209,11 @@ button.ghost.stop {
   border: 1px solid var(--border);
   border-radius: var(--radius-outer);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
-  transition: background 200ms ease-out;
+  transition: background-color var(--t-settle) var(--ease-mark);
   font-size: 13.5px;
 }
 
@@ -286,7 +273,6 @@ button.ghost.stop {
 .retention {
   padding-top: 0.55rem;
   border-top: 1px solid var(--divider);
-  animation: rise-in 240ms ease-out;
 }
 
 .retention h2,
@@ -335,7 +321,6 @@ button.ghost.stop {
   flex-direction: column;
   gap: 0.45rem;
   overflow-y: auto;
-  animation: rise-in 200ms ease-out;
 }
 
 .review-progress,
@@ -409,7 +394,6 @@ button.ghost.stop {
   display: grid;
   place-items: center;
   border-radius: var(--radius-outer);
-  animation: fade-in 160ms ease-out;
   z-index: 20;
 }
 
@@ -425,7 +409,6 @@ button.ghost.stop {
   gap: 0.5rem;
   max-height: 90%;
   overflow-y: auto;
-  animation: rise-in 180ms ease-out;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
@@ -467,7 +450,6 @@ button.ghost.stop {
   height: 100%;
   background: var(--accent);
   border-radius: 999px;
-  transition: width 200ms ease-out;
 }
 
 button.skip {
@@ -497,36 +479,6 @@ button.skip {
   font-size: 0.85rem;
 }
 
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-
 @media (prefers-reduced-transparency: reduce) {
   .dock,
   .onboarding {
@@ -538,16 +490,6 @@ button.skip {
   .palette,
   .sheet {
     background: var(--surface-solid);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
 }
 
@@ -601,25 +543,6 @@ button.skip {
   --hairline-width: 2px;
   --border-strong: #ffffff;
   color-scheme: dark;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root[data-motion="auto"] *,
-  :root[data-motion="auto"] *::before,
-  :root[data-motion="auto"] *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-:root[data-motion="reduced"] *,
-:root[data-motion="reduced"] *::before,
-:root[data-motion="reduced"] *::after {
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
-  scroll-behavior: auto !important;
 }
 
 .visually-hidden {

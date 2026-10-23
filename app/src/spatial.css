@@ -41,7 +41,7 @@
   border: 0.5px solid var(--hairline);
   background: var(--surface-1);
   color: var(--fg);
-  transition: background 160ms ease-out, transform 160ms ease-out, opacity 160ms ease-out;
+  transition: background-color var(--t-near) var(--ease-press), transform var(--t-tap) var(--ease-press);
 }
 
 .workspace button:hover:not(:disabled),
@@ -157,7 +157,7 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  transition: transform 200ms ease-out;
+  transition: transform var(--t-near) var(--ease-move);
 }
 
 .switch[aria-checked="true"]::after,
@@ -324,7 +324,7 @@
 .workspace-nav button[role="tab"] {
   border-left: 2px solid transparent;
   border-radius: 0;
-  transition: border-color var(--motion-chrome) var(--ease-out), color var(--motion-chrome) var(--ease-out);
+  transition: border-color var(--t-near) var(--ease-press), color var(--t-near) var(--ease-press);
 }
 .workspace-nav button[role="tab"]:hover:not(:disabled) {
   background: none;
@@ -516,66 +516,19 @@
   font-size: 34px;
   font-weight: 600;
   letter-spacing: -0.6px;
-  animation: solare-settle 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes solare-settle {
-  from {
-    opacity: 0.4;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .letter-flip {
-  display: inline-flex;
-  perspective: 480px;
-  font-family: var(--font-display);
-}
-
-.letter-flip-char {
-  display: inline-block;
-  animation: letter-flip 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes letter-flip {
-  from {
-    transform: rotateX(180deg);
-    opacity: 0.25;
-  }
-  to {
-    transform: rotateX(0);
-    opacity: 1;
-  }
+  display: inline;
 }
 
 .palette {
   background: var(--surface-1);
-  backdrop-filter: blur(var(--blur)) saturate(140%);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(140%);
   border-radius: var(--radius-sheet);
   border: 0.5px solid var(--hairline);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow);
   max-width: 560px;
   padding: 16px;
-  animation: palette-reveal var(--motion-reveal) var(--ease-out) both;
-}
-@keyframes palette-reveal {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 1;
-  }
 }
 
 .empty-state {
@@ -643,20 +596,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .letter-flip-char,
-  .first-run h1 {
-    animation: none !important;
-    transform: none !important;
-  }
-}
-
-:root[data-motion="reduced"] .letter-flip-char,
-:root[data-motion="reduced"] .first-run h1 {
-  animation: none !important;
-  transform: none !important;
-}
-
 .workspace,
 .workspace-main,
 .settings,
@@ -702,24 +641,6 @@
 .connect-mark .card {
   fill: var(--accent);
   opacity: 0.9;
-}
-.connect-mark.reduced .card {
-  animation: none;
-}
-.connect-mark.reduced .card { opacity: 1; transform: none; }
-
-@keyframes cursor-click {
-  0%, 15% { transform: translate(40px, -20px); }
-  35%, 45% { transform: translate(0, 0); }
-  55%, 100% { transform: translate(90px, -10px); }
-}
-@keyframes card-fly {
-  0%, 40% { transform: translate(-140px, 0); opacity: 0; }
-  60%, 100% { transform: translate(0, 0); opacity: 0.9; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .connect-mark .card { animation: none !important; }
 }
 
 .sheet-backdrop {
@@ -964,7 +885,7 @@ ul.ledger > li:first-child {
   min-height: 0;
   max-width: 14ch;
   overflow-wrap: anywhere;
-  transition: color var(--motion-chrome) var(--ease-out);
+  transition: color var(--t-near) var(--ease-press);
 }
 button.home-statement:hover:not(:disabled) {
   background: none;
@@ -1032,7 +953,7 @@ button.home-statement:hover:not(:disabled) {
   border-radius: 2px 2px 0 0;
   background: var(--course, var(--accent));
   transform: translateX(-50%);
-  transition: opacity var(--motion-chrome) var(--ease-out);
+  transition: opacity var(--t-near) var(--ease-mark);
 }
 .tick.past { opacity: 0.35; }
 .tick.done { box-shadow: inset 0 0 0 2px var(--fg); }
@@ -1148,7 +1069,6 @@ button.home-statement:hover:not(:disabled) {
   height: 12px;
   background: var(--course, var(--accent));
   transform: translateX(-1px);
-  transition: left 1s linear;
 }
 .tape-readout {
   display: flex;
@@ -1308,20 +1228,6 @@ button.home-statement:hover:not(:disabled) {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .palette { animation: none; }
-}
-:root[data-motion="reduced"] .palette {
-  animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tick, .bubble, .item-popup, .tape-head, .home-statement { transition: none; }
-}
-:root[data-motion="reduced"] .tape-head {
-  transition: none;
-}
-
 /* Type roles win over the generic workspace heading scale */
 .workspace-main h1.index-label,
 .workspace-main h2.index-label,
@@ -1421,73 +1327,3 @@ button.home-statement:hover:not(:disabled) {
   }
 }
 
-/* Voice sheet + Blot (docs/design/blot-animation-plan-2026-09-30.md).
-   Temporary chrome: glass, no backdrop, the workspace stays usable. Blot is the
-   only moving thing; the answer text writes itself and then holds still. */
-.voice-sheet {
-  position: fixed;
-  left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  translate: -50% 0; /* not transform: rise-in animates transform */
-  width: min(560px, calc(100vw - 32px));
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-  padding: 14px 18px 14px 10px;
-  z-index: 30;
-  animation: rise-in var(--motion-sheet) var(--ease-out);
-}
-@media (max-width: 520px) {
-  .voice-sheet {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    padding: 12px 16px 16px;
-  }
-}
-.workspace .voice-sheet button.blot,
-.voice-sheet button.blot {
-  display: block;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  background: none;
-  border-radius: var(--radius-control, 10px);
-  cursor: pointer;
-  min-width: 44px;
-  min-height: 44px;
-}
-.blot canvas {
-  display: block;
-}
-.voice-body {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  padding-top: 10px;
-}
-.voice-label {
-  margin: 0;
-  font: 500 var(--type-label) / 1.2 var(--font-mono);
-  letter-spacing: var(--type-label-tracking);
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.voice-caption {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.45;
-  color: var(--fg);
-}
-.voice-sheet[data-state="thinking"] .voice-caption,
-.voice-sheet[data-state="idle"] .voice-caption {
-  color: var(--muted);
-}
-.voice-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-.voice-actions:empty {
-  display: none;
-}

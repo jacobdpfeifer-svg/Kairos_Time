@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { InkRing } from "./InkRing";
 import { readCourseColors } from "../ipc";
+import { useExit } from "../motion";
 import { useVoicePresence, voicePresence, withCourseColors, type VoicePresence } from "./presence";
 
 const LABEL: Record<VoicePresence["state"], string> = {
@@ -41,6 +42,7 @@ function captionFor(p: VoicePresence): string {
 export function VoiceSheet() {
   const p = useVoicePresence();
   const [open, setOpen] = useState(() => voicePresence.get().state !== "idle");
+  const exit = useExit(() => setOpen(false));
   const [colors, setColors] = useState<Record<string, string>>({});
   const active = ACTIVE.has(p.state);
 
@@ -58,14 +60,17 @@ export function VoiceSheet() {
   const [seenState, setSeenState] = useState(p.state);
   if (seenState !== p.state) {
     setSeenState(p.state);
-    if (p.state !== "idle") setOpen(true);
+    if (p.state !== "idle") {
+      exit.reopen();
+      setOpen(true);
+    }
   }
 
   const items = useMemo(() => withCourseColors(p.items, colors), [p.items, colors]);
 
   const close = () => {
-    setOpen(false);
     voicePresence.reset();
+    exit.requestClose();
   };
 
   useEffect(() => {
@@ -82,7 +87,16 @@ export function VoiceSheet() {
   if (!open) return null;
 
   return (
-    <aside className="voice-sheet" aria-label="Voice" data-state={p.state}>
+    <aside
+      ref={(el) => {
+        exit.node.current = el;
+      }}
+      className="voice-sheet"
+      data-phase={exit.phase}
+      data-state={p.state}
+      aria-label="Voice"
+      onTransitionEnd={exit.onTransitionEnd}
+    >
       <div className="voice-ring">
         <InkRing state={p.state} getLevel={() => voicePresence.level} size={104} accent={items[0]?.color} />
       </div>

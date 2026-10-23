@@ -152,7 +152,7 @@ Fix failing tests and lint introduced by the audit; pre-existing failures → §
 - `@mcp.tool()` + `@validate_params`; preview-only submit/comment/discussion unchanged.
 - Connector writes → `get_connector_guard`; Gmail/GCal → `ConfirmationGuard` only.
 - `connector-registry.mjs` ↔ `plugins/*`.
-- `tools/vendor-shared.mjs` ↔ `app/extension-chrome/shared/`.
+- `app/extension-chrome/tools/vendor-shared.mjs` ↔ `app/extension-chrome/shared/`.
 - `.env.example` (if present) ↔ code env reads.
 
 ---

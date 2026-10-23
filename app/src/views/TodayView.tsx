@@ -1,5 +1,5 @@
 // Purpose: today page over mission control
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CourseMap, FreshnessChange, GradeTruth, SemesterSurface, SemesterTick, SyncHealth } from "../ipc";
 import {
   onFreshnessUpdated,
@@ -177,6 +177,26 @@ export function TodayView({
   const today = useMemo(() => new Date(Date.parse(surface?.today || "") || Date.now()), [surface?.today]);
   const ticks = useMemo(() => (surface ? surface.courses.flatMap((c) => c.ticks) : []), [surface]);
   const fresh = changes.filter((c) => changeTime(c) > seenAt);
+  const freshSig = fresh.map((c) => c.key).join("|");
+  const seenFresh = useRef<string | null>(null);
+  const changesRef = useRef<HTMLElement | null>(null);
+  const [settleKey, setSettleKey] = useState(0);
+  useEffect(() => {
+    if (!freshSig) return;
+    if (seenFresh.current === null) {
+      seenFresh.current = freshSig;
+      return;
+    }
+    if (seenFresh.current === freshSig) return;
+    seenFresh.current = freshSig;
+    // The settle needs a fresh element for @starting-style, which means a
+    // remount. A sync is a background event, so it may not take the keyboard
+    // out of a list the student is reading: when focus is in here, the new
+    // rows simply appear.
+    const node = changesRef.current;
+    if (node && node.contains(document.activeElement)) return;
+    setSettleKey((n) => n + 1);
+  }, [freshSig]);
   const hasCourses = Boolean(surface && surface.courses.length > 0);
 
   const openTick = (tick: SemesterTick) => {
@@ -252,7 +272,7 @@ export function TodayView({
       />
 
       {fresh.length > 0 && (
-        <section className="today-changes" aria-labelledby="changes-heading">
+        <section key={settleKey} ref={changesRef} className="today-changes" aria-labelledby="changes-heading">
           <div className="today-line-row">
             <h2 id="changes-heading" className="today-row-title">
               {fresh.length === 1 ? "1 thing changed in Canvas" : `${fresh.length} things changed in Canvas`} since you last looked.
@@ -341,7 +361,7 @@ export function ChangeRows({ changes, now = Date.now() }: { changes: FreshnessCh
   return (
     <ul className="rows change-rows">
       {changes.map((c) => (
-        <li key={c.key}>
+        <li key={c.key} data-flip={c.key}>
           <div className="row">
             <span className="row-main">
               {c.url ? (

@@ -195,6 +195,16 @@ it, per-instance, and only then does the agent act.
   on the automated-access side, not the content side.
 - Do not add streaks, leaderboards, or any mechanic with a losable state to the
   learn_loop/habit surfaces.
+  **Amended 2026-10-23** (MASTER §16.6, [`../research/game-design-as-product-design-2026-10-23.md`](../research/game-design-as-product-design-2026-10-23.md)):
+  this rule is unchanged but now carries its reason, so it survives the next
+  person who arrives with a number. Every published streak figure — Duolingo's
+  3.6x course completion, +1.7% day-7 from a milestone animation, +14% from a
+  streak wager — is a retention or engagement metric, and no measured effect of
+  streaks on *learning outcomes* exists in either direction. The evidence offered
+  for streaks is evidence for the wrong outcome. The same section also prohibits
+  by name the free-to-play monetization ladder and any offer timed to a moment of
+  failure: Kairos may use that moment to reduce the cost of the next action, never
+  to raise the price of staying.
 - Do not treat item 3 (syllabus/grading extraction) as done because this doc
   exists — it is a spec, not an implementation.
 - Do not let `email_send` or `calendar` (event writes) escalate to

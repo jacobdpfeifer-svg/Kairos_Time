@@ -320,7 +320,7 @@ function EligibleOffer({
         )}
       </div>
       {offer.alternatives.length > 0 && (
-        <details>
+        <details className="disclosure">
           <summary>Other items ready now</summary>
           <ul>
             {offer.alternatives.map((alt) => (
@@ -565,7 +565,7 @@ function AttemptPanel({
       <NowPlaying title={item.stem} course={item.course} startedAt={attempt.started_at} plannedSeconds={planned} onStop={() => void skip()} />
 
       {example && (
-        <details className="example" open={exampleOpen} onToggle={(e) => setExampleOpen((e.target as HTMLDetailsElement).open)}>
+        <details className="disclosure example" open={exampleOpen} onToggle={(e) => setExampleOpen((e.target as HTMLDetailsElement).open)}>
           <summary>{example.title ?? "Worked example"}</summary>
           <p>{example.text}</p>
           {example.faded_step && <p className="muted">Faded step: {example.faded_step}</p>}
@@ -599,7 +599,7 @@ function AttemptPanel({
       {revealed && (
         <section className="revealed" aria-label="Source and solution">
           {revealed.sources.map((s) => (
-            <details key={s.id} open>
+            <details className="disclosure" key={s.id} open>
               <summary>{s.locator}</summary>
               <pre className="source-text">{s.text}</pre>
             </details>
@@ -796,7 +796,7 @@ function FeedbackPanel({ result, item, announce, onNext }: { result: Assessed; i
       )}
       {result.feedback && <p className="feedback-text">{result.feedback}</p>}
       <KeyBlock keyView={result.key} />
-      <details>
+      <details className="disclosure">
         <summary>Source</summary>
         {result.sources.map((s) => (
           <div key={s.id}>

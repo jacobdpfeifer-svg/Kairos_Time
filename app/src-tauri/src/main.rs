@@ -1,4 +1,4 @@
-// Purpose: starts the tauri desktop shell
+// Reviewer: Tauri process entry. Registers native commands; the webview is not the security boundary.
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -159,7 +159,9 @@ fn main() {
             commands::read_workspace_amendments,
             commands::write_workspace_amendments,
             commands::add_calendar_event,
+            commands::remove_calendar_event,
             commands::dismiss_calendar_suggestion,
+            commands::restore_calendar_suggestion,
             commands::open_external_url,
             commands::runtime_info,
             commands::set_profile,

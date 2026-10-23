@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { schoolLegalText } from "../legal";
 import { LegalText } from "./LegalText";
+import { MotionDialog } from "./MotionDialog";
 import { Wordmark } from "./Wordmark";
 import {
   checkCanvasSession,
@@ -110,7 +111,6 @@ export function FirstRun({
   const [accepting, setAccepting] = useState(false);
   const [blocker, setBlocker] = useState<string | null>(null);
   const termsButton = useRef<HTMLButtonElement | null>(null);
-  const termsClose = useRef<HTMLButtonElement | null>(null);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
   const heading = useRef<HTMLHeadingElement | null>(null);
@@ -140,19 +140,6 @@ export function FirstRun({
       alive = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!termsOpen) return;
-    termsClose.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setTermsOpen(false);
-        window.setTimeout(() => termsButton.current?.focus(), 0);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [termsOpen]);
 
   const closeTerms = () => {
     setTermsOpen(false);
@@ -490,7 +477,7 @@ export function FirstRun({
                 : "School sign-in happens in Chrome. You type and complete MFA there."}
           </p>
           <div className="nb-mark">
-            <ConnectCanvasMark reduced={reduced || session === "found"} />
+            <ConnectCanvasMark />
           </div>
           {session !== "found" && session !== "returning" && <p className="nb-trust">Kairos stays underneath. It never sees your password or MFA code.</p>}
           {error && (
@@ -550,6 +537,7 @@ export function FirstRun({
                 >
                   Sign in again
                 </button>
+                <p>Today, Week, and Courses stay empty until you sign in to Canvas. You can finish that later in Settings.</p>
                 <button type="button" className="link" onClick={() => setStep("workspace")}>
                   Continue without classes
                 </button>
@@ -627,21 +615,17 @@ export function FirstRun({
       )}
 
       {termsOpen && (
-        <div className="sheet-backdrop" role="presentation" onClick={closeTerms}>
-          <div
-            className="legal-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="terms-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 id="terms-title">Terms</h2>
-            <LegalText text={legal} />
-            <button type="button" className="primary" ref={termsClose} onClick={closeTerms}>
-              Close
-            </button>
-          </div>
-        </div>
+        <MotionDialog onClose={closeTerms} className="legal-modal" labelledBy="terms-title" initialFocus="[data-terms-close]">
+          {(close) => (
+            <>
+              <h2 id="terms-title">Terms</h2>
+              <LegalText text={legal} />
+              <button type="button" className="primary" data-terms-close onClick={close}>
+                Close
+              </button>
+            </>
+          )}
+        </MotionDialog>
       )}
     </div>
   );

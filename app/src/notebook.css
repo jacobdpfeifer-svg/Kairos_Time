@@ -120,8 +120,8 @@ a:hover {
   background: var(--sheet);
   color: var(--fg);
   border-radius: var(--radius-control);
-  transition: transform var(--motion-press) var(--ease), box-shadow var(--motion-press) var(--ease),
-    background-color var(--motion-chrome) var(--ease);
+  transition: transform var(--t-tap) var(--ease-press), box-shadow var(--t-tap) var(--ease-press),
+    background-color var(--t-near) var(--ease-press);
 }
 .workspace button:hover:not(:disabled),
 .first-run button:hover:not(:disabled) {
@@ -304,6 +304,7 @@ label {
   color: var(--muted);
   background: transparent;
   box-shadow: none;
+  transition: background-color var(--t-near) var(--ease-move), color var(--t-near) var(--ease-move);
 }
 .workspace-nav button[role="tab"]:hover:not(:disabled) {
   background: var(--nav-current);
@@ -320,6 +321,7 @@ label {
 .workspace-main {
   padding: 32px clamp(20px, 4vw, 56px) 56px;
 }
+/* Peer views swap with no travel. The sidebar selection is the spatial cue. */
 .workspace-main > .scene-paper {
   margin: -32px calc(-1 * clamp(20px, 4vw, 56px)) -56px;
   padding: 32px clamp(20px, 4vw, 56px) 56px;
@@ -329,8 +331,30 @@ label {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
+  background: transparent;
+  z-index: 40;
+}
+.sheet-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   background: var(--backdrop);
-  backdrop-filter: none;
+  opacity: 1;
+  transition: opacity var(--t-settle) var(--ease-mark);
+}
+.sheet-backdrop > .sheet,
+.sheet-backdrop > [role="dialog"] {
+  z-index: 1;
+}
+/* In-flow sheets sit under the dim unless they're positioned. Fixed sheets keep their own position. */
+.sheet-backdrop > .sheet:not(.ask-sheet):not(.plan-sheet):not(.confirm-sheet):not(.cmd-bar),
+.sheet-backdrop > .legal-modal {
+  position: relative;
+}
+.sheet-backdrop[data-phase="closed"]::before {
+  opacity: 0;
+  transition-timing-function: var(--ease-lift);
 }
 /* `.first-run > *` caps step width at 420px; a modal backdrop covers the window. */
 .first-run > .sheet-backdrop {
@@ -351,6 +375,13 @@ label {
   border: 1px solid var(--hairline);
   border-radius: var(--radius-control);
   box-shadow: var(--page-shadow);
+  opacity: 1;
+  transition: opacity var(--t-near) var(--ease-mark);
+}
+@starting-style {
+  .bubble {
+    opacity: 0;
+  }
 }
 .bubble strong {
   font-weight: 700;
@@ -507,22 +538,6 @@ p.home-statement {
   margin: 0;
 }
 
-/* ---------- reduced motion ---------- */
-:root[data-motion="reduced"] .workspace button,
-:root[data-motion="reduced"] .first-run button {
-  transition: none;
-}
-:root[data-motion="reduced"] .workspace button:active,
-:root[data-motion="reduced"] .first-run button:active {
-  transform: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .workspace button,
-  .first-run button {
-    transition: none;
-  }
-}
-
 .settings-workspace {
   margin-top: 18px;
   padding-top: 16px;
@@ -639,18 +654,21 @@ p.home-statement {
 .studio-actions button {
   min-height: 44px;
 }
-@keyframes studio-settle {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
-}
 .studio-block.is-new {
-  animation: studio-settle 200ms var(--ease);
+  transition: opacity var(--t-settle) var(--ease-mark), transform var(--t-settle) var(--ease-mark);
 }
-:root[data-motion="reduced"] .studio-block.is-new {
-  animation: none;
+.studio-block {
+  transition: opacity var(--t-settle) var(--ease-lift), transform var(--t-settle) var(--ease-lift);
 }
-@media (prefers-reduced-motion: reduce) {
-  .studio-block.is-new { animation: none; }
+.studio-block.is-leaving {
+  opacity: 0;
+  transform: translateY(calc(var(--travel-row) * -1));
+}
+@starting-style {
+  .studio-block.is-new {
+    opacity: 0;
+    transform: translateY(var(--travel-settle));
+  }
 }
 
 /* ---------- Onboarding (MASTER §10): one question per screen ---------- */
@@ -815,7 +833,13 @@ p.home-statement {
   align-items: center;
   padding: 12px 0;
   border-top: 1px solid var(--hairline);
-  animation: nb-settle var(--motion-settle) var(--ease) both;
+  transition: opacity var(--t-settle) var(--ease-mark), transform var(--t-settle) var(--ease-mark);
+}
+@starting-style {
+  .nb-sync li {
+    opacity: 0;
+    transform: translateY(var(--travel-settle));
+  }
 }
 .nb-sync li .muted {
   grid-column: 2;
@@ -866,22 +890,8 @@ p.home-statement {
   border-top: 1px solid var(--hairline);
   margin: 16px 0;
 }
-@keyframes nb-settle {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .nb-sync li {
-    animation: none;
-  }
-}
-:root[data-motion="reduced"] .nb-sync li {
-  animation: none;
-}
 
-/* Canvas handoff film: Kairos → Chrome → student sign-in → Kairos classes. */
+/* Canvas handoff: one still scene. The sequence is in the accessible name. */
 .connect-mark {
   width: min(100%, 420px);
   color: var(--fg);
@@ -889,24 +899,14 @@ p.home-statement {
 .handoff-film {
   position: relative;
   width: 100%;
-  min-height: 202px;
-  overflow: hidden;
 }
 .handoff-scene {
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  opacity: 0;
-  transform: translateY(6px);
-  animation: handoff-scene 12s var(--ease) infinite;
 }
-.handoff-scene:nth-child(2) { animation-delay: 3s; }
-.handoff-scene:nth-child(3) { animation-delay: 6s; }
-.handoff-scene:nth-child(4) { animation-delay: 9s; }
 .handoff-window {
   width: min(100%, 320px);
   min-height: 112px;
@@ -935,8 +935,6 @@ p.home-statement {
   border-radius: 50%;
 }
 .handoff-bar span { margin-left: 5px; }
-.chrome-bar b { color: var(--fg); font-weight: 700; }
-.chrome-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .handoff-content {
   display: flex;
   flex-direction: column;
@@ -945,7 +943,6 @@ p.home-statement {
   font-size: 14px;
 }
 .handoff-content strong { font-size: 18px; letter-spacing: -0.02em; }
-.handoff-sub { color: var(--muted); font-size: 13px; }
 .handoff-row {
   display: flex;
   align-items: center;
@@ -963,50 +960,7 @@ p.home-statement {
   border-radius: 50%;
   background: var(--pen);
 }
-.shield-dot { display: inline-grid; place-items: center; width: 18px !important; height: 18px !important; color: var(--sheet); font-size: 11px; background: var(--success) !important; }
-.course-dot.one { background: #4a8fe7; }
-.course-dot.two { background: #3fb07c; }
-.course-dot.three { background: #ef6a4c; }
 .handoff-label { color: var(--muted); font-size: 13px; text-align: center; }
-.scene-chrome { position: absolute; }
-.behind-window { position: absolute; width: 220px; transform: translate(-38px, 12px) scale(.78); opacity: .62; }
-.chrome-window { position: relative; z-index: 1; width: 290px; transform: translate(28px, -8px); }
-.solo-window { transform: none; }
-@keyframes handoff-scene {
-  0%, 3% { opacity: 0; transform: translateY(6px); }
-  7%, 21% { opacity: 1; transform: none; }
-  25%, 100% { opacity: 0; transform: translateY(-6px); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .handoff-scene,
-  .handoff-scene:nth-child(2),
-  .handoff-scene:nth-child(3),
-  .handoff-scene:nth-child(4) {
-    position: relative;
-    inset: auto;
-    opacity: 1;
-    transform: none;
-    animation: none;
-    padding: 8px 0 16px;
-    border-top: 1px solid var(--hairline);
-  }
-  .handoff-scene:first-child { border-top: 0; }
-  .handoff-film { overflow: visible; }
-}
-:root[data-motion="reduced"] .handoff-scene,
-:root[data-motion="reduced"] .handoff-scene:nth-child(2),
-:root[data-motion="reduced"] .handoff-scene:nth-child(3),
-:root[data-motion="reduced"] .handoff-scene:nth-child(4) {
-  position: relative;
-  inset: auto;
-  opacity: 1;
-  transform: none;
-  animation: none;
-  padding: 8px 0 16px;
-  border-top: 1px solid var(--hairline);
-}
-:root[data-motion="reduced"] .handoff-scene:first-child { border-top: 0; }
-:root[data-motion="reduced"] .handoff-film { overflow: visible; }
 .first-run input[type="checkbox"],
 .workspace input[type="checkbox"] {
   appearance: auto;
@@ -1161,19 +1115,16 @@ p.home-statement {
   border: 1px solid var(--hairline);
   border-radius: var(--radius-sheet);
   box-shadow: var(--page-shadow);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  animation: nb-sheet-in var(--motion-sheet) var(--ease) both;
+  translate: none;
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition: opacity var(--t-sheet) var(--ease-mark), transform var(--t-sheet) var(--ease-mark);
 }
-@keyframes nb-sheet-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 6px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+.voice-sheet[data-phase="closed"] {
+  opacity: 0;
+  transform: translate(-50%, var(--travel-sheet));
+  transition-duration: var(--t-settle);
+  transition-timing-function: var(--ease-lift);
 }
 .voice-ring {
   width: 104px;
@@ -1220,13 +1171,20 @@ p.home-statement {
   gap: 8px;
   justify-content: flex-end;
 }
-@media (prefers-reduced-motion: reduce) {
-  .voice-sheet {
-    animation: none;
-  }
+/* Moved out of spatial.css with the rest of the retired Blot chrome: the
+   component layer owns the voice sheet (MASTER §08). */
+.voice-actions:empty {
+  display: none;
 }
-:root[data-motion="reduced"] .voice-sheet {
-  animation: none;
+.voice-sheet[data-state="thinking"] .voice-caption,
+.voice-sheet[data-state="idle"] .voice-caption {
+  color: var(--muted);
+}
+@media (max-width: 520px) {
+  .voice-sheet {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
 }
 
 /* ---------- Exam prep ---------- */
@@ -1651,6 +1609,48 @@ p.home-statement {
 .today-week > .link {
   margin-top: 10px;
 }
+/* A row that leaves does so by leaving the model: nothing paints a row out
+   from under a commit any more (MASTER §16.3), so there is no .is-leaving end
+   state here. The studio keeps its own, on .studio-block. */
+.rows > li.suggestion {
+  max-height: 12rem;
+  overflow: hidden;
+  transition:
+    max-height var(--t-settle) var(--ease-lift),
+    opacity var(--t-settle) var(--ease-lift),
+    transform var(--t-settle) var(--ease-lift);
+}
+/* Declined: the row collapses to the single line that still carries Undo.
+   It never collapses to zero, because a focusable control inside a row of no
+   height is a tab stop the student cannot see. */
+.rows > li.suggestion.is-declined {
+  max-height: 3rem;
+}
+.today-changes {
+  transition: opacity var(--t-settle) var(--ease-mark), transform var(--t-settle) var(--ease-mark);
+}
+@starting-style {
+  .today-changes {
+    opacity: 0;
+    transform: translateY(var(--travel-settle));
+  }
+}
+.crossfade {
+  transition: opacity var(--t-near) var(--ease-mark);
+}
+.crossfade.is-out {
+  opacity: 0;
+}
+.semester.draw .tick {
+  transform-origin: bottom center;
+  transform: scaleY(1);
+  transition: transform var(--t-draw) var(--ease-mark);
+}
+@starting-style {
+  .semester.draw .tick {
+    transform: scaleY(0);
+  }
+}
 
 /* ---------- rows (MASTER §06 row) ---------- */
 ul.rows {
@@ -1678,6 +1678,10 @@ ul.rows > li:last-child {
   background: transparent;
   box-shadow: none;
   color: var(--fg);
+}
+.workspace .rows button.row,
+.workspace .rows .row {
+  transition: background-color var(--t-near) var(--ease-press);
 }
 .workspace .rows button.row:hover:not(:disabled) {
   background: var(--sheet-2);
@@ -1757,7 +1761,8 @@ ul.rows > li:last-child {
   font-size: 13px;
 }
 
-/* ---------- ⌘K command bar ---------- */
+/* ⌘K is on the next frame. Keyboard-initiated, so it does not travel, and
+   it never carries a data-phase, so the backdrop has nothing to fade. */
 .cmd-backdrop {
   z-index: 60;
   display: flex;
@@ -1766,6 +1771,8 @@ ul.rows > li:last-child {
   padding: 12vh 16px 16px;
 }
 .cmd-bar {
+  position: relative;
+  z-index: 1;
   width: min(600px, 100%);
   max-height: 64vh;
   display: flex;
@@ -1834,6 +1841,48 @@ ul.rows > li:last-child {
   margin: 0;
   padding: 12px 18px 16px;
 }
+.cmd-parse {
+  transition: opacity var(--t-near) var(--ease-mark);
+}
+@starting-style {
+  .cmd-parse {
+    opacity: 0;
+  }
+}
+
+/* Ask rises from below its resting place. Item sheets fade in place. */
+.motion-rise {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition: opacity var(--t-sheet) var(--ease-mark), transform var(--t-sheet) var(--ease-mark);
+}
+.motion-rise[data-phase="closed"] {
+  opacity: 0;
+  transform: translate(-50%, var(--travel-sheet));
+  transition-duration: var(--t-settle);
+  transition-timing-function: var(--ease-lift);
+}
+.motion-place {
+  opacity: 1;
+  transition: opacity var(--t-settle) var(--ease-mark);
+}
+.motion-place[data-phase="closed"] {
+  opacity: 0;
+  transition-timing-function: var(--ease-lift);
+}
+@starting-style {
+  .motion-rise[data-phase="open"] {
+    opacity: 0;
+    transform: translate(-50%, var(--travel-sheet));
+  }
+  .motion-place[data-phase="open"] {
+    opacity: 0;
+  }
+  .voice-sheet[data-phase="open"] {
+    opacity: 0;
+    transform: translate(-50%, var(--travel-sheet));
+  }
+}
 
 /* ---------- Ask sheet ---------- */
 .ask-sheet {
@@ -1841,7 +1890,6 @@ ul.rows > li:last-child {
   z-index: 55;
   top: 6vh;
   left: 50%;
-  transform: translateX(-50%);
   width: min(640px, calc(100% - 32px));
   max-height: 88vh;
   overflow: auto;
@@ -1927,7 +1975,6 @@ ul.rows > li:last-child {
   z-index: 70;
   bottom: 24px;
   left: 50%;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 16px;
@@ -1935,24 +1982,19 @@ ul.rows > li:last-child {
   padding: 12px 16px;
   font-size: 15px;
   font-weight: 600;
-  animation: nb-settle var(--motion-settle, 200ms) var(--ease) both;
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition: opacity var(--t-settle) var(--ease-mark), transform var(--t-settle) var(--ease-mark);
 }
-@keyframes nb-settle {
-  from {
+.toast[data-phase="closed"] {
+  opacity: 0;
+  transform: translate(-50%, var(--travel-row));
+  transition-timing-function: var(--ease-lift);
+}
+@starting-style {
+  .toast[data-phase="open"] {
     opacity: 0;
-    transform: translate(-50%, 4px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-}
-:root[data-motion="reduced"] .toast {
-  animation: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .toast {
-    animation: none;
+    transform: translate(-50%, var(--travel-row));
   }
 }
 
@@ -2174,6 +2216,13 @@ ul.rows > li:last-child {
 .confirm-body p {
   margin: 0 0 6px;
 }
+.confirm-match {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  font-weight: 700;
+}
 .plan-proposal section + section {
   margin-top: 14px;
 }
@@ -2322,11 +2371,13 @@ ul.rows > li:last-child {
 .audit-form .row label {
   flex: 1 1 140px;
 }
+.disclosure,
 .settings-advanced {
   margin: 20px 0;
   border-top: 1px solid var(--hairline);
   padding-top: 12px;
 }
+.disclosure > summary,
 .settings-advanced > summary {
   cursor: pointer;
   font-weight: 700;
@@ -2622,13 +2673,6 @@ ul.rows > li:last-child {
     align-items: center;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .workspace .mc-island-header,
-  .mc-island {
-    transition: none;
-  }
-}
-
 .amend-row {
   display: flex;
   flex-wrap: wrap;

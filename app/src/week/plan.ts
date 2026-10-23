@@ -51,6 +51,8 @@ export type PlanRow = {
   points: number;
   weight: number;
   html_url: string | null;
+  /** Set only on a row in `WeekModel.done`. */
+  done_at?: string;
 };
 
 const DAY_MS = 86_400_000;
@@ -134,8 +136,23 @@ export type WeekModel = {
   freeMinutes: number | null;
   /** Rows added after the student accepted a plan; never slotted in silently. */
   newSincePlan: PlanRow[];
+  /** Captures marked done this week. Off the day, still on the page, so Not done is not a toast. */
+  done: PlanRow[];
   accepted: { at: string } | null;
 };
+
+/**
+ * Done work stays on the week it was done, then leaves the page. Without this
+ * the Done section would carry every capture a student ever finished. Only the
+ * lower bound is checked: a stamp ahead of this week is a clock, not a reason
+ * to hide a row, and an unreadable stamp keeps the row rather than taking away
+ * the only Not done.
+ */
+function doneThisWeek(doneAt: string, week: string): boolean {
+  const t = Date.parse(doneAt);
+  if (!Number.isFinite(t)) return true;
+  return dayKey(new Date(t)) >= week;
+}
 
 export function buildWeek(ticks: SemesterTick[], snap: WeekSnapshot, now: Date): WeekModel {
   const today = dayKey(now);
@@ -143,6 +160,7 @@ export function buildWeek(ticks: SemesterTick[], snap: WeekSnapshot, now: Date):
   const end = addDays(week, 7);
   const { state } = snap;
   const rows: PlanRow[] = [];
+  const done: PlanRow[] = [];
 
   for (const t of ticks) {
     if (t.completed || !t.due_at) continue;
@@ -167,11 +185,10 @@ export function buildWeek(ticks: SemesterTick[], snap: WeekSnapshot, now: Date):
     });
   }
   for (const c of snap.items) {
-    if (c.done_at) continue;
     const minutes = state.estimates[c.id] ?? 30;
     const fallback = c.day ?? (c.due_at ? defaultDay(c.due_at, minutes, "assignment", today) : today);
     const { day, why } = plannedDay(c.id, fallback, state, week);
-    rows.push({
+    const row: PlanRow = {
       id: c.id,
       title: c.title,
       course: c.course,
@@ -185,7 +202,10 @@ export function buildWeek(ticks: SemesterTick[], snap: WeekSnapshot, now: Date):
       points: 0,
       weight: 0,
       html_url: null,
-    });
+    };
+    if (c.done_at) {
+      if (doneThisWeek(c.done_at, week)) done.push({ ...row, done_at: c.done_at });
+    } else rows.push(row);
   }
 
   const leftovers = rows
@@ -217,6 +237,7 @@ export function buildWeek(ticks: SemesterTick[], snap: WeekSnapshot, now: Date):
     hours,
     freeMinutes,
     newSincePlan,
+    done: done.sort((a, b) => String(b.done_at).localeCompare(String(a.done_at))),
     accepted: accepted ? { at: accepted.at } : null,
   };
 }

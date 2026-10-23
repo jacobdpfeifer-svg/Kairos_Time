@@ -1,0 +1,56 @@
+/* Kairos motion tokens. MASTER §15.2 and §16.3.
+   Source of truth. The app imports this file. Identical copies live at
+   landing/motion.css and app/extension-chrome/ui/motion.css.
+   No surface redefines these. */
+
+:root,
+:host {
+  /* Curves. Four jobs, four curves. */
+  --ease-mark: cubic-bezier(0.22, 1, 0.36, 1); /* easeOutQuint. A mark lands, then settles. */
+  --ease-press: cubic-bezier(0, 0, 0.4, 1); /* Sharp, no tail. Feedback under ~120ms. */
+  --ease-move: cubic-bezier(0.4, 0, 0.2, 1); /* Ease-in-out. Something already on screen. */
+  --ease-lift: cubic-bezier(0.3, 0, 1, 1); /* Accelerate. Exits only. */
+
+  /* Durations, tiered by distance travelled, not by component. */
+  --t-tap: 90ms;
+  --t-near: 140ms;
+  --t-settle: 200ms;
+  --t-sheet: 260ms;
+  --t-draw: 600ms;
+
+  /* The visual hold on a row the student just acted on (MASTER §16.3).
+     Same value as --t-tap on purpose: the shipped hit-stop range starts
+     near 83ms. Data commits first; only the paint waits. One tier, ever. */
+  --t-hold: 90ms;
+
+  /* Travel, separate from duration so reduced motion can zero it alone. */
+  --travel-settle: 4px;
+  --travel-row: 6px;
+  --travel-sheet: 16px;
+}
+
+/* Reduced motion replaces travel with a cross-fade. It does not remove the change.
+   .01ms, never 0, so transitionend still fires. --t-tap and --t-near stay. */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  :host {
+    --t-settle: 120ms;
+    --t-sheet: 120ms;
+    --t-draw: 0.01ms;
+    --t-hold: 0.01ms;
+    --travel-settle: 0px;
+    --travel-row: 0px;
+    --travel-sheet: 0px;
+  }
+}
+
+:root[data-motion="reduced"],
+:host([data-motion="reduced"]) {
+  --t-settle: 120ms;
+  --t-sheet: 120ms;
+  --t-draw: 0.01ms;
+  --t-hold: 0.01ms;
+  --travel-settle: 0px;
+  --travel-row: 0px;
+  --travel-sheet: 0px;
+}

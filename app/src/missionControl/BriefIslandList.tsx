@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { friendlyRelative } from "../format";
-import { useDialog } from "../components/useDialog";
+import { MotionDialog } from "../components/MotionDialog";
 import type { AssignmentIsland, BriefKind } from "./contracts";
 
 /*
@@ -34,21 +34,22 @@ export function islandStatus(island: AssignmentIsland): string | null {
 }
 
 function BriefSheet({ titleId, title, onClose, children }: { titleId: string; title: string; onClose: () => void; children: ReactNode }) {
-  const ref = useDialog<HTMLDivElement>(onClose);
   return (
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div ref={ref} className="sheet mc-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
-        <h3 id={titleId} className="mc-sheet-title">
-          {title}
-        </h3>
-        {children}
-        <div className="sheet-actions">
-          <button type="button" className="ghost" onClick={onClose}>
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+    <MotionDialog onClose={onClose} className="sheet mc-sheet" labelledBy={titleId}>
+      {(close) => (
+        <>
+          <h3 id={titleId} className="mc-sheet-title">
+            {title}
+          </h3>
+          {children}
+          <div className="sheet-actions">
+            <button type="button" className="ghost" onClick={close}>
+              Close
+            </button>
+          </div>
+        </>
+      )}
+    </MotionDialog>
   );
 }
 

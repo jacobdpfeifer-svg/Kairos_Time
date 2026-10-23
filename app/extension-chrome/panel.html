@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kairos</title>
     <link rel="stylesheet" href="panel.css" />
+    <script>
+      (function () {
+        var query = window.matchMedia("(prefers-reduced-motion: reduce)");
+        function apply() {
+          if (query.matches) document.documentElement.setAttribute("data-motion", "reduced");
+          else document.documentElement.removeAttribute("data-motion");
+        }
+        apply();
+        query.addEventListener("change", apply);
+      })();
+    </script>
   </head>
   <body>
     <header class="pn-head">

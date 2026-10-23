@@ -1,4 +1,4 @@
-import { useDialog } from "../components/useDialog";
+import { MotionDialog } from "../components/MotionDialog";
 import type { AskEnvelope } from "../study/types";
 import { AskPanel } from "./AskPanel";
 
@@ -21,36 +21,29 @@ export function AskSheet({
   onConnectAi?: () => void;
   onNextStep?: (title: string) => void;
 }) {
-  const ref = useDialog<HTMLDivElement>(onClose, { initialFocus: "[data-autofocus]" });
   return (
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div
-        ref={ref}
-        className="ask-sheet sheet"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ask-sheet-title"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="ask-sheet-head">
-          <h2 id="ask-sheet-title">Ask Kairos</h2>
-          <button type="button" className="ghost" onClick={onClose}>
-            Close
-          </button>
-        </header>
-        <p className="muted ask-sheet-lede">Uses your Canvas material and files. Quizzes and exams you're taking stay unanswered.</p>
-        <AskPanel
-          label="Ask Kairos"
-          startOpen={!initial?.response}
-          initial={initial ?? null}
-          seed={seed}
-          onCancel={onClose}
-          onResult={onResult}
-          onConnectAi={onConnectAi}
-          onNextStep={onNextStep}
-        />
-      </div>
-    </div>
+    <MotionDialog onClose={onClose} rise className="ask-sheet sheet" labelledBy="ask-sheet-title" initialFocus="[data-autofocus]">
+      {(close) => (
+        <>
+          <header className="ask-sheet-head">
+            <h2 id="ask-sheet-title">Ask Kairos</h2>
+            <button type="button" className="ghost" onClick={close}>
+              Close
+            </button>
+          </header>
+          <p className="muted ask-sheet-lede">Uses your Canvas material and files. Quizzes and exams you're taking stay unanswered.</p>
+          <AskPanel
+            label="Ask Kairos"
+            startOpen={!initial?.response}
+            initial={initial ?? null}
+            seed={seed}
+            onCancel={close}
+            onResult={onResult}
+            onConnectAi={onConnectAi}
+            onNextStep={onNextStep}
+          />
+        </>
+      )}
+    </MotionDialog>
   );
 }

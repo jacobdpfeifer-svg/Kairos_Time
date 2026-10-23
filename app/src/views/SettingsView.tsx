@@ -12,6 +12,7 @@ import { SourcesView } from "./SourcesView";
 import { BriefSettings } from "../missionControl/BriefSettings";
 import { WorkspaceAppearance } from "../workspace/WorkspaceAppearance";
 import { useWorkspace } from "../workspace/store";
+import { ConfirmSheet } from "../components/ConfirmSheet";
 
 /** Older deep links and saved groups from before the groups were folded together. */
 const LEGACY_GROUPS: Record<string, string> = {
@@ -31,6 +32,8 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
   const [exporting, setExporting] = useState(false);
   const [exportGrades, setExportGrades] = useState(false);
   const [exportResult, setExportResult] = useState<string>("");
+  const [exportAsk, setExportAsk] = useState(false);
+  const [profileAsk, setProfileAsk] = useState<string | null>(null);
   const [newProfile, setNewProfile] = useState("");
   const [note, setNote] = useState("");
   const [usageOptIn, setUsageOptIn] = useState(() => localStorage.getItem("pn_usage_counts") === "1");
@@ -153,7 +156,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
       {canvas && <p role="status">{canvas}</p>}
       <ExtensionStatus />
 
-      <details className="settings-advanced">
+      <details className="disclosure">
         <summary>Study material and practice questions</summary>
         <p className="muted">What Kairos reads from your courses for practice, exam dates it inferred, and question packets. Most students never need this.</p>
         <SourcesView embedded />
@@ -169,7 +172,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
           Include grades (optional)
         </label>
         <div className="row">
-          <button type="button" className="primary" disabled={!isTauri() || exporting} onClick={() => void runExport()}>
+          <button type="button" className="primary" disabled={!isTauri() || exporting} onClick={() => setExportAsk(true)}>
             {exporting ? "Creating export…" : "Export my Canvas data"}
           </button>
           {!isTauri() && <span className="muted">Exports run in the desktop app.</span>}
@@ -186,7 +189,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
       <ProgramForm />
       <LearningForm />
       {profiles && (
-        <details className="settings-advanced">
+        <details className="disclosure">
           <summary>Separate profiles</summary>
           <p className="muted">
             Data folder: <code>{profiles.root}</code>. Each profile keeps its own sources, history, and Canvas session.
@@ -197,7 +200,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
                 {id}
                 {id === profiles.current ? " (current)" : ""}
                 {id !== profiles.current && (
-                  <button type="button" className="link" onClick={() => void switchProfile(id)}>
+                  <button type="button" className="link" onClick={() => setProfileAsk(id)}>
                     Use this profile
                   </button>
                 )}
@@ -209,7 +212,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
               <span className="visually-hidden">New profile name</span>
               <input type="text" value={newProfile} onChange={(e) => setNewProfile(e.target.value)} placeholder="new-profile" pattern="[A-Za-z0-9._-]{1,64}" />
             </label>
-            <button type="button" disabled={!/^[A-Za-z0-9._-]{1,64}$/.test(newProfile)} onClick={() => void switchProfile(newProfile)}>
+            <button type="button" disabled={!/^[A-Za-z0-9._-]{1,64}$/.test(newProfile)} onClick={() => setProfileAsk(newProfile.trim())}>
               Create and switch
             </button>
           </div>
@@ -355,6 +358,39 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
       </>
       )}
       </div>
+      {exportAsk && (
+        <ConfirmSheet
+          title="Export your Canvas data?"
+          yes="Export"
+          busy={exporting}
+          onNo={() => setExportAsk(false)}
+          onYes={async () => {
+            await runExport();
+            setExportAsk(false);
+          }}
+        >
+          <p>This writes a ZIP on this Mac. It includes your courses, assignments, modules, pages, published syllabus text, Canvas links, and sync timestamps.</p>
+          <p className="muted">Your Canvas session, feed links, and submission files are not in it.</p>
+          <p>{exportGrades ? "Grades are included." : "Grades are left out."}</p>
+        </ConfirmSheet>
+      )}
+      {profileAsk && profiles && (
+        <ConfirmSheet
+          title={`Switch to ${profileAsk}?`}
+          yes="Switch profile"
+          match={profileAsk}
+          onNo={() => setProfileAsk(null)}
+          onYes={() => {
+            const id = profileAsk;
+            setProfileAsk(null);
+            void switchProfile(id);
+          }}
+        >
+          <p>
+            This leaves {profiles.current} and opens {profileAsk}. Quit and reopen the app after it switches. Nothing in {profiles.current} is deleted.
+          </p>
+        </ConfirmSheet>
+      )}
     </section>
   );
 }

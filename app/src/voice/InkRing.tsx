@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { VoiceState } from "./presence";
+import { ATTACK_MS, RELEASE_MS, envelopeStep, motionReduced } from "../motion";
 
 /*
  * The voice presence (MASTER §08): an abstract "ink ring", never a character.
@@ -15,13 +16,7 @@ import type { VoiceState } from "./presence";
 type Loop = { color: string; radius: number; lobes: number; phase: number; speed: number; drift: number };
 
 export function prefersStill(): boolean {
-  if (typeof document === "undefined") return true;
-  if (document.documentElement.dataset.motion === "reduced") return true;
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
+  return motionReduced();
 }
 
 function readPalette(el: Element, accent?: string): { colors: string[]; dark: boolean } {
@@ -69,15 +64,24 @@ export function InkRing({
   stateRef.current = state;
   const levelRef = useRef(getLevel);
   levelRef.current = getLevel;
+  // The envelope and the wobble phase outlive a state change. Rebuilding them
+  // per state would snap the ring and would mean `done` never settles.
+  const smooth = useRef(0);
+  const stillT = useRef(0);
+  const kick = useRef<() => void>(() => {});
 
   useEffect(() => {
     const el = canvas.current;
     const ctx = el?.getContext("2d");
     if (!el || !ctx) return; // jsdom / no canvas: the sheet's text carries the state
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    el.width = size * dpr;
-    el.height = size * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const readDpr = () => Math.min(2, window.devicePixelRatio || 1);
+    const applySize = () => {
+      const dpr = readDpr();
+      el.width = size * dpr;
+      el.height = size * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    applySize();
 
     let palette = readPalette(el, accent);
     const loops: Loop[] = palette.colors.map((color, i) => ({
@@ -95,16 +99,18 @@ export function InkRing({
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
-    let smooth = 0;
     let raf = 0;
-    const start = performance.now();
+    let last = performance.now();
+    const start = last - stillT.current * 1000;
     const c = size / 2;
+    const stillState = (state: VoiceState) => state === "idle" || state === "done" || state === "error";
 
     const draw = (now: number, still: boolean) => {
-      const t = still ? 0 : (now - start) / 1000;
-      const target = still ? 0 : levelRef.current();
-      smooth += (target - smooth) * 0.18;
-      const m = ringMotion(stateRef.current, smooth);
+      // A still pose holds the phase it reached. Zeroing it would jump every
+      // lobe back to its starting angle at the moment voice went quiet.
+      if (!still) stillT.current = (now - start) / 1000;
+      const t = stillT.current;
+      const m = ringMotion(stateRef.current, smooth.current);
       ctx.clearRect(0, 0, size, size);
       ctx.globalCompositeOperation = palette.dark ? "screen" : "source-over";
       // color loops first, then the ink outline on top
@@ -144,16 +150,53 @@ export function InkRing({
     };
 
     const tick = (now: number) => {
-      const still = prefersStill();
+      if (document.hidden) {
+        raf = 0;
+        return;
+      }
+      const dt = now - last;
+      last = now;
+      const still = prefersStill() || stillState(stateRef.current);
+      const target = still ? 0 : levelRef.current();
+      smooth.current = envelopeStep(smooth.current, target, dt, ATTACK_MS, RELEASE_MS);
       draw(now, still);
-      if (!still) raf = requestAnimationFrame(tick);
+      // A still state keeps drawing only while the envelope is still releasing:
+      // that release is the one settle MASTER §08 asks `done` for.
+      const moving = !still || Math.abs(smooth.current - target) > 0.002;
+      if (moving) raf = requestAnimationFrame(tick);
+      else raf = 0;
     };
+    const onVisible = () => {
+      if (document.hidden || raf) return;
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+    let resolution = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    const onResolution = () => {
+      resolution.removeEventListener("change", onResolution);
+      applySize();
+      resolution = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      resolution.addEventListener("change", onResolution);
+    };
+    resolution.addEventListener("change", onResolution);
+    document.addEventListener("visibilitychange", onVisible);
+    kick.current = onVisible;
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
+      raf = 0;
+      kick.current = () => {};
       themeObserver.disconnect();
+      resolution.removeEventListener("change", onResolution);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [size, accent, state]);
+  }, [size, accent]);
+
+  // State is read through a ref, so a change restarts the loop instead of
+  // rebuilding the canvas. A state the loop had parked on wakes back up.
+  useEffect(() => {
+    kick.current();
+  }, [state]);
 
   return <canvas ref={canvas} className="ink-ring" width={size} height={size} style={{ width: size, height: size }} aria-hidden="true" />;
 }

@@ -3,8 +3,8 @@
   "name": "kairos-canvas-mcp",
   "display_name": "Kairos Canvas MCP",
   "version": "1.4.0",
-  "description": "Local-first student Canvas automation — organize and complete academic fluff.",
-  "long_description": "Kairos Canvas MCP is a local-first, student-only server (~40 tools) for Canvas LMS: courses, assignments, submissions (preview→confirm), discussions, modules, files, and messaging. It runs as a stdio MCP server using your Canvas API token and/or SSO sync — every action runs under your own Canvas role and audit trail. Exams, proctored tools, and LTI submits stay human-only.",
+  "description": "Local-first student Canvas client \u2014 read your courses and plan your week. It never submits or posts for you.",
+  "long_description": "Kairos Canvas MCP is a local-first, student-only server (~40 tools) for Canvas LMS: courses, assignments, discussions, modules, files, and messaging. It runs as a stdio MCP server using your Canvas API token and/or SSO sync \u2014 every read runs under your own Canvas role and audit trail. Anything on the other side of a submit, a comment, or a discussion post is preview-only and has no execution path: Kairos shows you what would be sent and you send it yourself. Exams, proctored tools, and LTI submits stay human-only.",
   "author": {
     "name": "Kairos",
     "url": "https://github.com/"

@@ -1,4 +1,4 @@
-// Purpose: webview bridge to desktop commands
+/* Reviewer: the only webview path to native commands. Args are validated again in Rust. */
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
@@ -532,6 +532,21 @@ export async function addCalendarEvent(event: Omit<CalendarEvent, "id"> & { id?:
 export async function dismissCalendarSuggestion(sourceMessageId: string): Promise<void> {
   if (!isTauri()) return;
   await invoke("dismiss_calendar_suggestion", { sourceMessageId });
+}
+
+export async function removeCalendarEvent(id: string): Promise<void> {
+  if (!isTauri()) {
+    const key = "pn_calendar_local";
+    const prev = JSON.parse(localStorage.getItem(key) || "[]") as CalendarEvent[];
+    localStorage.setItem(key, JSON.stringify(prev.filter((row) => row.id !== id)));
+    return;
+  }
+  await invoke("remove_calendar_event", { id });
+}
+
+export async function restoreCalendarSuggestion(sourceMessageId: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("restore_calendar_suggestion", { sourceMessageId });
 }
 
 export async function openExternalUrl(url: string): Promise<void> {

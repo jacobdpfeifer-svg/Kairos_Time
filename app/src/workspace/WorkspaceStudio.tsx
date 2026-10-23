@@ -3,9 +3,9 @@
 // from BriefIslandList already moves between headers, and a drag-only control
 // would leave the keyboard behind. APG has no reorderable accordion.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKey } from "react";
-import { useDialog } from "../components/useDialog";
 import { discardProposedWorkspace, readProposedWorkspace, writeProposedWorkspace } from "../ipc";
-import { useTheme } from "../theme";
+import { leaveThen, useFlip, useMotionReduced } from "../motion";
+import { MotionDialog } from "../components/MotionDialog";
 import { isReviewedConnector } from "../../../browser/scripts/lib/connector-registry-data.mjs";
 import { WORKSPACE_CAPABILITIES, type WorkspaceCapability } from "./catalog";
 import { SURFACES, type Surface, type WorkspaceSpec } from "./contracts";
@@ -32,21 +32,6 @@ type Phase = { mode: "play"; cursor: number } | { mode: "edit"; spec: WorkspaceS
 
 function firstSurface(spec: WorkspaceSpec): Surface {
   return SURFACES.find((surface) => (spec.surfaces[surface]?.slots?.length ?? 0) > 0) ?? "today";
-}
-
-function systemReduced(): boolean {
-  try {
-    if (document.documentElement.dataset.motion === "reduced") return true;
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
-}
-
-function useReducedMotion(forced: boolean | undefined): boolean {
-  const { motion } = useTheme();
-  if (forced !== undefined) return forced;
-  return motion === "reduced" || systemReduced();
 }
 
 /** Connector chrome only for a capability whose id is in the reviewed registry. */
@@ -84,11 +69,11 @@ function AddSheet({
   onAdd: (cap: WorkspaceCapability) => void;
   onClose: () => void;
 }) {
-  const ref = useDialog<HTMLDivElement>(onClose);
   const options = useRef<(HTMLElement | null)[]>([]);
   return (
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div ref={ref} className="sheet studio-add" role="dialog" aria-modal="true" aria-labelledby="add-block-title" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
+    <MotionDialog onClose={onClose} className="sheet studio-add" labelledBy="add-block-title">
+      {(close) => (
+        <>
         <h2 id="add-block-title">Add to {SURFACE_LABEL[surface]}</h2>
         {items.length === 0 ? (
           <p>Every block for {SURFACE_LABEL[surface]} is already here.</p>
@@ -137,12 +122,13 @@ function AddSheet({
           </div>
         )}
         <div className="sheet-actions">
-          <button type="button" className="ghost" onClick={onClose}>
+          <button type="button" className="ghost" onClick={close}>
             Close
           </button>
         </div>
-      </div>
-    </div>
+        </>
+      )}
+    </MotionDialog>
   );
 }
 
@@ -163,7 +149,7 @@ export function WorkspaceStudio({
   /** Compiler sentence for the block that just landed. Null when playback is idle. */
   onPlaybackNarration?: (line: string | null) => void;
 }) {
-  const reduced = useReducedMotion(reducedMotion);
+  const reduced = useMotionReduced(reducedMotion);
   // Only a place op is a frame the student can see land. The compiler's
   // set_density / set_home / set_quiet ops are already true of the baseline the
   // shell is built from, so replaying them would spend the first three ticks
@@ -177,6 +163,7 @@ export function WorkspaceStudio({
     return { mode: "play", cursor: 0 };
   });
   const [open, setOpen] = useState<Surface>("today");
+  const [leavingId, setLeavingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState(proposal.baseline.name ?? "");
   const [nudgeShown, setNudgeShown] = useState(proposal.nudge_shown);
   const [showNudge, setShowNudge] = useState(false);
@@ -193,6 +180,7 @@ export function WorkspaceStudio({
   const prefix = playing ? assemblePrefix(proposal.baseline, stream.slice(0, phase.cursor), capabilities) : null;
   const spec = playing ? (prefix?.spec ?? proposal.baseline) : phase.spec;
   const history = playing ? emptyHistory() : phase.history;
+  const flipRef = useFlip<HTMLDivElement>((spec.surfaces[open]?.slots ?? []).join("|"));
   specRef.current = spec;
   historyRef.current = history;
   nudgeRef.current = nudgeShown;
@@ -297,7 +285,14 @@ export function WorkspaceStudio({
 
   const remove = (id: string) => {
     if (playing) return;
-    edit(pushPatch(spec, history, { op: "remove", surface: open, block_id: id }, capabilities));
+    const apply = () => edit(pushPatch(specRef.current, historyRef.current, { op: "remove", surface: open, block_id: id }, capabilities));
+    // Reduced motion replaces the travel with a cross-fade rather than removing
+    // the change, so the token carries both cases and there is no branch here.
+    setLeavingId(id);
+    leaveThen(() => {
+      setLeavingId((current) => (current === id ? null : current));
+      apply();
+    });
   };
 
   const add = (cap: WorkspaceCapability) => {
@@ -469,7 +464,7 @@ export function WorkspaceStudio({
           </label>
         ))}
       </fieldset>
-      <div className="studio-surfaces">
+      <div className="studio-surfaces" ref={flipRef}>
         {SURFACES.map((surface, index) => {
           const expanded = open === surface;
           const headerId = `studio-${surface}-header`;
@@ -507,7 +502,8 @@ export function WorkspaceStudio({
                           role="listitem"
                           tabIndex={focusId === id || (focusId === null && blockIndex === 0) ? 0 : -1}
                           aria-label={label}
-                          className={id === landedId ? "studio-block is-new" : "studio-block"}
+                          className={`studio-block${id === landedId ? " is-new" : ""}${id === leavingId ? " is-leaving" : ""}`}
+                          data-flip={id}
                           ref={(el) => {
                             blocks.current[blockIndex] = el;
                           }}

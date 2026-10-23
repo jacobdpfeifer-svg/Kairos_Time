@@ -160,7 +160,7 @@ export function AskPanel({
           <h2>{response.one_sentence}</h2>
           <p>{response.explanation}</p>
           <p className="muted ask-chip">{response.context_chip}</p>
-          <details className="ask-correct">
+          <details className="disclosure ask-correct">
             <summary>Not the right class or assignment?</summary>
           <div className="ask-chip-fields">
             <label>

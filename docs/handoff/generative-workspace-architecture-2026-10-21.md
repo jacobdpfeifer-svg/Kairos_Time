@@ -200,6 +200,37 @@ is skippable with one visible control; nothing is irreversible until accept.
 "thinking" skeleton pretending the layout is being written. The student is
 watching a real assembly of real blocks.
 
+### Motion (amended 2026-10-23)
+
+Specified in **MASTER §15.6**, which this section now defers to. In short:
+
+- **The patch ops are the motion vocabulary**, one-to-one with MASTER §15.3.
+  `place` settles, `remove` collapses on the exit curve, `reorder` is the one
+  correct use of the ease-in-out curve in the app, and `set_density`,
+  `rename`, `set_home`, `set_quiet` and `done` animate nothing. No new motion
+  vocabulary may be invented for this layer.
+- **`REPLAY_MS = 220` is paced by narration, not by motion**, and is
+  deliberately exempt from the stagger cap in MASTER §15.5. Do not "optimise"
+  it downward.
+- **Why the reveal is not the padded wait that MASTER §15.4 forbids**, given
+  the compiler returns in milliseconds and `proposed.json` is complete before
+  the first block lands: the artifact is already finished, a visible control
+  skips to the end, and nothing claims work is in progress. All three must
+  hold. This is the same rule as "no fake generation" above, reached from the
+  other direction; neither may be relaxed alone.
+- **Motion is not generative.** No motion field in the spec, no motion patch
+  op, no capability prop that sets a duration, curve, travel or delay, and no
+  interview answer that reaches one. `density` is in the spec and motion is
+  not, because motion is accessibility- and performance-load-bearing and a
+  model-chosen curve is invisible in the diff the student accepts. Reduced
+  motion stays outside the spec too: it belongs to a person and a device, and
+  must survive revert and history untouched.
+
+Add to the bounds in §3, enforced in all three mirrors: **no spec key names a
+duration, a curve, a travel distance, a delay or an easing, at any depth,
+including inside `props`.** Unknown keys are already dropped on write; this is
+the rule that keeps someone from adding one on purpose in v2.
+
 ## 6. Ownership mechanics (and the trap to avoid)
 
 The IKEA-effect literature (Norton/Mochon/Ariely) is explicit on two points

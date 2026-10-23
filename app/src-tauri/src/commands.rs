@@ -515,6 +515,16 @@ pub fn dismiss_calendar_suggestion(rt: Rt<'_>, source_message_id: String) -> Res
 }
 
 #[tauri::command]
+pub fn remove_calendar_event(rt: Rt<'_>, id: String) -> Result<(), String> {
+    calendar::remove_event(&rt.user_root, &id)
+}
+
+#[tauri::command]
+pub fn restore_calendar_suggestion(rt: Rt<'_>, source_message_id: String) -> Result<(), String> {
+    calendar::restore_suggestion(&rt.user_root, &source_message_id)
+}
+
+#[tauri::command]
 pub fn open_external_url(url: String) -> Result<(), String> {
     if url.len() > 4096 {
         return Err("external URL is too long".into());

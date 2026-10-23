@@ -94,16 +94,32 @@ describe("week plan", () => {
     expect(proposal.late).toBe("2026-10-14");
   });
 
-  it("includes the student's own rows and drops done ones", () => {
+  it("keeps a done capture on the week, off the day and out of the hours", () => {
     const m = buildWeek(
       [],
       snap({}, [
         { id: "cap-1", title: "Email TA", course: null, due_at: null, day: "2026-10-15", source: "typed", created_at: "x" },
-        { id: "cap-2", title: "Done thing", course: null, due_at: null, day: "2026-10-15", source: "typed", created_at: "x", done_at: "y" },
+        { id: "cap-2", title: "Done thing", course: null, due_at: null, day: "2026-10-15", source: "typed", created_at: "x", done_at: "2026-10-14T16:00:00Z" },
       ]),
       NOW
     );
     expect(m.days.flatMap((d) => d.rows).map((r) => r.id)).toEqual(["cap-1"]);
+    expect(m.done.map((r) => r.id)).toEqual(["cap-2"]);
+    expect(m.workMinutes).toBe(30);
+  });
+
+  it("lets done work leave the page once its week is over", () => {
+    const m = buildWeek(
+      [],
+      snap({}, [
+        { id: "old", title: "Last month", course: null, due_at: null, day: "2026-09-10", source: "typed", created_at: "x", done_at: "2026-09-10T16:00:00Z" },
+        { id: "new", title: "This week", course: null, due_at: null, day: "2026-10-14", source: "typed", created_at: "x", done_at: "2026-10-14T16:00:00Z" },
+        { id: "nostamp", title: "Unreadable stamp", course: null, due_at: null, day: "2026-10-14", source: "typed", created_at: "x", done_at: "y" },
+      ]),
+      NOW
+    );
+    expect(m.done.map((r) => r.id).sort()).toEqual(["new", "nostamp"]);
+    expect(m.workMinutes).toBe(0);
   });
 
   it("sorts Canvas arrivals into piles the student can correct", () => {

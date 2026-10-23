@@ -7,7 +7,7 @@ import { FileDrop } from "./components/FileDrop";
 import { IconCalendar, IconHome, IconPlan, IconSettings, IconSources, IconStudy, IconUpload } from "./components/Icons";
 import { Wordmark } from "./components/Wordmark";
 import { CommandBar, type Command } from "./components/CommandBar";
-import { Toast, type ToastState } from "./components/Toast";
+import { advanceToast, offerToast, Toast, type ToastQueue, type ToastState } from "./components/Toast";
 import { AskSheet } from "./ask/AskSheet";
 import { THEMES, useTheme } from "./theme";
 import { VoiceSheet } from "./voice/VoiceSheet";
@@ -82,7 +82,10 @@ export function App() {
   const [items, setItems] = useState<SemesterTick[]>([]);
   const [courses, setCourses] = useState<{ id: string; label: string; name: string }[]>([]);
   const [filesVersion, setFilesVersion] = useState(0);
-  const [toast, setToast] = useState<ToastState | null>(null);
+  const [toasts, setToasts] = useState<ToastQueue>({ current: null, waiting: null });
+  const showToast = useCallback((incoming: ToastState) => {
+    setToasts((state) => offerToast(state, incoming));
+  }, []);
   const { setTheme } = useTheme();
 
   const navigated = useRef(false);
@@ -217,12 +220,12 @@ export function App() {
   }, []);
 
   const syncNow = useCallback(async () => {
-    setToast({ message: "Syncing with Canvas…" });
+    showToast({ message: "Syncing with Canvas…" });
     try {
       const r = await syncCanvas();
-      setToast({ message: r.ok ? "Synced with Canvas." : r.error ? `Sync didn't finish: ${r.error}` : "Sync didn't finish." });
+      showToast({ message: r.ok ? "Synced with Canvas." : r.error ? `Sync didn't finish: ${r.error}` : "Sync didn't finish." });
     } catch {
-      setToast({ message: "Sync didn't finish. Try again." });
+      showToast({ message: "Sync didn't finish. Try again." });
     }
   }, []);
 
@@ -342,7 +345,7 @@ export function App() {
         run: () => {
           void weekPlan("capture", { title: parsed.title, course: parsed.course, due_at: parsed.dueAt, day: parsed.day, source: "typed" })
             .then((saved) =>
-              setToast({
+              showToast({
                 message: `Added “${parsed.title}” to your week.`,
                 id: Date.now(),
                 undo: saved.saved
@@ -350,13 +353,13 @@ export function App() {
                       try {
                         await weekPlan("remove", { item_id: saved.saved?.id });
                       } catch {
-                        setToast({ message: "Undo didn't save.", id: Date.now() });
+                        showToast({ message: "Undo didn't save.", id: Date.now() });
                       }
                     }
                   : undefined,
               })
             )
-            .catch(() => setToast({ message: "That capture could not be saved.", id: Date.now() }));
+            .catch(() => showToast({ message: "That capture could not be saved.", id: Date.now() }));
         },
       };
     },
@@ -455,7 +458,7 @@ export function App() {
                 onStudyToday: (t) => navigate(t ? { tab: "study", examId: t.id } : { tab: "study" }),
                 onAsk: (initial) => openAsk(initial),
                 onOpenWeek: () => go("week"),
-                onToast: setToast,
+                onToast: showToast,
                 onStudyTick: (t) => navigate({ tab: "study", examId: t.id }),
                 examId: route.examId,
                 practice: route.practice,
@@ -494,10 +497,10 @@ export function App() {
         courseLabel={tab === "courses" ? courses.find((c) => c.id === route.courseId)?.label : undefined}
         onAdded={(message) => {
           setFilesVersion((n) => n + 1);
-          setToast({ message, id: Date.now() });
+          showToast({ message, id: Date.now() });
         }}
       />
-      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
+      {toasts.current && <Toast toast={toasts.current} onDone={() => setToasts((state) => advanceToast(state))} />}
       <VoiceSheet />
     </div>
   );

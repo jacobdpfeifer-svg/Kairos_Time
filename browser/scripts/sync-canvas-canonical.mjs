@@ -1,4 +1,6 @@
 /**
+ * Reviewer: SSO cookie sync into the local inbox. It does not submit work.
+ *
  * Unified Canvas reliability sync: one Playwright session → staged generation
  * → projections → adapters. Does not run the legacy two-pass fetch.
  *

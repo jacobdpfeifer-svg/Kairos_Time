@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { readSemester, type SemesterSurface, type SemesterTick } from "../ipc";
 import { clusterTicks, kindLabel, loadRange, saveRange, tickHeightPx, type RangeId } from "../semesterTicks";
 import { friendlyWhen } from "../format";
+import { motionReduced, tokenMs } from "../motion";
 
 /*
  * The semester line (MASTER §06): one lane per course, ticks whose height is
@@ -29,6 +30,30 @@ export function SemesterLine({
   const [hover, setHover] = useState<{ tick: SemesterTick; x: number; y: number } | null>(null);
   const [width, setWidth] = useState(640);
   const axis = useRef<HTMLDivElement | null>(null);
+  // @starting-style only applies the first time an element is styled, so the
+  // draw class has to be on the ticks in the same render that creates them. An
+  // effect would set it one paint too late and nothing would ever draw.
+  const [draw, setDraw] = useState(() => {
+    try {
+      if (sessionStorage.getItem("kairos-semester-drawn") === "1") return false;
+    } catch {
+      return false;
+    }
+    return !motionReduced();
+  });
+
+  useEffect(() => {
+    if (!draw) return;
+    const t = window.setTimeout(() => {
+      setDraw(false);
+      try {
+        sessionStorage.setItem("kairos-semester-drawn", "1");
+      } catch {
+        /* private mode */
+      }
+    }, tokenMs("--t-draw") + 50);
+    return () => window.clearTimeout(t);
+  }, [draw]);
 
   useEffect(() => {
     saveRange(range);
@@ -78,7 +103,7 @@ export function SemesterLine({
         </fieldset>
       </div>
       <p className="muted semester-hint">Taller marks are worth more of the grade.</p>
-      <div className="semester bleed" ref={axis}>
+      <div className={draw ? "semester bleed draw" : "semester bleed"} ref={axis}>
         <TodayLine start={surface.window_start} end={surface.window_end} today={surface.today} />
         {surface.courses.map((course) => (
           <div className="course-row" key={course.id} style={{ ["--course" as string]: course.color }}>

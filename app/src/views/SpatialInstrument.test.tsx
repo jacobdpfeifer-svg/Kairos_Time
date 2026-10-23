@@ -53,12 +53,12 @@ describe("Spatial Instrument chrome", () => {
     expect(document.documentElement.dataset.theme).toBe("forest");
   });
 
-  it("freezes letter-flip to a static node when motion is reduced", () => {
+  it("renders an outcome as still text", () => {
     applyTheme("night", "reduced");
     const { container } = render(<LetterFlip text="Study" />);
     expect(document.documentElement.dataset.motion).toBe("reduced");
-    expect(container.querySelector("[data-letter-flip]")).toBeTruthy();
-    expect(container.querySelectorAll(".letter-flip-char")).toHaveLength(5);
+    expect(container.querySelector("[data-letter-flip]")).toHaveTextContent("Study");
+    expect(container.querySelectorAll(".letter-flip-char")).toHaveLength(0);
   });
 
   it("shows now-playing during an attempt", async () => {
