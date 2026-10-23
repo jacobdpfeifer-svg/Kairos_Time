@@ -147,5 +147,5 @@ dev = [
     # use importorskip, so relying on a transitive PyYAML would let the gate
     # skip silently — the exact failure mode it exists to prevent.
     "pyyaml>=6.0",
-    "types-PyYAML>=6.0",
+    "types-PyYAML>=6.0.12.20260906",
 ]
