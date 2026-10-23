@@ -1,14 +1,14 @@
 blank_issues_enabled: true
 contact_links:
   - name: Documentation
-    url: https://github.com/vishalsachdev/canvas-mcp/blob/main/README.md
-    about: Read the Canvas MCP documentation
+    url: https://github.com/jacobdpfeifer-svg/Kairos_Time/blob/main/README.md
+    about: Read the Kairos documentation
   - name: Agent Guide
-    url: https://github.com/vishalsachdev/canvas-mcp/blob/main/AGENTS.md
-    about: Guide for AI agents using Canvas MCP
+    url: https://github.com/jacobdpfeifer-svg/Kairos_Time/blob/main/AGENTS.md
+    about: Read the Kairos agent and product boundaries
   - name: Tool Reference
-    url: https://github.com/vishalsachdev/canvas-mcp/blob/main/tools/README.md
-    about: Complete tool documentation
+    url: https://github.com/jacobdpfeifer-svg/Kairos_Time/blob/main/docs/architecture.md
+    about: See Kairos's local-first data path and optional tools
   - name: Security Policy
-    url: https://github.com/vishalsachdev/canvas-mcp/blob/main/SECURITY.md
+    url: https://github.com/jacobdpfeifer-svg/Kairos_Time/blob/main/SECURITY.md
     about: Report security vulnerabilities
