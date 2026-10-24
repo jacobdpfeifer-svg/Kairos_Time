@@ -46,6 +46,19 @@ A model-written file can never be loaded by the renderer: the loader refuses
 any spec whose `status` is not `accepted` and whose `accepted_by` is not
 `"student"`.
 
+### First-run boundary (amended 2026-10-23)
+
+`{user_root}/profile/setup.json` is the per-profile launch checkpoint, not a
+copy of Canvas data and not a sync-health record. Its closed phases are
+`school`, `canvas`, `workspace`, and `ready`. An interrupted first run resumes
+at Canvas handoff or workspace choice; `ready` opens the ordinary workspace on
+every later launch. A student may become `ready` after choosing **Continue
+without classes** or **Do this later**. Canvas freshness, an expired session,
+and a failed later sync are surfaced in the normal workspace and Settings —
+they never replay onboarding. The old webview `localStorage` flag is migration
+support only; it cannot be the authority because it is shared between desktop
+profiles.
+
 ## 3. Spec v1
 
 Source of truth: `browser/scripts/lib/workspace/spec.mjs`.

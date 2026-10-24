@@ -65,6 +65,8 @@ Skill router ← {user_root}/ memory ← Canvas /api/v1 ← SSO (Playwright) or 
 | [`docs/design/class-standings.md`](design/class-standings.md) | **Framed, not built, not authorized** — optional hideable class leaderboard frame only; do not ship without a product decision |
 | [`docs/handoff/degree-planning-scope-2026-09-13.md`](handoff/degree-planning-scope-2026-09-13.md) | **Built (Tier 1 + admin companion + Tier 2 import path)** — `gpa.py`, grades sync, `student-gpa` / `student-course-plan` / `student-registration-prep`; requirement claims only via dated `inbox/degree-audit.md` |
 | [`docs/handoff/academic-advisor-product-plan-2026-10-13.md`](handoff/academic-advisor-product-plan-2026-10-13.md) | **Phase 1 slice built** — read-only advisor snapshot plus Snapshot/Path/Decision/Meeting workspace; no new SIS scraper or registration actuator |
+| [`docs/architecture/student-work-state-contract.md`](architecture/student-work-state-contract.md) | **Shadow projection, Today and Week reading it with a legacy fallback** (2026-10-23). Canvas raw generations, the study log, and week-plan files stay the owners named in that contract |
+| [`docs/architecture/durable-state-registry.md`](architecture/durable-state-registry.md) | Owner, writer, readers, atomicity, and recovery for each durable user-root location |
 
 ## Schools
 

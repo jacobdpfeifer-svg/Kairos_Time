@@ -1,6 +1,6 @@
 // Purpose: today page over mission control
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CourseMap, FreshnessChange, GradeTruth, SemesterSurface, SemesterTick, SyncHealth } from "../ipc";
+import type { CourseMap, FreshnessChange, GradeTruth, SemesterSurface, SemesterTick, SyncHealth, WorkStateRead } from "../ipc";
 import {
   onFreshnessUpdated,
   onInboxUpdated,
@@ -12,8 +12,10 @@ import {
   readSemester,
   readSkipCosts,
   readSyncHealth,
+  readWorkState,
   setTrayNext,
 } from "../ipc";
+import { WorkStateNote, mergeMovedChanges, overlaySurface } from "../workState/snapshot";
 import { onPlanChanged, weekPlan } from "../week/api";
 import { addDays, dayKey, dayLabel, type Capture } from "../week/plan";
 import { SyncHealthBanner } from "../components/SyncHealthBanner";
@@ -61,6 +63,7 @@ export function TodayView({
   grades: gradesProp,
   skipCosts: costsProp,
   changes: changesProp,
+  workState: workStateProp,
   captures: capturesProp,
   lastAsk,
   openItem,
@@ -77,6 +80,8 @@ export function TodayView({
   grades?: GradeTruth;
   skipCosts?: SkipCosts;
   changes?: FreshnessChange[];
+  /** Tests pass a snapshot. The live app reads the native command. Missing is a first run. */
+  workState?: WorkStateRead | null;
   /** Rows the student typed. Tests pass them in; the live app reads the week plan. */
   captures?: Capture[];
   lastAsk?: AskEnvelope | null;
@@ -96,6 +101,7 @@ export function TodayView({
   const [grades, setGrades] = useState<GradeTruth | null>(gradesProp ?? null);
   const [costs, setCosts] = useState<SkipCosts>(costsProp ?? {});
   const [changes, setChanges] = useState<FreshnessChange[]>(changesProp ?? []);
+  const [loadedWork, setLoadedWork] = useState<WorkStateRead | null>(workStateProp ?? null);
   const [loadedCaptures, setLoadedCaptures] = useState<Capture[]>([]);
   const [seenAt, setSeenAt] = useState<number>(loadSeen);
   const [showChanges, setShowChanges] = useState(false);
@@ -133,10 +139,15 @@ export function TodayView({
     readFreshness()
       .then((d) => alive && setChanges(d?.changes ?? []))
       .catch(() => undefined);
+    if (workStateProp === undefined) {
+      readWorkState()
+        .then((read) => alive && setLoadedWork(read))
+        .catch(() => alive && setLoadedWork({ ok: false, reason: "malformed", fell_back: false, state: null, health: null }));
+    }
     return () => {
       alive = false;
     };
-  }, [live, synced]);
+  }, [live, synced, workStateProp]);
 
   useEffect(() => {
     if (!live || capturesProp) return;
@@ -173,10 +184,13 @@ export function TodayView({
     };
   }, [courseId, health, mapProp]);
 
-  const surface = surfaceProp ?? loaded;
+  const work = workStateProp === undefined ? loadedWork : workStateProp;
+  const baseSurface = surfaceProp ?? loaded;
+  const surface = useMemo(() => (baseSurface ? overlaySurface(baseSurface, work) : baseSurface), [baseSurface, work]);
+  const shownChanges = useMemo(() => mergeMovedChanges(changes, work), [changes, work]);
   const today = useMemo(() => new Date(Date.parse(surface?.today || "") || Date.now()), [surface?.today]);
   const ticks = useMemo(() => (surface ? surface.courses.flatMap((c) => c.ticks) : []), [surface]);
-  const fresh = changes.filter((c) => changeTime(c) > seenAt);
+  const fresh = shownChanges.filter((c) => changeTime(c) > seenAt);
   const freshSig = fresh.map((c) => c.key).join("|");
   const seenFresh = useRef<string | null>(null);
   const changesRef = useRef<HTMLElement | null>(null);
@@ -256,6 +270,7 @@ export function TodayView({
         inspectUrl={map?.course?.html_url}
         onSynced={() => setSynced((n) => n + 1)}
       />
+      <WorkStateNote read={work} />
 
       <MissionControlView
         surface={mission}

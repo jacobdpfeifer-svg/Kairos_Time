@@ -318,6 +318,16 @@ impl Runtime {
         if !self.python.as_os_str().is_empty() {
             cmd.env("KAIROS_PYTHON", &self.python);
         }
+        // Python-owned plan mutations rebuild the local work-state projection.
+        // Pass only the packaged resource locations that Runtime already
+        // resolved; core code must never guess a developer checkout path.
+        if let Some(node) = &self.node {
+            cmd.env("KAIROS_NODE", node);
+        }
+        cmd.env(
+            "KAIROS_BROWSER_SCRIPTS",
+            self.core_dir.join("browser").join("scripts"),
+        );
         cmd.env(
             "KAIROS_TEMPLATES_DIR",
             self.core_dir.join("templates").join("study-packets"),

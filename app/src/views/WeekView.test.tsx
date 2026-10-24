@@ -56,6 +56,32 @@ function Harness({ changes = [] as never[], suggestions }: { changes?: never[]; 
 describe("WeekView", () => {
   beforeEach(() => resetPreviewStore());
 
+  it("keeps the planned rows when the work snapshot is partial", async () => {
+    render(
+      <WeekView
+        surface={surface}
+        now={NOW}
+        onToast={() => undefined}
+        onStudy={() => undefined}
+        workState={{
+          ok: true,
+          reason: null,
+          fell_back: false,
+          health: { schema_version: 1 },
+          state: {
+            schema_version: 1,
+            coverage: { canvas: "partial", freshness: "missing", plan: "ok", study: "missing" },
+            work_items: [],
+          },
+        }}
+      />
+    );
+    expect(await screen.findByText(/Canvas sync is partial/)).toBeInTheDocument();
+    expect(screen.getByText("Problem set 5")).toBeInTheDocument();
+    expect(screen.queryByText("Loading your week…")).not.toBeInTheDocument();
+  });
+
+
   it("asks for hours once, then says whether the week fits", async () => {
     const user = userEvent.setup();
     render(<Harness />);

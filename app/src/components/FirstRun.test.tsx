@@ -8,6 +8,7 @@ vi.mock("../ipc", () => ({
   checkCanvasSession: vi.fn().mockResolvedValue(false),
   openCanvasSso: vi.fn(),
   saveOnboarding: vi.fn().mockResolvedValue(undefined),
+  readSchoolProfile: vi.fn().mockResolvedValue(null),
   searchSchools: vi.fn().mockResolvedValue([
     { name: "Ohio State – CarmenCanvas", host: "osu.instructure.com", account_id: 132008 },
   ]),

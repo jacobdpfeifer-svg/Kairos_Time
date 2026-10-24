@@ -290,6 +290,27 @@ fn display_code(stem: &str) -> String {
     }
 }
 
+fn work_course_ids(user_root: &Path) -> Vec<String> {
+    let read = crate::work_state::read_work_state(user_root);
+    if read.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+        return Vec::new();
+    }
+    let mut ids: Vec<String> = read
+        .get("state")
+        .and_then(|state| state.get("courses"))
+        .and_then(|courses| courses.as_array())
+        .map(|courses| {
+            courses
+                .iter()
+                .filter_map(|course| course.get("id").and_then(|id| id.as_str()).map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
 fn course_codes(user_root: &Path) -> Vec<String> {
     let dir = user_root.join("inbox").join("courses");
     let mut codes: Vec<String> = fs::read_dir(dir)
@@ -454,6 +475,7 @@ fn snapshot_at(user_root: &Path, today: i64) -> Value {
             "unmet_items": unmet_items.iter().take(MAX_ITEMS).collect::<Vec<_>>()
         },
         "courses": course_codes(user_root),
+        "work_course_ids": work_course_ids(user_root),
         "sources": {
             "canvas": if synced_at.is_empty() { "Canvas not synced yet" } else { "Observed in Canvas" },
             "audit": if !present { "No audit copy" } else if stale { "Your audit copy, out of date" } else { "Your dated audit copy" },
@@ -477,6 +499,29 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("inbox/courses")).unwrap();
         root
+    }
+
+    #[test]
+    fn work_state_courses_do_not_satisfy_requirements() {
+        let root = root("work");
+        let gen = root.join("inbox/work-state/v1/generations/ws-a");
+        fs::create_dir_all(&gen).unwrap();
+        fs::write(
+            gen.join("state.json"),
+            r#"{"schema_version":1,"coverage":{"canvas":"ok"},"courses":[{"id":"canvas:course:cu-boulder:1300","label":"MATH 1300","name":"Calc"}],"work_items":[]}"#,
+        )
+        .unwrap();
+        fs::write(gen.join("health.json"), r#"{"schema_version":1}"#).unwrap();
+        fs::write(
+            root.join("inbox/work-state/v1/current.json"),
+            r#"{"schema_version":1,"path":"inbox/work-state/v1/generations/ws-a","previous_generation_id":null}"#,
+        )
+        .unwrap();
+        let s = snapshot_at(&root, TODAY);
+        assert_eq!(s["audit"]["present"], false);
+        assert_eq!(s["audit"]["complete_count"], 0);
+        assert_eq!(s["work_course_ids"][0], "canvas:course:cu-boulder:1300");
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

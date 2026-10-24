@@ -101,6 +101,46 @@ def test_cli_reports_errors_as_json(tmp_path: Path, monkeypatch) -> None:
     assert json.loads(buf.getvalue()) == {"ok": False, "error": "to must look like 2026-10-14"}
 
 
+_REAL_REBUILD = wp._rebuild_work_state
+
+
+@pytest.fixture(autouse=True)
+def _no_work_state_spawn(monkeypatch) -> None:
+    """Plan mutations kick off a Node rebuild. Unit tests stay runtime-free."""
+    monkeypatch.setattr(wp, "_rebuild_work_state", lambda user_root: None)
+
+
+def test_work_state_rebuild_uses_packaged_runtime_paths(tmp_path: Path, monkeypatch) -> None:
+    scripts = tmp_path / "runtime" / "browser" / "scripts"
+    scripts.mkdir(parents=True)
+    script = scripts / "rebuild-work-state.mjs"
+    script.write_text("// fixture", encoding="utf-8")
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def fake_popen(args: list[str], **kwargs: object) -> None:
+        calls.append((args, kwargs))
+
+    monkeypatch.setenv("KAIROS_BROWSER_SCRIPTS", str(scripts))
+    monkeypatch.setenv("KAIROS_NODE", "/runtime/node")
+    monkeypatch.setattr(wp.subprocess, "Popen", fake_popen)
+    _REAL_REBUILD(tmp_path)
+    assert calls == [
+        (
+            ["/runtime/node", str(script), "--user-root", str(tmp_path)],
+            {"stdin": wp.subprocess.DEVNULL, "stdout": wp.subprocess.DEVNULL},
+        )
+    ]
+
+
+def test_a_plan_mutation_does_not_wait_for_the_projection(tmp_path: Path, monkeypatch) -> None:
+    """The reply must not be withheld for a derived rebuild."""
+    started: list[Path] = []
+    monkeypatch.setattr(wp, "_rebuild_work_state", started.append)
+    reply = wp.handle(tmp_path, {"cmd": "estimate", "params": {"item_id": "item-a1", "minutes": 30}})
+    assert reply["ok"] is True
+    assert started == [tmp_path]
+
+
 def test_runs_stdlib_only_from_the_core_dir(tmp_path: Path) -> None:
     """The packaged app runs `-m week_plan` with cwd canvas_mcp/core and no PYTHONPATH."""
     proc = subprocess.run(

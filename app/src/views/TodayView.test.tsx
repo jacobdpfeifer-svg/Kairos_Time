@@ -11,6 +11,7 @@ vi.mock("../ipc", () => ({
   readSemester: vi.fn().mockResolvedValue({ range: "1m", window_start: "", window_end: "", today: "2026-10-08T16:00:00Z", courses: [] }),
   readSyncHealth: vi.fn().mockImplementation(async () => health.current),
   readFreshness: vi.fn().mockResolvedValue({ changes: [] }),
+  readWorkState: vi.fn().mockResolvedValue({ ok: false, reason: "missing", fell_back: false, state: null, health: null }),
   readSkipCosts: vi.fn().mockResolvedValue({}),
   onFreshnessUpdated: vi.fn().mockResolvedValue(() => undefined),
   onSyncFailed: vi.fn().mockImplementation(async (h: (m: string) => void) => {
@@ -103,6 +104,39 @@ const loadBrief = async (c: string, a: string) => fixtureBrief(c, a, NOW) ?? { e
 const base = { onStudy: () => undefined, onAsk: () => undefined, mission, loadBrief };
 
 describe("TodayView (Mission Control)", () => {
+  it("keeps today's briefs when the work snapshot is partial or unreadable", async () => {
+    const { rerender } = render(
+      <TodayView
+        {...base}
+        surface={surface}
+        health={fresh}
+        workState={{
+          ok: true,
+          reason: null,
+          fell_back: false,
+          health: { schema_version: 1 },
+          state: {
+            schema_version: 1,
+            coverage: { canvas: "partial", freshness: "ok", plan: "ok", study: "unavailable" },
+            work_items: [],
+          },
+        }}
+      />
+    );
+    expect(screen.getByText(/Canvas sync is partial/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Today is about this" })).toBeInTheDocument();
+    rerender(
+      <TodayView
+        {...base}
+        surface={surface}
+        health={fresh}
+        workState={{ ok: false, reason: "malformed", fell_back: false, state: null, health: null }}
+      />
+    );
+    expect(screen.getByText(/could not be read/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Today is about this" })).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();

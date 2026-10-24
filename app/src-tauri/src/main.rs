@@ -12,11 +12,13 @@ mod dock;
 mod inbox;
 mod library;
 mod nativehost;
+mod onboarding;
 mod prefs;
 mod runtime;
 mod semester;
 mod shortcut;
 mod voice_bridge;
+mod work_state;
 mod workspace;
 
 use std::sync::{Arc, Mutex};
@@ -120,6 +122,8 @@ fn main() {
             commands::choose_school,
             commands::read_school_profile,
             commands::save_onboarding,
+            commands::read_onboarding_state,
+            commands::complete_onboarding,
             commands::save_learning_profile,
             commands::read_due_reviews,
             commands::record_review_outcome,
@@ -131,6 +135,7 @@ fn main() {
             commands::read_calendar_surface,
             commands::read_sync_health,
             commands::read_freshness,
+            commands::read_work_state,
             commands::read_skip_costs,
             commands::week_plan,
             commands::read_app_prefs,

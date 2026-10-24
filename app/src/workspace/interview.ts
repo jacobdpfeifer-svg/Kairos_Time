@@ -2,12 +2,9 @@
  * Typed workspace interview. Same questions as the voice onboarding guide.
  * Answers become a draft only after normalizeWorkflowDraft. No model, no key.
  */
-import {
-  normalizeWorkflowDraft,
-  suggestTemplates,
-  WORKFLOW_FRICTIONS,
-  WORKFLOW_PREFERENCES,
-} from "../../../browser/scripts/lib/workspace/onboarding.mjs";
+import { WORKFLOW_FRICTIONS, WORKFLOW_PREFERENCES } from "../../../browser/scripts/lib/workspace/catalog.mjs";
+import { normalizeWorkflowDraft } from "../../../browser/scripts/lib/workspace/draft.mjs";
+import { suggestTemplates } from "../../../browser/scripts/lib/workspace/rank.mjs";
 
 export { WORKFLOW_FRICTIONS, WORKFLOW_PREFERENCES };
 

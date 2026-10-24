@@ -22,6 +22,8 @@ export const FRAME_SECTIONS = ["next_step", "requirements", "checklist", "why", 
 
 /** Ids become file names: `{course_id}--{assignment_id}.json`. Same rule as canvas.rs valid_course_id. */
 export const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+/** Work-state ids are namespaced and include colons. They are links, not file names. */
+export const WORK_ITEM_RE = /^canvas:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+:[a-z_]+:[A-Za-z0-9_-]+$/;
 
 export function clipText(value, max) {
   const s = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -75,6 +77,7 @@ export function validateBrief(b) {
   if (b.schema_version !== SCHEMA_VERSION) fail("schema_version", `must be ${SCHEMA_VERSION}`);
   for (const k of ["assignment_id", "course_id"]) if (!ID_RE.test(String(b[k]))) fail(k, "is not a safe id");
   if (b.id !== `${b.course_id}--${b.assignment_id}`) fail("id", "must be course_id--assignment_id");
+  if (b.work_item_id != null && !WORK_ITEM_RE.test(String(b.work_item_id))) fail("work_item_id", "must be a canvas work-state id");
   str(b.title, "title", LIMITS.title);
   str(b.course_label, "course_label", 200);
   color(b.course_color, "course_color");

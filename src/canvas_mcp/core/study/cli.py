@@ -65,7 +65,12 @@ def run_command(service: StudyService, cmd: str, params: dict[str, Any]) -> dict
             new_session=bool(params.get("new_session")),
         )
     if cmd == "start":
-        return service.start(str(params["item_id"]), str(params.get("mode") or "review"), minutes=int(params.get("minutes") or 5))
+        return service.start(
+            str(params["item_id"]),
+            str(params.get("mode") or "review"),
+            minutes=int(params.get("minutes") or 5),
+            work_item_id=params.get("work_item_id") if isinstance(params.get("work_item_id"), str) else None,
+        )
     if cmd == "draft":
         expected = params.get("expected_revision")
         return service.draft(

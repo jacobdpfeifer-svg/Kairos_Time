@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { writeJsonAtomic } from "../canvas-store.mjs";
 import { freshnessPaths, readEvents, readJson } from "../freshness-store.mjs";
+import { readWorkState } from "../work-state.mjs";
 import { buildBriefProjection } from "./assemble.mjs";
 import { ID_RE } from "./schema.mjs";
 
@@ -64,6 +65,7 @@ export function readBriefInputs(userRoot, { now = Date.now() } = {}) {
     skipCosts: readJson(freshnessPaths(userRoot).skipCosts, {}) || {},
     plan: readJson(path.join(userRoot, "inbox", "plan", "week.json"), null),
     prefs: readJson(prefsPath(userRoot), null),
+    workItems: readWorkState(userRoot).state?.work_items ?? null,
   };
 }
 

@@ -311,3 +311,42 @@ by decision.
 3. **Remote GitHub presentation** — description, topics, About link, social preview (§1).
 4. **Live Canvas/PAT/connector paths** — SSO sync, `canvas-mcp-server --test`, a real
    Gmail send and a real GCal write (each should stop at its confirmation).
+
+---
+
+## Completion update
+
+This follow-up completed the remaining local checks without exercising live
+credentials or connector writes.
+
+### Fixed
+
+- **Webview / onboarding-draft boundary:** `app/src/workspace/interview.ts`
+  imported `workspace/onboarding.mjs`, whose Node filesystem imports made Vite
+  externalize `node:fs` and `node:path` into the browser build. The new pure
+  `browser/scripts/lib/workspace/draft.mjs` owns normalization; Node-only
+  persistence remains in `onboarding.mjs`. The app now imports the pure
+  catalog, ranker, and normalizer directly. Declarations keep those shared
+  modules typed.
+- **Type-check command:** `[tool.mypy] files = ["src"]` makes the documented
+  `uv run mypy` command useful from the repository root and removes stale
+  unused overrides.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `cd browser && npm run test` | 442 passed, 118 suites |
+| Focused workspace tests | 14 passed |
+| `cd app && npm run build` | passed; Node built-in externalization warning removed; existing 518.70 kB chunk warning remains |
+| `uv run ruff check .` / `uv run mypy` | passed; mypy checked 73 source files |
+| `uv run python -m pytest tests/ -q` | started cleanly (1,050 collected / 1 skipped), but this runner ended capture at 30 seconds before completion; no full-result claim |
+| `git diff --check` | passed |
+
+### Open
+
+- The 518.70 kB production JavaScript entry chunk remains a build warning, not
+  a confirmed interaction defect. Splitting it needs a product-aware loading
+  decision.
+- Concurrent onboarding changes appeared in the worktree during this follow-up.
+  They were left untouched and are not attributed to this audit.

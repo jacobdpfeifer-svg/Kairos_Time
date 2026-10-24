@@ -8,7 +8,7 @@ import crypto from "node:crypto";
 import { briefKind, isExternalTool, isSparse } from "./classify.mjs";
 import { ANSWER_SOURCE_RE, buildModule, requirementLines } from "./modules.mjs";
 import { localDay, plannedDay, rankIslands, recentChanges, shareOf, weekKey } from "./rank.mjs";
-import { FRAME_SECTIONS, ID_RE, LIMITS, SCHEMA_VERSION, clipText, validateBrief, validateIndex } from "./schema.mjs";
+import { FRAME_SECTIONS, ID_RE, LIMITS, SCHEMA_VERSION, WORK_ITEM_RE, clipText, validateBrief, validateIndex } from "./schema.mjs";
 
 const DAY = 86_400_000;
 const STALE_SOURCE_MS = 3 * DAY;
@@ -254,6 +254,7 @@ export function assembleBrief(c, { now, prefs }) {
     actions,
     section_order: sectionOrder(kind, prefs),
   };
+  if (typeof c.work_item_id === "string" && WORK_ITEM_RE.test(c.work_item_id)) brief.work_item_id = c.work_item_id;
   return validateBrief(brief);
 }
 
@@ -275,10 +276,40 @@ export function isCandidate(item, { now, planned }) {
  * Pure: every input already loaded. Returns { index, briefs }.
  * @param {{ records: object[], events?: object[], skipCosts?: object, plan?: object|null, prefs?: object|null, now: number, timeZone: string }} input
  */
-export function buildBriefProjection({ records, events = [], skipCosts = {}, plan = null, prefs = null, now, timeZone }) {
+/**
+ * Index work-state rows once per rebuild. A brief links only to a canonical
+ * Canvas work item: during a partial sync work state keeps a student decision
+ * as a `plan:` orphan, and linking to that would fail the brief schema and
+ * take every island down with it.
+ */
+export function workItemIndex(workItems) {
+  const byPlan = new Map();
+  const byCanvas = new Map();
+  if (!Array.isArray(workItems)) return { byPlan, byCanvas };
+  for (const row of workItems) {
+    const id = String(row?.id || "");
+    if (!WORK_ITEM_RE.test(id)) continue;
+    const planId = row?.student?.plan_id;
+    if (typeof planId === "string" && !byPlan.has(planId)) byPlan.set(planId, id);
+    const parts = id.split(":");
+    const key = `${parts[2]}\u0000${parts[4]}`;
+    if (!byCanvas.has(key)) byCanvas.set(key, id);
+  }
+  return { byPlan, byCanvas };
+}
+
+export function workItemIdFor(item, index) {
+  if (!index) return null;
+  const byPlan = index.byPlan.get(item.id);
+  if (byPlan) return byPlan;
+  return index.byCanvas.get(`${String(item.course_id || "")}\u0000${String(item.canvas_id || "")}`) || null;
+}
+
+export function buildBriefProjection({ records, events = [], skipCosts = {}, plan = null, prefs = null, workItems = null, now, timeZone }) {
   const today = localDay(now, timeZone);
   const week = weekKey(today);
   const planAccepted = Boolean(plan?.weeks?.[week]?.accepted);
+  const workIndex = workItemIndex(workItems);
   const candidates = [];
   for (const record of records) {
     for (const item of record.items || []) {
@@ -291,6 +322,7 @@ export function buildBriefProjection({ records, events = [], skipCosts = {}, pla
         skipCost: skipCosts[`${item.course_id}:${item.canvas_id}`] || null,
         changes: recentChanges(events, item, now),
         planned,
+        work_item_id: workItemIdFor(item, workIndex),
       });
     }
   }

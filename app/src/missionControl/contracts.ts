@@ -78,6 +78,8 @@ export type AssignmentBrief = {
   id: string;
   assignment_id: string;
   course_id: string;
+  /** Canvas work-state id when the projection has this assignment. Ranking does not use it. */
+  work_item_id?: string;
   course_label: string;
   course_color: string;
   title: string;

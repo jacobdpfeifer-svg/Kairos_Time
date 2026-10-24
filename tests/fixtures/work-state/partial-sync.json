@@ -1,0 +1,89 @@
+{
+  "ok": true,
+  "reason": null,
+  "fell_back": false,
+  "coverage": {
+    "canvas": "partial",
+    "freshness": "missing",
+    "plan": "missing",
+    "study": "missing"
+  },
+  "source": {
+    "canvas_sync_id": "<sync>",
+    "freshness_event_cursor": 0,
+    "plan_revision": null
+  },
+  "courses": [
+    {
+      "id": "canvas:course:cu-boulder:1600",
+      "label": "CSCI 1300",
+      "name": "Intro Programming"
+    }
+  ],
+  "work_items": [
+    {
+      "id": "canvas:cu-boulder:1600:assignment:601",
+      "course_id": "canvas:course:cu-boulder:1600",
+      "kind": "assignment",
+      "title": "Project 1",
+      "due_at": "2026-09-25T16:00:00Z",
+      "canvas": {
+        "url": "https://canvas.example/courses/1600/assignments/601",
+        "submission_state": "submitted",
+        "completed": true
+      },
+      "provenance": {
+        "sync_id": "sync-fixture-1",
+        "source_ids": [
+          "cu-boulder|1600|assignment|601"
+        ]
+      },
+      "change": null,
+      "student": {
+        "status": null,
+        "estimate_minutes": null,
+        "planned_day": null,
+        "order": null,
+        "plan_id": null
+      },
+      "study": {
+        "readiness": "unavailable",
+        "exam_id": null
+      }
+    }
+  ],
+  "health": {
+    "inputs": {
+      "canvas": {
+        "status": "partial",
+        "sync_id": "sync-fixture-1",
+        "health_state": "stale_partial",
+        "failed_endpoints": [
+          {
+            "endpoint": "modules:1600",
+            "status": 500
+          }
+        ],
+        "unavailable_endpoints": []
+      },
+      "freshness": {
+        "status": "missing",
+        "event_count": 0,
+        "skipped_lines": 0
+      },
+      "plan": {
+        "status": "missing",
+        "week": "missing",
+        "captures": "missing"
+      },
+      "study": {
+        "status": "missing"
+      }
+    },
+    "orphans": [],
+    "ambiguous_plan_ids": [],
+    "unmatched_change_count": 0,
+    "ignored_change_count": 0,
+    "errors": []
+  }
+}

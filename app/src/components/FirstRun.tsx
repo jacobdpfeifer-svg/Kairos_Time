@@ -9,6 +9,7 @@ import {
   chooseSchool,
   onStudySyncProgress,
   openCanvasSso,
+  readSchoolProfile,
   readSyncHealth,
   readSyncProgress,
   saveOnboarding,
@@ -41,7 +42,7 @@ import { TypedInterview } from "../workspace/TypedInterview";
  *   sync      -> classes arrive
  *   workspace -> a reviewed starting point, or the standard layout
  */
-type Step = "school" | "canvas" | "sync" | "workspace";
+export type FirstRunStep = "school" | "canvas" | "sync" | "workspace";
 
 function shortName(name: string): string {
   // Keep campus names ("University of Michigan - Ann Arbor"); drop only a trailing
@@ -78,11 +79,11 @@ export function FirstRun({
   progressCourses,
   startStep = "school",
 }: {
-  onDone: () => void;
+  onDone: () => void | Promise<void>;
   progressCourses?: SyncProgressCourse[];
-  startStep?: Step;
+  startStep?: FirstRunStep;
 }) {
-  const [step, setStep] = useState<Step>(startStep);
+  const [step, setStep] = useState<FirstRunStep>(startStep);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SchoolMatch[]>([]);
   const [searching, setSearching] = useState(false);
@@ -113,6 +114,11 @@ export function FirstRun({
   const termsButton = useRef<HTMLButtonElement | null>(null);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
+  const finish = () => {
+    void Promise.resolve(doneRef.current()).catch(() => {
+      setWorkspaceError("Kairos couldn't save your setup. Try again before closing this window.");
+    });
+  };
   const heading = useRef<HTMLHeadingElement | null>(null);
   const reduced = useReducedMotion();
   const schoolName = profile ? shortName(profile.display_name) : picked ? shortName(picked.name) : "";
@@ -149,6 +155,15 @@ export function FirstRun({
   useEffect(() => {
     if (progressCourses) setCourses(progressCourses);
   }, [progressCourses]);
+
+  // A restart after choosing a school resumes the Canvas handoff instead of
+  // asking for the school again. The profile remains native-owned.
+  useEffect(() => {
+    if (startStep === "school") return;
+    let alive = true;
+    void readSchoolProfile().then((saved) => alive && saved && setProfile(saved)).catch(() => undefined);
+    return () => { alive = false; };
+  }, [startStep]);
 
   // Debounced school search.
   useEffect(() => {
@@ -337,7 +352,7 @@ export function FirstRun({
     setWorkspaceError(null);
     try {
       await writeAcceptedSpec(specFromTemplate(template, new Date().toISOString()));
-      doneRef.current();
+      finish();
     } catch {
       setWorkspaceError("Kairos couldn't save that workspace. You can try again, or do this later.");
     } finally {
@@ -553,7 +568,7 @@ export function FirstRun({
           accepted={DEFAULT_SPEC}
           proposal={proposal}
           reducedMotion={reduced}
-          onClose={() => doneRef.current()}
+          onClose={finish}
           onPlaybackNarration={
             voiceLive
               ? (line) => {
@@ -566,7 +581,7 @@ export function FirstRun({
       )}
 
       {step === "workspace" && workspaceMode === "type" && (
-        <TypedInterview onDraft={(draft) => void showProposal(draft)} onLater={() => doneRef.current()} />
+        <TypedInterview onDraft={(draft) => void showProposal(draft)} onLater={finish} />
       )}
 
       {step === "workspace" && workspaceMode === "choose" && recommended && (
@@ -608,7 +623,7 @@ export function FirstRun({
           <button type="button" onClick={() => setWorkspaceMode("type")}>
             Type it instead
           </button>
-          <button type="button" className="link" onClick={() => doneRef.current()}>
+          <button type="button" className="link" onClick={finish}>
             Do this later
           </button>
         </section>

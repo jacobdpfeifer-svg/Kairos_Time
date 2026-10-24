@@ -16,6 +16,7 @@ import {
 } from "./canvas-session.mjs";
 import { courseRecord } from "./study-sources.mjs";
 import { resolveUserRoot } from "./user-root.mjs";
+import { completeFromItem } from "./work-completion.mjs";
 
 export function itemsToWeekRows(items, courses) {
   const byId = Object.fromEntries((courses || []).map((c) => [String(c.id), c]));
@@ -31,7 +32,7 @@ export function itemsToWeekRows(items, courses) {
       points: it.points_possible ?? "",
       type: it.object_type,
       html_url: it.html_url || "",
-      complete: ["submitted", "graded", "pending_review"].includes(it.submission_state),
+      complete: completeFromItem(it),
       course_id: it.course_id,
       canvas_id: it.canvas_id,
       lti: it.lti,

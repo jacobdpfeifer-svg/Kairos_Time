@@ -7,6 +7,8 @@
  * term inference live here — the React shell never computes them.
  */
 import { stripHtmlTags } from "./canvas-session.mjs";
+import { effectiveDateFromAssignment } from "./canvas-model.mjs";
+import { completeFromSubmission } from "./work-completion.mjs";
 
 export const MAX_TEXT_CHARS = 60_000;
 export const PACKET_TEXT_CHARS = 18_000;
@@ -152,13 +154,7 @@ export function classifyItem(raw, { fromQuiz = false } = {}) {
 export function itemFromAssignment(courseId, assignment, groupById = {}) {
   const groupId = assignment?.assignment_group_id ?? null;
   const group = groupId != null ? groupById[String(groupId)] : null;
-  const submission = assignment?.submission;
-  const submitted =
-    submission &&
-    (submission.submitted_at ||
-      submission.workflow_state === "submitted" ||
-      submission.workflow_state === "graded" ||
-      submission.score != null);
+  const submitted = completeFromSubmission(assignment?.submission);
   return {
     id: `item-a${assignment.id}`,
     canvas_id: String(assignment.id),
@@ -168,7 +164,7 @@ export function itemFromAssignment(courseId, assignment, groupById = {}) {
     points_possible: numOrNull(assignment?.points_possible),
     assignment_group_id: groupId != null ? String(groupId) : null,
     group_weight: group?.group_weight ?? null,
-    due_at: assignment?.due_at || null,
+    due_at: effectiveDateFromAssignment(assignment).effective_due_at,
     html_url: assignment?.html_url || null,
     submission_types: Array.isArray(assignment?.submission_types) ? assignment.submission_types : [],
     completed: Boolean(submitted),
@@ -177,7 +173,7 @@ export function itemFromAssignment(courseId, assignment, groupById = {}) {
 }
 
 export function itemFromQuiz(courseId, quiz) {
-  const submitted = quiz?.submission && (quiz.submission.attempt || quiz.submission.score != null);
+  const submitted = Boolean(quiz?.submission?.attempt) || completeFromSubmission(quiz?.submission);
   return {
     id: `item-q${quiz.id}`,
     canvas_id: String(quiz.id),

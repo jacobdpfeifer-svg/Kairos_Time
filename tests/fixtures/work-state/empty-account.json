@@ -1,0 +1,47 @@
+{
+  "ok": true,
+  "reason": null,
+  "fell_back": false,
+  "coverage": {
+    "canvas": "missing",
+    "freshness": "missing",
+    "plan": "missing",
+    "study": "missing"
+  },
+  "source": {
+    "canvas_sync_id": null,
+    "freshness_event_cursor": 0,
+    "plan_revision": null
+  },
+  "courses": [],
+  "work_items": [],
+  "health": {
+    "inputs": {
+      "canvas": {
+        "status": "missing",
+        "sync_id": null,
+        "health_state": null,
+        "failed_endpoints": [],
+        "unavailable_endpoints": []
+      },
+      "freshness": {
+        "status": "missing",
+        "event_count": 0,
+        "skipped_lines": 0
+      },
+      "plan": {
+        "status": "missing",
+        "week": "missing",
+        "captures": "missing"
+      },
+      "study": {
+        "status": "missing"
+      }
+    },
+    "orphans": [],
+    "ambiguous_plan_ids": [],
+    "unmatched_change_count": 0,
+    "ignored_change_count": 0,
+    "errors": []
+  }
+}

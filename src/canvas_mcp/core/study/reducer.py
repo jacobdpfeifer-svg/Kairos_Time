@@ -201,6 +201,10 @@ def _apply(
         for other in proj.attempts.values():
             if other.item_id == item_id and other.status == "open" and other.attempt_id != attempt_id:
                 other.status = "interrupted"
+        item_state = proj.items.get(item_id)
+        work_item_id = p.get("work_item_id")
+        if item_state is not None and isinstance(work_item_id, str) and work_item_id.startswith("canvas:"):
+            item_state.work_item_id = work_item_id
         proj.attempts[attempt_id] = AttemptState(
             attempt_id=attempt_id,
             item_id=item_id,

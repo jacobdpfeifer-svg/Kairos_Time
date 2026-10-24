@@ -1,6 +1,6 @@
 // Purpose: routes the main student screens
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FirstRun } from "./components/FirstRun";
+import { FirstRun, type FirstRunStep } from "./components/FirstRun";
 import { SettingsView } from "./views/SettingsView";
 import { ALL_FILES } from "./views/CoursesView";
 import { FileDrop } from "./components/FileDrop";
@@ -11,7 +11,7 @@ import { advanceToast, offerToast, Toast, type ToastQueue, type ToastState } fro
 import { AskSheet } from "./ask/AskSheet";
 import { THEMES, useTheme } from "./theme";
 import { VoiceSheet } from "./voice/VoiceSheet";
-import { isTauri, onDeepLink, readSchoolProfile, readSemester, setDockMode, syncCanvas, takePendingLink, type SemesterTick } from "./ipc";
+import { completeOnboarding, isTauri, onDeepLink, readOnboardingState, readSchoolProfile, readSemester, setDockMode, syncCanvas, takePendingLink, type SemesterTick } from "./ipc";
 import { usePrefs } from "./prefs";
 import { useNotifications } from "./notify/useNotifications";
 import { study } from "./study/api";
@@ -59,22 +59,34 @@ const SETTINGS_GROUPS: [string, string][] = [
  * profile, so in the desktop app the flag alone would skip first run for a
  * newly created profile that has no school or Canvas sign-in yet.
  */
-export async function resolveOnboarded(): Promise<boolean> {
+type Bootstrap = { onboarded: boolean; startStep: FirstRunStep };
+
+export async function resolveBootstrap(): Promise<Bootstrap> {
+  const setup = await readOnboardingState().catch(() => ({ schema_version: 1, phase: "school" as const }));
+  if (setup?.phase === "ready") return { onboarded: true, startStep: "school" };
+  if (setup?.phase === "canvas") return { onboarded: false, startStep: "canvas" };
+  if (setup?.phase === "workspace") return { onboarded: false, startStep: "workspace" };
   const flag = localStorage.getItem("pn_onboarded") === "1";
-  if (!flag || !isTauri()) return flag;
+  if (!flag || !isTauri()) return { onboarded: flag, startStep: "school" };
   try {
-    return (await readSchoolProfile()) !== null;
+    const legacy = (await readSchoolProfile()) !== null;
+    if (legacy) await completeOnboarding();
+    return { onboarded: legacy, startStep: "school" };
   } catch {
-    return flag;
+    return { onboarded: flag, startStep: "school" };
   }
+}
+
+/** @deprecated Prefer resolveBootstrap so an interrupted first run resumes. */
+export async function resolveOnboarded(): Promise<boolean> {
+  return (await resolveBootstrap()).onboarded;
 }
 
 const isAssessment = (t: SemesterTick) => t.kind === "exam" || t.kind === "quiz";
 
 export function App() {
-  const [onboarded, setOnboarded] = useState<boolean | null>(() =>
-    isTauri() ? null : localStorage.getItem("pn_onboarded") === "1"
-  );
+  const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
+  const onboarded = bootstrap?.onboarded ?? null;
   const [route, setRoute] = useState<Route>(() => ({ tab: loadTab(AVAILABLE) }));
   const [cmdOpen, setCmdOpen] = useState(false);
   const [ask, setAsk] = useState<{ initial: AskEnvelope | null; seed?: { content: string } } | null>(null);
@@ -165,10 +177,10 @@ export function App() {
   useEffect(() => {
     if (onboarded !== null) return;
     let alive = true;
-    void resolveOnboarded().then((ok) => {
+    void resolveBootstrap().then((next) => {
       if (!alive) return;
-      if (!ok) localStorage.removeItem("pn_onboarded");
-      setOnboarded(ok);
+      if (!next.onboarded) localStorage.removeItem("pn_onboarded");
+      setBootstrap(next);
     });
     return () => {
       alive = false;
@@ -374,10 +386,17 @@ export function App() {
     return (
       <>
         <FirstRun
+          startStep={bootstrap?.startStep}
           onDone={() => {
-            localStorage.setItem("pn_onboarded", "1");
-            setOnboarded(true);
-            go("today");
+            // A failed checkpoint write must never trap the student in first
+            // run. The phase stays unfinished, so the next launch resumes here.
+            void completeOnboarding()
+              .catch(() => undefined)
+              .then(() => {
+                localStorage.setItem("pn_onboarded", "1");
+                setBootstrap({ onboarded: true, startStep: "school" });
+                go("today");
+              });
           }}
         />
         <VoiceSheet />

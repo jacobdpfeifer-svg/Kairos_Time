@@ -376,6 +376,31 @@ def test_eligibility_floor_twelve_hours() -> None:
     assert proj.attempts["a1"].evidence == "immediate_practice"
 
 
+def test_attempt_can_name_a_work_item_without_rewriting_history() -> None:
+    proj = base_b()
+    log = Log()
+    log.add(
+        "attempt_started",
+        "2026-09-18T09:00:00-06:00",
+        {
+            "attempt_id": "a1",
+            "item_id": ITEM,
+            "objective_id": OBJ,
+            "mode": "review",
+            "work_item_id": "canvas:cu-boulder:1300:assignment:101",
+        },
+    )
+    proj = run(proj, log)
+    assert proj.items[ITEM].work_item_id == "canvas:cu-boulder:1300:assignment:101"
+    assert "answer" not in proj.items[ITEM].to_dict()
+    historical = base_b()
+    old = Log()
+    old.attempt("a1", "2026-09-18T09:00:00-06:00")
+    historical = run(historical, old)
+    assert historical.items[ITEM].work_item_id is None
+    assert "work_item_id" not in historical.items[ITEM].to_dict()
+
+
 def test_eligible_reports_reason() -> None:
     proj = base_b()
     log = Log()

@@ -12,10 +12,13 @@ import {
   readFreshness,
   readSemester,
   readSkipCosts,
+  readWorkState,
   type FreshnessChange,
   type SemesterSurface,
   type SemesterTick,
+  type WorkStateRead,
 } from "../ipc";
+import { WorkStateNote, mergeMovedChanges, overlaySurface } from "../workState/snapshot";
 import { kindLabel } from "../semesterTicks";
 import { friendlyRelative, friendlyWhen } from "../format";
 import { consequenceSentence, skipCostFor, type SkipCosts } from "../consequence";
@@ -69,6 +72,7 @@ export function WeekView({
   surface: surfaceProp,
   changes: changesProp,
   snapshot: snapProp,
+  workState: workStateProp,
   suggestions: suggestionsProp,
   now: nowProp,
   onToast,
@@ -77,6 +81,7 @@ export function WeekView({
   surface?: SemesterSurface;
   changes?: FreshnessChange[];
   snapshot?: WeekSnapshot;
+  workState?: WorkStateRead | null;
   suggestions?: Suggestion[];
   now?: Date;
   onToast: (t: ToastState) => void;
@@ -84,6 +89,7 @@ export function WeekView({
 }) {
   const [surface, setSurface] = useState<SemesterSurface | null>(surfaceProp ?? null);
   const [changes, setChanges] = useState<FreshnessChange[]>(changesProp ?? []);
+  const [loadedWork, setLoadedWork] = useState<WorkStateRead | null>(workStateProp ?? null);
   const [snap, setSnap] = useState<WeekSnapshot | null>(snapProp ?? null);
   const [costs, setCosts] = useState<SkipCosts>({});
   const [suggestions, setSuggestions] = useState<Suggestion[]>(suggestionsProp ?? []);
@@ -145,6 +151,11 @@ export function WeekView({
           setSuggestions((prev) => merge(prev, queued));
         })
         .catch(() => undefined);
+      if (workStateProp === undefined) {
+        readWorkState()
+          .then((read) => alive && setLoadedWork(read))
+          .catch(() => alive && setLoadedWork({ ok: false, reason: "malformed", fell_back: false, state: null, health: null }));
+      }
     }
     if (!snapProp) {
       weekPlan("show")
@@ -154,9 +165,12 @@ export function WeekView({
     return () => {
       alive = false;
     };
-  }, [live, snapProp, synced]);
+  }, [live, snapProp, synced, workStateProp]);
 
-  const ticks = useMemo(() => (surface ? surface.courses.flatMap((c) => c.ticks) : []), [surface]);
+  const work = workStateProp === undefined ? loadedWork : workStateProp;
+  const shownSurface = useMemo(() => (surface ? overlaySurface(surface, work) : surface), [surface, work]);
+  const shownChanges = useMemo(() => mergeMovedChanges(changes, work), [changes, work]);
+  const ticks = useMemo(() => (shownSurface ? shownSurface.courses.flatMap((c) => c.ticks) : []), [shownSurface]);
   const model: WeekModel | null = useMemo(() => (snap ? buildWeek(ticks, snap, now) : null), [ticks, snap, now]);
 
   const run = useCallback(
@@ -207,9 +221,9 @@ export function WeekView({
   const piles = useMemo(() => {
     const out: Record<Pile, FreshnessChange[]> = { needs_you: [], changed: [], fyi: [] };
     if (!snap) return out;
-    for (const c of changes) out[pileFor(c, snap)].push(c);
+    for (const c of shownChanges) out[pileFor(c, snap)].push(c);
     return out;
-  }, [changes, snap]);
+  }, [shownChanges, snap]);
 
   const flipSig = model
     ? [
@@ -267,6 +281,7 @@ export function WeekView({
           {error}
         </p>
       )}
+      <WorkStateNote read={work} />
 
       {model.hours == null && (
         <form

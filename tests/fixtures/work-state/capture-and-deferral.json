@@ -1,0 +1,200 @@
+{
+  "ok": true,
+  "reason": null,
+  "fell_back": false,
+  "coverage": {
+    "canvas": "ok",
+    "freshness": "missing",
+    "plan": "ok",
+    "study": "missing"
+  },
+  "source": {
+    "canvas_sync_id": "<sync>",
+    "freshness_event_cursor": 0,
+    "plan_revision": "724a7d67d200a250"
+  },
+  "courses": [
+    {
+      "id": "canvas:course:cu-boulder:1300",
+      "label": "MATH 1300",
+      "name": "Calculus 1"
+    }
+  ],
+  "work_items": [
+    {
+      "id": "canvas:cu-boulder:1300:assignment:102",
+      "course_id": "canvas:course:cu-boulder:1300",
+      "kind": "assignment",
+      "title": "Homework 2",
+      "due_at": "2026-10-01T16:00:00Z",
+      "canvas": {
+        "url": "https://canvas.example/courses/1300/assignments/102",
+        "submission_state": "unsubmitted",
+        "completed": false
+      },
+      "provenance": {
+        "sync_id": "sync-fixture-1",
+        "source_ids": [
+          "cu-boulder|1300|assignment|102"
+        ]
+      },
+      "change": null,
+      "student": {
+        "status": "planned",
+        "estimate_minutes": null,
+        "planned_day": "2026-10-24",
+        "order": 0,
+        "plan_id": "item-a102"
+      },
+      "study": {
+        "readiness": "unavailable",
+        "exam_id": null
+      }
+    },
+    {
+      "id": "capture:cap-abc",
+      "course_id": null,
+      "kind": "capture",
+      "title": "Office hours question",
+      "due_at": null,
+      "canvas": null,
+      "provenance": {
+        "sync_id": null,
+        "source_ids": [
+          "cap-abc"
+        ]
+      },
+      "change": null,
+      "student": {
+        "status": "planned",
+        "estimate_minutes": null,
+        "planned_day": "2026-10-24",
+        "order": 1,
+        "plan_id": "cap-abc"
+      },
+      "study": {
+        "readiness": "unavailable",
+        "exam_id": null
+      }
+    },
+    {
+      "id": "canvas:cu-boulder:1300:assignment:101",
+      "course_id": "canvas:course:cu-boulder:1300",
+      "kind": "assignment",
+      "title": "Homework 1",
+      "due_at": "2026-09-22T16:00:00Z",
+      "canvas": {
+        "url": "https://canvas.example/courses/1300/assignments/101",
+        "submission_state": "graded",
+        "completed": true
+      },
+      "provenance": {
+        "sync_id": "sync-fixture-1",
+        "source_ids": [
+          "cu-boulder|1300|assignment|101"
+        ]
+      },
+      "change": null,
+      "student": {
+        "status": "deferred",
+        "estimate_minutes": 45,
+        "planned_day": "2026-10-26",
+        "order": 0,
+        "plan_id": "item-a101"
+      },
+      "study": {
+        "readiness": "unavailable",
+        "exam_id": null
+      }
+    },
+    {
+      "id": "canvas:cu-boulder:1300:quiz:55",
+      "course_id": "canvas:course:cu-boulder:1300",
+      "kind": "quiz",
+      "title": "Quiz 1",
+      "due_at": "2026-09-26T16:00:00Z",
+      "canvas": {
+        "url": "https://canvas.example/courses/1300/quizzes/55",
+        "submission_state": "unknown",
+        "completed": false
+      },
+      "provenance": {
+        "sync_id": "sync-fixture-1",
+        "source_ids": [
+          "cu-boulder|1300|quiz|55"
+        ]
+      },
+      "change": null,
+      "student": {
+        "status": null,
+        "estimate_minutes": null,
+        "planned_day": null,
+        "order": null,
+        "plan_id": null
+      },
+      "study": {
+        "readiness": "unavailable",
+        "exam_id": null
+      }
+    },
+    {
+      "id": "canvas:cu-boulder:1300:assignment:201",
+      "course_id": "canvas:course:cu-boulder:1300",
+      "kind": "assignment",
+      "title": "Midterm 1",
+      "due_at": "2026-10-15T16:00:00Z",
+      "canvas": {
+        "url": "https://canvas.example/courses/1300/assignments/201",
+        "submission_state": "unsubmitted",
+        "completed": false
+      },
+      "provenance": {
+        "sync_id": "sync-fixture-1",
+        "source_ids": [
+          "cu-boulder|1300|assignment|201"
+        ]
+      },
+      "change": null,
+      "student": {
+        "status": null,
+        "estimate_minutes": null,
+        "planned_day": null,
+        "order": null,
+        "plan_id": null
+      },
+      "study": {
+        "readiness": "unavailable",
+        "exam_id": null
+      }
+    }
+  ],
+  "health": {
+    "inputs": {
+      "canvas": {
+        "status": "ok",
+        "sync_id": "sync-fixture-1",
+        "health_state": "stale_complete",
+        "failed_endpoints": [],
+        "unavailable_endpoints": []
+      },
+      "freshness": {
+        "status": "missing",
+        "event_count": 0,
+        "skipped_lines": 0
+      },
+      "plan": {
+        "status": "ok",
+        "week": "ok",
+        "captures": "ok"
+      },
+      "study": {
+        "status": "missing"
+      }
+    },
+    "orphans": [],
+    "ambiguous_plan_ids": [],
+    "unmatched_change_count": 0,
+    "ignored_change_count": 0,
+    "errors": []
+  }
+}

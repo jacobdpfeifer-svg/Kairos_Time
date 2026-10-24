@@ -455,7 +455,7 @@ class StudyService:
 
     # --- attempts -----------------------------------------------------------
 
-    def start(self, item_id: str, mode: str, *, minutes: int = 5) -> dict[str, Any]:
+    def start(self, item_id: str, mode: str, *, minutes: int = 5, work_item_id: str | None = None) -> dict[str, Any]:
         require_choice(mode, MODES, "mode")
         found = find_item(self.packets, item_id)
         if found is None:
@@ -483,6 +483,7 @@ class StudyService:
                 "clock_status": self.clock_status,
                 "packet_version": packet["version"],
                 "minutes": minutes,
+                **({"work_item_id": work_item_id} if isinstance(work_item_id, str) and work_item_id.startswith("canvas:") else {}),
             },
         )
         if mode == "learn":

@@ -8,6 +8,8 @@ const links: { handler: ((url: string) => void) | null } = { handler: null };
 vi.mock("./ipc", () => ({
   isTauri: () => tauri.on,
   readSchoolProfile: vi.fn(),
+  readOnboardingState: vi.fn().mockResolvedValue({ schema_version: 1, phase: "school" }),
+  completeOnboarding: vi.fn().mockResolvedValue(undefined),
   setDockMode: vi.fn().mockResolvedValue(undefined),
   onDeepLink: vi.fn().mockImplementation(async (h: (url: string) => void) => {
     links.handler = h;
@@ -120,7 +122,7 @@ vi.mock("./views/SettingsView", () => ({
 }));
 
 import { App } from "./App";
-import { readSchoolProfile, readWorkspaceSpec, recordWorkspaceUsage, takePendingLink } from "./ipc";
+import { readOnboardingState, readSchoolProfile, readWorkspaceSpec, recordWorkspaceUsage, takePendingLink } from "./ipc";
 import { DEFAULT_SPEC } from "./workspace/contracts";
 import { resetWorkspaceStore } from "./workspace/store";
 
@@ -148,6 +150,7 @@ describe("App shell", () => {
     resetWorkspaceStore();
     tauri.on = true;
     vi.mocked(readSchoolProfile).mockReset();
+    vi.mocked(readOnboardingState).mockResolvedValue({ schema_version: 1, phase: "school" });
     vi.mocked(readWorkspaceSpec).mockResolvedValue({ spec: null, notice: null, history: [] });
     vi.mocked(takePendingLink).mockResolvedValue(null);
   });
@@ -158,6 +161,12 @@ describe("App shell", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "First run" })).toBeInTheDocument();
     expect(localStorage.getItem("pn_onboarded")).toBeNull();
+  });
+
+  it("opens a profile marked ready without relying on shared webview storage", async () => {
+    vi.mocked(readOnboardingState).mockResolvedValue({ schema_version: 1, phase: "ready", completed_at: "1" });
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Today view" })).toBeInTheDocument();
   });
 
   it("opens on the workspace home screen", async () => {

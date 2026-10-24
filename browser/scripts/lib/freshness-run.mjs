@@ -13,6 +13,7 @@ import { computeSkipCosts } from "./skip-cost.mjs";
 import { buildDashboard } from "./freshness-dashboard.mjs";
 import { loadCurrentProjections } from "./canvas-project.mjs";
 import { writeBriefProjection } from "./briefs/project.mjs";
+import { rebuildWorkState } from "./work-state.mjs";
 import {
   appendEvents,
   freshnessPaths,
@@ -58,6 +59,17 @@ export function rebuildDashboard(userRoot, { now = Date.now(), state = readState
     now,
   });
   writeJsonAtomic(p.dashboard, dashboard);
+  // Briefs attach the work-state identity when it is available. Build the
+  // common projection first so a sync or freshness event cannot leave briefs
+  // one rebuild behind. Both are derived; either failure stays non-fatal.
+  try {
+    const built = rebuildWorkState(userRoot, { now: new Date(now).toISOString() });
+    // rebuildWorkState reports a refusal rather than throwing, so a silent
+    // ok:false here would hide a projection that stopped updating.
+    if (!built.ok && !built.busy) console.warn(`work-state: ${built.reason || "rebuild refused"}`);
+  } catch (e) {
+    console.warn(`work-state: ${String(e?.message || e).slice(0, 200)}`);
+  }
   // Mission Control briefs re-rank on every sync and tick. Derived and
   // rebuildable, so a failure here must never break freshness. A failure
   // still counts as a change: error.json is what Today needs to re-read.

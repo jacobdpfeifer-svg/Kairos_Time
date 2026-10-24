@@ -16,5 +16,6 @@ Product notes for Kairos. The public entry is the root [`README.md`](../README.m
 | [`schools/`](schools/) | Per-school notes for curated overlays |
 | [`architecture/school-personalization.md`](architecture/school-personalization.md) | How the student's school is discovered and what personalization does |
 | [`handoff/architect-brief.md`](handoff/architect-brief.md) | Architect handback status |
+| [`handoff/foundation-hardening-program-2026-10-23.md`](handoff/foundation-hardening-program-2026-10-23.md) | Sequenced compatibility-first prompts for converging Canvas, planning, freshness, Study, briefs, and Workspace around one student-work projection |
 
 Agent guide: [`../AGENTS.md`](../AGENTS.md) · Install: [`../README.md`](../README.md) · User template: [`../templates/USER.md`](../templates/USER.md)

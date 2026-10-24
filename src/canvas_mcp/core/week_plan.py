@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -315,6 +316,39 @@ def snapshot(user_root: Path) -> dict[str, Any]:
     return {"ok": True, "state": load_state(user_root), "items": load_items(user_root), "piles": load_piles(user_root)}
 
 
+def _rebuild_work_state(user_root: Path) -> None:
+    """Best-effort shadow projection in dev and packaged runtimes.
+
+    The desktop runtime supplies its resource-owned Node binary and browser
+    scripts directory. A checkout falls back to the repository layout.
+
+    Deliberately not awaited. A plan mutation is a keyboard action and the
+    rebuild costs a Node start plus a full read of the Canvas projection, which
+    measured 245 ms on an empty root and 388 ms on the 200-course fixture --
+    well past the 300 ms ceiling in MASTER section 15. The student's state is
+    already committed before this runs, the writer takes a lock and refuses to
+    promote an older generation, and the freshness tick rebuilds again anyway,
+    so a dropped or truncated rebuild self-heals and never costs the student a
+    decision. Child stderr is inherited so a repeated failure is visible in the
+    runtime log instead of being swallowed.
+    """
+    scripts_dir = os.environ.get("KAIROS_BROWSER_SCRIPTS")
+    if scripts_dir:
+        script = Path(scripts_dir) / "rebuild-work-state.mjs"
+    else:
+        script = Path(__file__).resolve().parents[3] / "browser" / "scripts" / "rebuild-work-state.mjs"
+    if not script.is_file():
+        return
+    try:
+        subprocess.Popen(  # noqa: S603 - fixed argv, runtime-owned interpreter
+            [os.environ.get("KAIROS_NODE", "node"), str(script), "--user-root", str(user_root)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+        )
+    except OSError:
+        return
+
+
 def handle(user_root: Path, request: dict[str, Any]) -> dict[str, Any]:
     cmd = str(request.get("cmd") or "")
     params = request.get("params") or {}
@@ -322,6 +356,12 @@ def handle(user_root: Path, request: dict[str, Any]) -> dict[str, Any]:
         raise PlanError("params must be an object")
     if cmd == "show":
         return snapshot(user_root)
+    result = _dispatch(user_root, cmd, params)
+    _rebuild_work_state(user_root)
+    return result
+
+
+def _dispatch(user_root: Path, cmd: str, params: dict[str, Any]) -> dict[str, Any]:
     if cmd == "hours":
         set_hours(user_root, params.get("week"), params.get("hours"))
     elif cmd == "estimate":

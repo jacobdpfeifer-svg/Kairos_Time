@@ -6,9 +6,11 @@ use crate::briefs;
 use crate::canvas;
 use crate::daemon;
 use crate::inbox;
+use crate::onboarding;
 use crate::runtime::{self, Runtime};
 use crate::prefs;
 use crate::semester;
+use crate::work_state;
 use crate::workspace;
 use serde::Serialize;
 use std::sync::{atomic::{AtomicU8, Ordering}, Arc};
@@ -134,6 +136,7 @@ pub async fn choose_school(
     let profile = parsed.get("profile").cloned().unwrap_or(serde_json::Value::Null);
     if let Some(slug) = profile.get("slug").and_then(|v| v.as_str()) {
         inbox::save_school_slug(&rt.user_root, slug)?;
+        let _ = onboarding::mark_canvas(&rt.user_root);
         std::env::set_var("SCHOOL_SLUG", slug);
     }
     Ok(profile)
@@ -156,9 +159,25 @@ pub fn save_onboarding(rt: Rt<'_>, school_slug: String) -> Result<(), String> {
         return Err("school slug is required".into());
     }
     inbox::save_school_slug(&rt.user_root, slug)?;
+    let _ = onboarding::mark_canvas(&rt.user_root);
     // Honor school for subsequent sync shells in this process.
     std::env::set_var("SCHOOL_SLUG", slug);
     Ok(())
+}
+
+/// Small, profile-local first-run checkpoint. Canvas freshness is deliberately
+/// not folded into this state: an expired session repairs from the workspace.
+#[tauri::command]
+pub fn read_onboarding_state(rt: Rt<'_>) -> onboarding::State {
+    onboarding::read(&rt.user_root)
+}
+
+/// The student completed first-run, whether Canvas is connected now or they
+/// elected to finish it later. This is the durable replacement for a shared
+/// webview localStorage flag.
+#[tauri::command]
+pub fn complete_onboarding(rt: Rt<'_>) -> Result<onboarding::State, String> {
+    onboarding::complete(&rt.user_root)
 }
 
 /// Save the onboarding learning-profile games' answers (see docs/design/learning-profile.md).
@@ -316,10 +335,12 @@ pub async fn sync_study_sources(app: AppHandle, rt: Rt<'_>) -> Result<SyncResult
     let _ = blocking(move || watcher.join().map_err(|_| "progress watcher panicked".to_string())).await;
     let _ = app.emit("study-sync-progress", semester::read_sync_progress(&root));
     Ok(match result {
-        Ok(()) => SyncResult {
-            ok: true,
-            error: None,
-        },
+        Ok(()) => {
+            // First-run bookkeeping must not be able to report a sync that
+            // succeeded as a sync that failed.
+            let _ = onboarding::mark_workspace(&root);
+            SyncResult { ok: true, error: None }
+        }
         Err(e) => SyncResult {
             ok: false,
             error: Some(e),
@@ -364,6 +385,11 @@ pub fn read_sync_health(rt: Rt<'_>) -> serde_json::Value {
 #[tauri::command]
 pub fn read_freshness(rt: Rt<'_>) -> serde_json::Value {
     canvas::read_freshness(&rt.user_root)
+}
+
+#[tauri::command]
+pub fn read_work_state(rt: Rt<'_>) -> serde_json::Value {
+    work_state::read_work_state(&rt.user_root)
 }
 
 #[tauri::command]

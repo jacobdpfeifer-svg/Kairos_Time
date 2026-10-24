@@ -184,9 +184,11 @@ class ItemState:
     last_event_seq: int = 0
     last_evidence: str | None = None
     last_outcome: str | None = None
+    # Optional link to a work-state id. Absent on historical items.
+    work_item_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        body = {
             "item_id": self.item_id,
             "objective_id": self.objective_id,
             "due": iso(self.due) if self.due else None,
@@ -202,6 +204,9 @@ class ItemState:
             "last_evidence": self.last_evidence,
             "last_outcome": self.last_outcome,
         }
+        if self.work_item_id:
+            body["work_item_id"] = self.work_item_id
+        return body
 
 
 @dataclass

@@ -184,6 +184,30 @@ export async function saveOnboarding(schoolSlug: string): Promise<void> {
   await invoke("save_onboarding", { schoolSlug });
 }
 
+export type OnboardingPhase = "school" | "canvas" | "workspace" | "ready";
+export type OnboardingState = { schema_version: number; phase: OnboardingPhase; completed_at?: string };
+
+export async function readOnboardingState(): Promise<OnboardingState> {
+  if (!isTauri()) {
+    try {
+      const raw = localStorage.getItem("pn_onboarding_state");
+      if (raw) return JSON.parse(raw) as OnboardingState;
+    } catch {
+      /* fall through to a new profile */
+    }
+    return { schema_version: 1, phase: "school" };
+  }
+  return invoke<OnboardingState>("read_onboarding_state");
+}
+
+export async function completeOnboarding(): Promise<void> {
+  if (!isTauri()) {
+    localStorage.setItem("pn_onboarding_state", JSON.stringify({ schema_version: 1, phase: "ready", completed_at: new Date().toISOString() }));
+    return;
+  }
+  await invoke("complete_onboarding");
+}
+
 export type LearningProfileAnswers = {
   practiceFormat: "worked_example" | "retrieval";
   autonomy: "directive" | "choices";
@@ -315,6 +339,39 @@ export type FreshnessDashboard = {
 export async function readFreshness(): Promise<FreshnessDashboard | null> {
   if (!isTauri()) return fixtureEnabled() ? fixtureFreshness() : null;
   return invoke<FreshnessDashboard | null>("read_freshness");
+}
+
+/** Validated work-state snapshot. `missing` is a normal first run, not an empty week. */
+export type WorkStateRead = {
+  ok: boolean;
+  reason: string | null;
+  fell_back: boolean;
+  state: {
+    schema_version: number;
+    coverage: { canvas: string; freshness: string; plan: string; study: string };
+    work_items: Array<{
+      id: string;
+      course_id: string | null;
+      kind: string;
+      title: string | null;
+      due_at: string | null;
+      canvas: { url: string | null; submission_state: string; completed?: boolean } | null;
+      change: { kind: string; seen_at: string | null; source_key?: string | null } | null;
+      student: {
+        status: string | null;
+        estimate_minutes: number | null;
+        planned_day: string | null;
+        order: number | null;
+        plan_id: string | null;
+      };
+    }>;
+  } | null;
+  health: { schema_version: number } | null;
+};
+
+export async function readWorkState(): Promise<WorkStateRead> {
+  if (!isTauri()) return { ok: false, reason: "missing", fell_back: false, state: null, health: null };
+  return invoke<WorkStateRead>("read_work_state");
 }
 
 /** `{user_root}/inbox/freshness/skip-costs.json`: grade if each upcoming item is a zero or full marks. */
