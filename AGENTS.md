@@ -1,10 +1,6 @@
-```bash
-scripts/verify.sh
-```
-
 # Canvas MCP — Agent guide (Kairos student platform)
 
-`scripts/verify.sh` is the feedback loop. It puts `/opt/homebrew/bin` on `PATH`, sets `PYTHONPATH=src`, and runs ruff, pytest, and the app vitest suite. mypy, the browser tests, and cargo stay separate.
+Run `scripts/verify.sh` before handing work back. It is the feedback loop. It puts `/opt/homebrew/bin` on `PATH`, sets `PYTHONPATH=src`, and runs ruff, pytest, and the app vitest suite. mypy, the browser tests, and cargo stay separate.
 
 Personal local-first Canvas companion (read + plan + study). Context: `{user_root}/USER.md`. Architecture: [`docs/architecture.md`](docs/architecture.md). Canvas-focus pivot: [`docs/handoff/canvas-focus-pivot-2026-09-11.md`](docs/handoff/canvas-focus-pivot-2026-09-11.md).
 
@@ -51,6 +47,7 @@ Follow [`skills/_SESSION.md`](skills/_SESSION.md), then:
 | “registration”, “holds”, “prep for advising” | `student-registration-prep` |
 | “I did a voice session”, “distill my voice notes”, goals/motivation questions | `student-voice-intake` |
 | “comprehensive audit”, “team review”, “prep repo for review”, pre-release repo sweep | [`audit`](skills/audit/SKILL.md) |
+| “deep audit”, “full-system audit”, “audit everything”, workbench / history / UI-operation sweep | [`audit-deep`](skills/audit-deep/SKILL.md) |
 | “learning-program audit”, “audit the learning loop” | [`learning-program-audit`](skills/learning-program-audit/SKILL.md) |
 | a handed-over video/talk/article to research and apply, “go deeper than this”, “what should we take from this” | [`source-to-spec`](skills/source-to-spec/SKILL.md) |
 
