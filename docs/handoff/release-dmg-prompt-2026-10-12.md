@@ -2,7 +2,7 @@
 
 You are releasing Kairos from:
 
-`/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Canvas Competition`
+`/Users/jacobpfeifer/dev/kairos`
 
 Read `AGENTS.md` before you change anything. `main` is the only product branch.
 Commit and push there. The old branch lock (`.cursor/rules/phase1-branch.mdc`)

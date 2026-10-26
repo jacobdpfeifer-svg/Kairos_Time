@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Mirror the checkout to a non-iCloud directory and run a cargo/tauri command there.
 #
-# Why: this repository lives under iCloud Drive ("Mobile Documents"). Rust's
-# std::fs::copy (fcopyfile with metadata) returns EPERM on files stored there,
-# so tauri-build panics in place ("failed to run tauri-build: Operation not
-# permitted"). Observed 2026-09-18 on macOS 25.6 with rustc 1.98.1. Plain `cp`
-# works, so we rsync the tree out and build from the mirror.
+# Use this only when the checkout is still under iCloud Drive ("Mobile Documents").
+# A checkout outside iCloud, such as ~/dev/kairos, builds in place.
+#
+# Why it exists: Rust's std::fs::copy (fcopyfile with metadata) returns EPERM on
+# files stored in iCloud, so tauri-build panics in place ("failed to run
+# tauri-build: Operation not permitted"). Observed 2026-09-18 on macOS 25.6 with
+# rustc 1.98.1. Plain `cp` works, so this rsyncs the tree out and builds there.
 #
 # Usage:
 #   scripts/native-mirror.sh cargo check --locked

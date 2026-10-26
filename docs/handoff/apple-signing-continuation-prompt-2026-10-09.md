@@ -2,7 +2,7 @@
 
 You are continuing work on the Kairos Canvas companion project in:
 
-`/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Canvas Competition`
+`/Users/jacobpfeifer/dev/kairos`
 
 Read `AGENTS.md` and `skills/_SESSION.md` before making changes. Preserve all
 existing user and background-audit changes in the working tree. Do not reset,

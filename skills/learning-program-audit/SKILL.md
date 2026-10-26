@@ -1,18 +1,18 @@
 ---
-name: audit
+name: learning-program-audit
 description: >-
   Deep audit-and-fix of the student learning loop and brief-continuity cue.
-  Use when the user tags or invokes Audit, asks for a learning-program audit,
-  or hands this program over for a contract pass. Fixes broken contracts in
-  place; does not add engagement mechanics.
+  Use when the user asks for a learning-program audit or hands this program
+  over for a contract pass. Fixes broken contracts in place; does not add
+  engagement mechanics. The repo-wide team review is skills/audit.
 disable-model-invocation: true
 ---
 
 # Audit — learning program
 
-Branch: `phase1-productname-pivot`. Do not checkout `main`. Do not commit unless Jacob asks.
+Work on `main`. Do not recreate `phase1-productname-pivot`. Do not commit unless Jacob asks.
 
-This pass audits one program, not the whole repo: the student learning loop and the brief-continuity cue that sits beside it. The research note [`docs/research/engagement-mechanics-fit-audit.md`](../../../docs/research/engagement-mechanics-fit-audit.md) is a constraint, not a build ticket. It does not authorize new mechanics. This skill authorizes **fixes** to the program that already exists.
+This pass audits one program, not the whole repo: the student learning loop and the brief-continuity cue that sits beside it. The research note [`docs/research/engagement-mechanics-fit-audit.md`](../../docs/research/engagement-mechanics-fit-audit.md) is a constraint, not a build ticket. It does not authorize new mechanics. This skill authorizes **fixes** to the program that already exists.
 
 ## Your mandate
 
@@ -26,7 +26,7 @@ You are looking for:
 - **Dead or half-wired paths**: IPC commands, permissions, or UI that claim to record an outcome or show a cue and do not actually do it — or that do it twice.
 - **Tests that assert the story but not the behavior**: green tests that never call the real seam (daemon argv, IPC payload, school-local day boundary, same-session flag).
 
-A memo that lists bugs and stops is an incomplete pass. A new feature from the research note (evidence ladder visual, outcome trail, commitment device, semester garden, FSRS, freeze, recovery currency, class standings, class marks) is not a fix. Do not build those. Class standings and class marks are framed in [`docs/design/class-standings.md`](../../../docs/design/class-standings.md); an audit pass still does not implement them.
+A memo that lists bugs and stops is an incomplete pass. A new feature from the research note (evidence ladder visual, outcome trail, commitment device, semester garden, FSRS, freeze, recovery currency, class standings, class marks) is not a fix. Do not build those. Class standings and class marks are framed in [`docs/design/class-standings.md`](../../docs/design/class-standings.md); an audit pass still does not implement them.
 
 ### Invariants — these are the program
 
@@ -58,7 +58,7 @@ If code and these invariants disagree, the invariants win. Change the code. If a
 - Replacing the delayed-hit scheduler with FSRS/SM-2 or any other model.
 - Changing what counts as a brief day (for example, counting a review session or an app open).
 - Writing habit or learn-loop events into the ledger, or letting the streak update the learning profile.
-- Anything that needs a live student `{user_root}`, a paid credential, or a signed product decision in [`docs/handoff/pre-ship-decisions.md`](../../../docs/handoff/pre-ship-decisions.md).
+- Anything that needs a live student `{user_root}`, a paid credential, or a signed product decision in [`docs/handoff/pre-ship-decisions.md`](../../docs/handoff/pre-ship-decisions.md).
 
 For each escalate item: one paragraph, the invariant it would risk, and the smallest diff-shape. Then stop.
 

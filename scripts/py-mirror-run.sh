@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Mirror the checkout to a non-iCloud directory and run a Python module there.
 #
-# Why: `uv run` re-syncs/rebuilds the project's editable install from the repo's
-# own source on every invocation. When the repo lives under iCloud Drive
-# ("Mobile Documents"), that rebuild intermittently fails or silently drops
-# files (same class of issue as native-mirror.sh's Rust EPERM case), leaving
-# `canvas_mcp.core` unimportable ~half the time. A persistent venv built once
-# against the rsynced mirror avoids the iCloud-triggered rebuild entirely.
+# Use this only when the checkout is still under iCloud Drive ("Mobile Documents").
+# A checkout outside iCloud, such as ~/dev/kairos, runs Python in place.
+#
+# Why it exists: `uv run` re-syncs/rebuilds the project's editable install from
+# the repo's own source on every invocation. Under iCloud that rebuild
+# intermittently fails or silently drops files (same class of issue as
+# native-mirror.sh's Rust EPERM case), leaving `canvas_mcp.core` unimportable
+# about half the time. A persistent venv built once against the rsynced mirror
+# avoids the iCloud-triggered rebuild.
 #
 # Usage:
 #   scripts/py-mirror-run.sh -m canvas_mcp.core.learn_loop reconcile
