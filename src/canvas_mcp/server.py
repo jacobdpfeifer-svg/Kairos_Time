@@ -88,10 +88,15 @@ def test_connection() -> bool:
         return False
     finally:
         from .core import client as _client_module
-        _client_module.http_client = None
-        _client_module._http_client_loop_ref = None
-        _client_module._request_semaphore = None
-        _client_module._semaphore_loop_ref = None
+        if hasattr(_client_module, "_http_client_manager"):
+            _client_module._http_client_manager.reset()
+        else:
+            _client_module.http_client = None
+            if hasattr(_client_module, "_http_client_loop_ref"):
+                _client_module._http_client_loop_ref = None
+            _client_module._request_semaphore = None
+            if hasattr(_client_module, "_semaphore_loop_ref"):
+                _client_module._semaphore_loop_ref = None
 
 
 def main() -> None:
@@ -143,10 +148,15 @@ def main() -> None:
         )
     finally:
         from .core import client as _client_module
-        _client_module.http_client = None
-        _client_module._http_client_loop_ref = None
-        _client_module._request_semaphore = None
-        _client_module._semaphore_loop_ref = None
+        if hasattr(_client_module, "_http_client_manager"):
+            _client_module._http_client_manager.reset()
+        else:
+            _client_module.http_client = None
+            if hasattr(_client_module, "_http_client_loop_ref"):
+                _client_module._http_client_loop_ref = None
+            _client_module._request_semaphore = None
+            if hasattr(_client_module, "_semaphore_loop_ref"):
+                _client_module._semaphore_loop_ref = None
 
     mcp = create_server()
     register_all_tools(mcp, role="student")
