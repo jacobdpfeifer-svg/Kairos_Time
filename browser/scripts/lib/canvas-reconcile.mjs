@@ -163,7 +163,7 @@ export function reconcile_due_items(generation) {
       if (!asAssignment.title) asAssignment.title = q.title;
       asAssignment.html_url = isHttpUrl(q.html_url) ? q.html_url : asAssignment.html_url;
       asAssignment.points_possible = q.points_possible ?? asAssignment.points_possible;
-      asAssignment.effective_due_at = asAssignment.effective_due_at || q.due_at || null;
+      asAssignment.effective_due_at = asAssignment.effective_due_at || effectiveDateFromAssignment(q).effective_due_at;
       pushSeen(asAssignment, "quiz");
     }
 

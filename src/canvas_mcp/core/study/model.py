@@ -12,6 +12,8 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 PROJECTION_VERSION = 1
+# Same shape as browser/scripts/lib/briefs/schema.mjs WORK_ITEM_RE.
+WORK_ITEM_RE = re.compile(r"^canvas:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+:[a-z_]+:[A-Za-z0-9_-]+$")
 
 OUTCOMES = ("correct", "partial", "incorrect", "skipped", "interrupted", "uncertain")
 GRADERS = ("pending", "deterministic", "model_proposed", "student_self", "abstained")
@@ -35,6 +37,7 @@ EVIDENCE = (
 EVENT_TYPES = (
     "packet_imported",
     "attempt_started",
+    "work_item_linked",
     "draft_saved",
     "attempt_submitted",
     "assessment",
@@ -94,6 +97,13 @@ def write_private_text(path: Path, text: str) -> None:
         except OSError:
             pass
         raise
+
+
+def valid_work_item_id(value: object) -> str | None:
+    """A canvas work-state id, or None. A bare ``canvas:`` prefix is not enough."""
+    if isinstance(value, str) and WORK_ITEM_RE.fullmatch(value):
+        return value
+    return None
 
 
 def require_id(value: Any, what: str) -> str:

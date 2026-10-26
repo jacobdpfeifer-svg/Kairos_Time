@@ -109,6 +109,29 @@ describe("work-state snapshot", () => {
     expect(out.courses[0].ticks.map((t) => t.id)).toEqual(["item-a102"]);
   });
 
+  it("drops an unparseable due and sorts a missing date after a real one", () => {
+    const dropped = overlaySurface(surface([tick()]), read({}, [{ ...item, due_at: "not-a-date" }]));
+    expect(dropped.courses[0].ticks).toHaveLength(0);
+    const undated = tick({ id: "item-a102", due_at: null, title: "Undated" });
+    const dated = tick({ id: "item-a103", due_at: "2026-10-21T16:00:00Z", title: "Dated" });
+    const later: WorkItem = {
+      ...item,
+      id: "canvas:cu-boulder:1300:assignment:102",
+      title: "Undated",
+      due_at: null,
+      student: { ...item.student, plan_id: "item-a102" },
+    };
+    const earlier: WorkItem = {
+      ...item,
+      id: "canvas:cu-boulder:1300:assignment:103",
+      title: "Dated",
+      due_at: "2026-10-21T16:00:00Z",
+      student: { ...item.student, plan_id: "item-a103" },
+    };
+    const ordered = overlaySurface(surface([undated, dated]), read({}, [later, earlier]));
+    expect(ordered.courses[0].ticks.map((row) => row.id)).toEqual(["item-a103", "item-a102"]);
+  });
+
   it("will not overlay when two rows claim the same plan key", () => {
     const twin: WorkItem = { ...item, id: "canvas:other:1300:assignment:101", title: "Wrong course" };
     const out = overlaySurface(surface(), read({}, [item, twin]));

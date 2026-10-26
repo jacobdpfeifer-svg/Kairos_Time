@@ -352,7 +352,7 @@ export function TodayView({
         </section>
       )}
 
-      {hasCourses && <SemesterLine surface={surfaceProp} synced={synced} onOpen={openTick} />}
+      {hasCourses && <SemesterLine work={work} synced={synced} onOpen={openTick} />}
 
       {popup && (
         <ItemSheet

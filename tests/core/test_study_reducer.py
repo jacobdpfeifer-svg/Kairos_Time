@@ -399,6 +399,21 @@ def test_attempt_can_name_a_work_item_without_rewriting_history() -> None:
     historical = run(historical, old)
     assert historical.items[ITEM].work_item_id is None
     assert "work_item_id" not in historical.items[ITEM].to_dict()
+    rejected = base_b()
+    bad = Log()
+    bad.add(
+        "attempt_started",
+        "2026-09-18T09:00:00-06:00",
+        {
+            "attempt_id": "a1",
+            "item_id": ITEM,
+            "objective_id": OBJ,
+            "mode": "review",
+            "work_item_id": "canvas:totally:invalid",
+        },
+    )
+    rejected = run(rejected, bad)
+    assert rejected.items[ITEM].work_item_id is None
 
 
 def test_eligible_reports_reason() -> None:

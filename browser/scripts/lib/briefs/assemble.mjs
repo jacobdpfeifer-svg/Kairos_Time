@@ -285,24 +285,40 @@ export function isCandidate(item, { now, planned }) {
 export function workItemIndex(workItems) {
   const byPlan = new Map();
   const byCanvas = new Map();
+  const canvasHits = new Map();
   if (!Array.isArray(workItems)) return { byPlan, byCanvas };
   for (const row of workItems) {
     const id = String(row?.id || "");
     if (!WORK_ITEM_RE.test(id)) continue;
     const planId = row?.student?.plan_id;
-    if (typeof planId === "string" && !byPlan.has(planId)) byPlan.set(planId, id);
+    if (typeof planId === "string" && planId && !byPlan.has(planId)) byPlan.set(planId, id);
     const parts = id.split(":");
-    const key = `${parts[2]}\u0000${parts[4]}`;
-    if (!byCanvas.has(key)) byCanvas.set(key, id);
+    // course, object type, canvas id. Two tenants sharing that triple are not
+    // distinguishable from a study-source row, so the key is left unlinked.
+    const key = `${parts[2]}\u0000${parts[3]}\u0000${parts[4]}`;
+    const seen = canvasHits.get(key) || [];
+    seen.push(id);
+    canvasHits.set(key, seen);
+  }
+  for (const [key, ids] of canvasHits) {
+    if (ids.length === 1) byCanvas.set(key, ids[0]);
   }
   return { byPlan, byCanvas };
+}
+
+function briefCanvasKey(item) {
+  const raw = String(item?.id || "");
+  const type = raw.startsWith("item-q") ? "quiz" : raw.startsWith("item-a") ? "assignment" : "";
+  if (!type || item?.canvas_id == null || item.canvas_id === "") return null;
+  return `${String(item.course_id || "")}\u0000${type}\u0000${String(item.canvas_id)}`;
 }
 
 export function workItemIdFor(item, index) {
   if (!index) return null;
   const byPlan = index.byPlan.get(item.id);
   if (byPlan) return byPlan;
-  return index.byCanvas.get(`${String(item.course_id || "")}\u0000${String(item.canvas_id || "")}`) || null;
+  const key = briefCanvasKey(item);
+  return key ? index.byCanvas.get(key) || null : null;
 }
 
 export function buildBriefProjection({ records, events = [], skipCosts = {}, plan = null, prefs = null, workItems = null, now, timeZone }) {

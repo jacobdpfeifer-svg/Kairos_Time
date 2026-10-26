@@ -15,6 +15,7 @@
  * for this CLI escape hatch only — not an MCP tool).
  */
 import fs from "node:fs";
+import { refuseDirectCampusGroups } from "./require-school.mjs";
 import {
   COEN_MAJOR_DINNERS_PATH,
   SIGNUP_PREFS_PATH,
@@ -26,6 +27,8 @@ import {
   schoolLocalDay,
   shellQuote,
 } from "./campusgroups-session.mjs";
+
+refuseDirectCampusGroups(import.meta.url);
 
 function parseArgs(argv) {
   const args = {

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { briefKind } from "../scripts/lib/briefs/classify.mjs";
-import { buildBriefProjection, sectionOrder } from "../scripts/lib/briefs/assemble.mjs";
+import { buildBriefProjection, sectionOrder, workItemIdFor, workItemIndex } from "../scripts/lib/briefs/assemble.mjs";
 import { briefPath, writeBriefProjection } from "../scripts/lib/briefs/project.mjs";
 import { ACTION_KINDS, validateBrief } from "../scripts/lib/briefs/schema.mjs";
 import { FETCHED, NOW, TZ, crowdedRecord, mathRecord, paperRecord, sparseRecord, staleRecord } from "./fixtures/briefs/records.mjs";
@@ -262,4 +262,24 @@ test("two overlapping writers leave an index that matches the brief files", asyn
   }
   assert.ok(!fs.existsSync(path.join(root, "inbox", "briefs", "v1", ".write.lock")));
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("work-item links keep object type and drop a contested canvas id", () => {
+  const index = workItemIndex([
+    { id: "canvas:cu-boulder:1300:assignment:101", student: {} },
+    { id: "canvas:cu-boulder:1300:quiz:101", student: {} },
+  ]);
+  assert.equal(
+    workItemIdFor({ id: "item-a101", course_id: "1300", canvas_id: "101" }, index),
+    "canvas:cu-boulder:1300:assignment:101",
+  );
+  assert.equal(
+    workItemIdFor({ id: "item-q101", course_id: "1300", canvas_id: "101" }, index),
+    "canvas:cu-boulder:1300:quiz:101",
+  );
+  const collided = workItemIndex([
+    { id: "canvas:cu-boulder:1300:assignment:101", student: {} },
+    { id: "canvas:other-school:1300:assignment:101", student: {} },
+  ]);
+  assert.equal(workItemIdFor({ id: "item-a101", course_id: "1300", canvas_id: "101" }, collided), null);
 });

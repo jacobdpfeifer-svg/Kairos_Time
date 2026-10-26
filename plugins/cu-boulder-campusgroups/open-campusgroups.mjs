@@ -3,6 +3,9 @@
  * Reuses browser/.auth (same profile as Canvas sync).
  */
 import { CG_BASE, ensureCampusGroupsSession, launchCanvasContext } from "./campusgroups-session.mjs";
+import { refuseDirectCampusGroups } from "./require-school.mjs";
+
+refuseDirectCampusGroups(import.meta.url);
 
 const { context, page } = await launchCanvasContext();
 

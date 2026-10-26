@@ -24,6 +24,9 @@ import {
   ENGINEERING_DINNERS_URL,
   parseEngineeringDinnersHtml,
 } from "../../browser/scripts/lib/coen-schedule-parse.mjs";
+import { refuseDirectCampusGroups } from "./require-school.mjs";
+
+refuseDirectCampusGroups(import.meta.url);
 
 const STALE_DAYS = 7;
 const force = process.argv.includes("--force");

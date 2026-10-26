@@ -70,7 +70,7 @@ Each work item: `id`, `course_id`, `kind`, `title`, `due_at`, `canvas`, `provena
 - `provenance`: `{ sync_id, source_ids }`. `source_ids` point at the canonical item id or plan id. Bodies are not copied.
 - `change`: null, or `{ kind, seen_at, source_key }` plus `from` and `to` when the event is a due-date move. Freshness `due_changed` is stored as `due_moved`. At most one change object per item. A `due_moved` outranks every other kind regardless of age, because a surface renders only the moved-date row and a later `points_changed` would otherwise bury the move; within one kind the latest `detected_at`, then `key`, wins. `source_key` is the freshness key that produced the change, so a reader can recognise the same move it already holds instead of guessing from a URL.
 - `student`: `{ status, estimate_minutes, planned_day, order, plan_id }`. `status` is `planned`, `deferred`, `done`, or null. Null means no student decision. `done` is only a capture row with `done_at`.
-- `study`: `{ readiness, exam_id }`. `readiness` is `unavailable` (no readable projection), `unlinked` (projection exists but the item has no study reference), or a value copied from a study item that already names this work-item id. Missing sources are not upgraded to ready.
+- `study`: `{ readiness, exam_id }`. `readiness` is `unavailable` (no readable projection), `unlinked` (projection exists but no study item names this work-item id), a readiness value copied from a study item that names a schema-valid id when that value is already `unavailable`, `unlinked`, `source_partial`, or `ready`, or `source_partial` when the study item names a valid id and does not carry one of those values. Missing sources are not upgraded to ready. An id that is only `canvas:`-prefixed is ignored.
 
 `coverage` values: `missing` (no file or no pointer), `unreadable` (present but invalid), `partial` (Canvas health `fresh_partial` / `stale_partial`, or failed endpoints), `ok`. An empty `work_items` array together with `coverage.canvas` of `missing` or `unreadable` means the input was absent. It does not mean the student has no work.
 
@@ -131,7 +131,7 @@ Migration is additive. Existing user-root artifacts keep their names. Rollback o
 These are recorded so later prompts do not invent a destructive policy.
 
 1. Intra-day plan order is id-ascending because `week.json` does not store a sequence. An explicit sequence would be a week-plan schema change, not a silent sort.
-2. Study items do not name a work item yet. Readiness stays `unavailable` or `unlinked` until a study record carries a work-item id. Historical events are not rewritten.
+2. A study event may carry a schema-valid `work_item_id`, and work state joins that id. The Study screen does not send one: packet items are not Canvas assignments, and this reducer does not match them by title. Historical events are not rewritten.
 3. Retention of three generations matches Canvas. It is not a decision to delete raw Canvas history or plan files.
 4. Manual release checks in the program (disposable profile, live SSO) stay owner-run. A green unit suite does not promote a release.
 
@@ -141,9 +141,9 @@ These are recorded so later prompts do not invent a destructive policy.
 |---|---|---|
 | Today and Week (`read_work_state`, `app/src/workState/snapshot.tsx`) | Title, due instant, `canvas.completed`, one moved-date row, coverage note | Week-plan order and brief ranking. A missing or malformed snapshot keeps the legacy semester and plan readers |
 | Brief assembler | `work_item_id` on a brief when a work item matches the study-source row | Copy, ranking, and `inbox/briefs/v1/`. It does not write work state |
-| Study | Optional `work_item_id` on a new `attempt_started`. Historical events omit it | Events, packets, evidence, checkers |
+| Study | Optional `work_item_id` on a new `attempt_started`, and on resume when the item has none yet | Events, packets, evidence, checkers. The Study screen does not supply the id |
 | Advisor | `work_course_ids` for shared identity | Requirement claims, only from a dated `inbox/degree-audit.md` |
 
 The overlay never blanks a fact it does not have: a null `due_at` in work state leaves the row's existing date, because clearing it would drop the row out of the week. Because `read_semester` windows and sorts on the semester surface's own `due_at`, that file now carries the same student-effective date work state uses (`effectiveDateFromAssignment`), and the overlay re-windows and re-sorts after applying it. A plan key claimed by two work items is left un-overlaid rather than matched to the wrong course.
 
-Exceptions still reading legacy artifacts directly: skills via `week.md` and course Markdown, semester ticks, freshness dashboard, grade truth, and workspace layout. Those compatibility outputs stay until each consumer is listed here.
+Exceptions still reading legacy artifacts directly: skills via `week.md` and course Markdown, Courses (its semester ticks), freshness dashboard, grade truth, and workspace layout. Today's semester strip uses the same overlay as the Today list. Those compatibility outputs stay until each consumer is listed here.

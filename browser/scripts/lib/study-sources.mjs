@@ -183,7 +183,7 @@ export function itemFromQuiz(courseId, quiz) {
     points_possible: numOrNull(quiz?.points_possible),
     assignment_group_id: quiz?.assignment_group_id != null ? String(quiz.assignment_group_id) : null,
     group_weight: null,
-    due_at: quiz?.due_at || null,
+    due_at: effectiveDateFromAssignment(quiz).effective_due_at,
     html_url: quiz?.html_url || null,
     submission_types: ["online_quiz"],
     completed: Boolean(submitted),

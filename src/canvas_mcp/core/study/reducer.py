@@ -21,6 +21,7 @@ from .model import (
     ItemState,
     Projection,
     parse_instant,
+    valid_work_item_id,
 )
 
 ENCOUNTER_KINDS = ("practice", "exposure", "hint")
@@ -202,9 +203,9 @@ def _apply(
             if other.item_id == item_id and other.status == "open" and other.attempt_id != attempt_id:
                 other.status = "interrupted"
         item_state = proj.items.get(item_id)
-        work_item_id = p.get("work_item_id")
-        if item_state is not None and isinstance(work_item_id, str) and work_item_id.startswith("canvas:"):
-            item_state.work_item_id = work_item_id
+        linked = valid_work_item_id(p.get("work_item_id"))
+        if item_state is not None and linked:
+            item_state.work_item_id = linked
         proj.attempts[attempt_id] = AttemptState(
             attempt_id=attempt_id,
             item_id=item_id,
@@ -219,6 +220,12 @@ def _apply(
             if corr.get("reason_code") == "unknown_assistance":
                 proj.attempts[attempt_id].assistance = "unknown"
                 proj.attempts[attempt_id].corrections.append(str(corr.get("event_id") or ""))
+        return
+    if t == "work_item_linked":
+        item_state = proj.items.get(str(p.get("item_id") or ""))
+        linked = valid_work_item_id(p.get("work_item_id"))
+        if item_state is not None and linked and not item_state.work_item_id:
+            item_state.work_item_id = linked
         return
     if t == "draft_saved":
         attempt = proj.attempts.get(str(p.get("attempt_id")))

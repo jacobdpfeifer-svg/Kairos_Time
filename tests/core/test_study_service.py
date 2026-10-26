@@ -485,6 +485,19 @@ def test_clock_anomaly_marks_attempt_uncertain(tmp_path: Path, monkeypatch: pyte
     assert StudyService(root, zone=Z).clock_status == "trusted"
 
 
+def test_resume_records_a_work_item_the_first_start_omitted(tmp_path: Path) -> None:
+    root = tmp_path
+    s = svc(root, "2026-09-18T09:00:00-06:00")
+    s.import_packet(packet("Q"))
+    s.start("Q-1", "review", work_item_id="canvas:totally:invalid")
+    assert s.projection.items["Q-1"].work_item_id is None
+    resumed = s.start("Q-1", "review", work_item_id="canvas:cu-boulder:1300:assignment:101")
+    assert resumed["resumed"] is True
+    assert s.projection.items["Q-1"].work_item_id == "canvas:cu-boulder:1300:assignment:101"
+    s.start("Q-1", "review", work_item_id="canvas:cu-boulder:1300:assignment:102")
+    assert s.projection.items["Q-1"].work_item_id == "canvas:cu-boulder:1300:assignment:101"
+
+
 def test_cli_envelope_and_errors(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     root = str(tmp_path)
     assert study_main(["--user-root", root, "--zone", Z, "--now", "2026-09-18T09:00:00-06:00", "status"]) == 0

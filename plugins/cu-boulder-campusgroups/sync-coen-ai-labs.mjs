@@ -21,6 +21,9 @@ import {
   COEN_AI_LABS_PATH,
   parseEventIdFromUrl,
 } from "./campusgroups-session.mjs";
+import { refuseDirectCampusGroups } from "./require-school.mjs";
+
+refuseDirectCampusGroups(import.meta.url);
 
 const STALE_DAYS = 7;
 const force = process.argv.includes("--force");

@@ -42,6 +42,7 @@ export type AdvisorSnapshot = {
     unmet_items: string[];
   };
   courses: string[];
+  work_course_ids: string[];
   sources: { canvas: string; audit: string; profile: string };
   questions: string[];
 };
@@ -69,6 +70,7 @@ export const EMPTY_ADVISOR: AdvisorSnapshot = {
     unmet_items: [],
   },
   courses: [],
+  work_course_ids: [],
   sources: { canvas: "Canvas not synced yet", audit: "No audit copy", profile: "Not in your profile yet" },
   questions: [],
 };

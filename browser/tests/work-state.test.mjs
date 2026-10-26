@@ -112,8 +112,10 @@ describe("work-state projection", () => {
     const capture = read.state.work_items.find((item) => item.id === "capture:cap-abc");
     assert.equal(capture.student.status, "planned");
     const sameDay = read.state.work_items.filter((item) => item.student.planned_day === "2026-10-24");
-    const orders = sameDay.map((item) => item.student.order);
-    assert.deepEqual(orders, [...orders].sort((a, b) => a - b));
+    const byId = [...sameDay].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const rank = new Map(byId.map((row, index) => [row.id, index]));
+    for (const row of sameDay) assert.equal(row.student.order, rank.get(row.id));
+    assert.ok(sameDay.length >= 2);
   });
 
   it("joins planner changes by their stable course and object ids, never by title", () => {
@@ -133,6 +135,184 @@ describe("work-state projection", () => {
     assert.equal(hw.change.kind, "due_moved");
     assert.equal(hw.change.to, "2026-10-29T16:00:00.000Z");
     assert.equal(read.health.unmatched_change_count, 0);
+  });
+
+  it("does not stamp a planner change onto a different object type with the same canvas id", () => {
+    const shared = {
+      tenant_id: "cu-boulder",
+      course_id: "1300",
+      title: "Shared number",
+      effective_due_at: "2026-10-22T16:00:00Z",
+      submission_state: "unsubmitted",
+    };
+    const inputs = {
+      canvas: {
+        work_surface: {
+          items: [
+            { ...shared, object_type: "assignment", canvas_id: "101", html_url: "https://canvas.example/courses/1300/assignments/101" },
+            { ...shared, object_type: "quiz", canvas_id: "101", html_url: "https://canvas.example/courses/1300/quizzes/101" },
+          ],
+        },
+        health: { timezone: "UTC", state: "fresh_complete" },
+      },
+      canvasCoverage: "ok",
+      week: null,
+      weekStatus: "missing",
+      captures: { status: "missing", rows: [] },
+      planStatus: "missing",
+      planRevision: null,
+      freshness: {
+        status: "ok",
+        skipped: 0,
+        events: [{
+          key: "planner-due:1300:assignment:101:2026-10-29T16:00:00.000Z",
+          kind: "due_changed",
+          detected_at: "2026-10-23T00:00:00Z",
+          detail: { from: "2026-10-22T16:00:00.000Z", to: "2026-10-29T16:00:00.000Z" },
+        }, {
+          key: "planner-due:1300:discussion_topic:101:2026-10-30T16:00:00.000Z",
+          kind: "due_changed",
+          detected_at: "2026-10-23T01:00:00Z",
+          detail: { from: "2026-10-22T16:00:00.000Z", to: "2026-10-30T16:00:00.000Z" },
+        }],
+      },
+      study: { status: "missing", value: null },
+    };
+    const built = reduceWorkState(inputs, { now: "2026-10-23T18:00:00.000Z" });
+    const assignment = built.state.work_items.find((item) => item.kind === "assignment");
+    const quiz = built.state.work_items.find((item) => item.kind === "quiz");
+    assert.equal(assignment.change.kind, "due_moved");
+    assert.equal(quiz.change, null);
+    assert.equal(built.health.unmatched_change_count, 0);
+  });
+
+  it("leaves a change unmatched when one url belongs to two items", () => {
+    const shared = {
+      tenant_id: "cu-boulder",
+      course_id: "1300",
+      title: "Shared url",
+      effective_due_at: "2026-10-22T16:00:00Z",
+      html_url: "https://canvas.example/courses/1300/assignments/101",
+      submission_state: "unsubmitted",
+    };
+    const built = reduceWorkState({
+      canvas: {
+        work_surface: {
+          items: [
+            { ...shared, object_type: "assignment", canvas_id: "101" },
+            { ...shared, object_type: "quiz", canvas_id: "202" },
+          ],
+        },
+        health: { timezone: "UTC", state: "fresh_complete" },
+      },
+      canvasCoverage: "ok",
+      week: null,
+      weekStatus: "missing",
+      captures: { status: "missing", rows: [] },
+      planStatus: "missing",
+      planRevision: null,
+      freshness: {
+        status: "ok",
+        skipped: 0,
+        events: [{
+          key: "stream:not-an-identity",
+          kind: "points_changed",
+          url: "https://canvas.example/courses/1300/assignments/101",
+          detected_at: "2026-10-23T00:00:00Z",
+        }],
+      },
+      study: { status: "missing", value: null },
+    }, { now: "2026-10-23T18:00:00.000Z" });
+    assert.equal(built.state.work_items.every((item) => item.change == null), true);
+    assert.equal(built.health.unmatched_change_count, 1);
+  });
+
+  it("reports partial plan coverage when only one plan file can be read", () => {
+    const root = tmpRoot();
+    writeJson(path.join(root, "inbox", "plan", "week.json"), {
+      schema: 1,
+      default_hours: 10,
+      weeks: {},
+      estimates: { "item-a101": 25 },
+      deferrals: {},
+      pile_moves: {},
+    });
+    fs.mkdirSync(path.join(root, "inbox", "plan"), { recursive: true });
+    // A directory where the log should be is unreadable, not a skipped line.
+    fs.mkdirSync(path.join(root, "inbox", "plan", "items.jsonl"));
+    const inputs = loadWorkInputs(root);
+    assert.equal(inputs.planStatus, "partial");
+    assert.equal(inputs.weekStatus, "ok");
+    const built = reduceWorkState({
+      ...inputs,
+      canvas: {
+        work_surface: {
+          items: [{
+            tenant_id: "cu-boulder",
+            course_id: "1300",
+            object_type: "assignment",
+            canvas_id: "101",
+            title: "Homework 1",
+            submission_state: "unsubmitted",
+          }],
+        },
+        health: { timezone: "UTC", state: "fresh_complete" },
+      },
+      canvasCoverage: "ok",
+    }, { now: "2026-10-23T18:00:00.000Z" });
+    assert.equal(built.state.coverage.plan, "partial");
+    const hw = built.state.work_items.find((item) => item.kind === "assignment");
+    assert.equal(hw.student.estimate_minutes, 25);
+    fs.rmSync(path.join(root, "inbox", "plan", "week.json"));
+    fs.rmSync(path.join(root, "inbox", "plan", "items.jsonl"), { recursive: true });
+    fs.mkdirSync(path.join(root, "inbox", "plan", "week.json"));
+    fs.writeFileSync(path.join(root, "inbox", "plan", "items.jsonl"), `${JSON.stringify({ id: "cap-1", title: "Note" })}\n`);
+    assert.equal(loadWorkInputs(root).planStatus, "partial");
+    fs.rmSync(path.join(root, "inbox", "plan", "items.jsonl"));
+    fs.mkdirSync(path.join(root, "inbox", "plan", "items.jsonl"));
+    assert.equal(loadWorkInputs(root).planStatus, "unreadable");
+  });
+
+  it("links a study item that names a work item without a readiness field", () => {
+    const canvas = {
+      work_surface: {
+        items: [{
+          tenant_id: "cu-boulder",
+          course_id: "1300",
+          object_type: "assignment",
+          canvas_id: "101",
+          title: "Homework 1",
+          submission_state: "unsubmitted",
+        }],
+      },
+      health: { timezone: "UTC", state: "fresh_complete" },
+    };
+    const base = {
+      canvas,
+      canvasCoverage: "ok",
+      week: null,
+      weekStatus: "missing",
+      captures: { status: "missing", rows: [] },
+      planStatus: "missing",
+      planRevision: null,
+      freshness: { status: "missing", events: [], skipped: 0 },
+    };
+    const linked = reduceWorkState({
+      ...base,
+      study: { status: "ok", value: { items: { "Q-1": { work_item_id: "canvas:cu-boulder:1300:assignment:101" } } } },
+    }, { now: "2026-10-23T18:00:00.000Z" });
+    assert.equal(linked.state.work_items[0].study.readiness, "source_partial");
+    const ready = reduceWorkState({
+      ...base,
+      study: { status: "ok", value: { items: [{ work_item_id: "canvas:cu-boulder:1300:assignment:101", readiness: "ready", exam_id: "midterm" }] } },
+    }, { now: "2026-10-23T18:00:00.000Z" });
+    assert.equal(ready.state.work_items[0].study.readiness, "ready");
+    assert.equal(ready.state.work_items[0].study.exam_id, "midterm");
+    const garbage = reduceWorkState({
+      ...base,
+      study: { status: "ok", value: { items: [{ work_item_id: "canvas:totally:invalid" }] } },
+    }, { now: "2026-10-23T18:00:00.000Z" });
+    assert.equal(garbage.state.work_items[0].study.readiness, "unlinked");
   });
 
   it("keeps student decisions when canvas coverage is partial and plan is missing on a later profile", () => {

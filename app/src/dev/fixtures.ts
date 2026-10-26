@@ -206,6 +206,7 @@ export function fixtureAdvisor(): AdvisorSnapshot {
       unmet_items: ["Upper-division humanities or social science elective", "ASEN senior design sequence"],
     },
     courses: ["APPM 2360", "ASEN 2401", "ASEN 2501", "WRTG 1150"],
+    work_course_ids: [],
     sources: { canvas: "Observed in Canvas", audit: "Your dated audit copy", profile: "Your profile" },
     questions: [
       'What is the best way to finish "Upper-division humanities or social science elective", and when is it offered?',

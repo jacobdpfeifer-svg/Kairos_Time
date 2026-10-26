@@ -9,6 +9,7 @@ import path from "node:path";
 import { hashFields, isHttpUrl, stableStringify } from "./canvas-model.mjs";
 import { writeJsonAtomic, writePointer, readPointer } from "./canvas-store.mjs";
 import { loadCurrentProjections } from "./canvas-project.mjs";
+import { WORK_ITEM_RE } from "./briefs/schema.mjs";
 import { schoolDay } from "./school-config.mjs";
 import { completeFromItem } from "./work-completion.mjs";
 
@@ -103,6 +104,22 @@ function foldCaptures(file) {
   return { status: "ok", rows, skipped };
 }
 
+/**
+ * `week.json` and `items.jsonl` are one coverage value with two files.
+ * A corrupt captures log must not hide week decisions that were still applied,
+ * and a corrupt week file must not be reported as ok because a capture exists.
+ */
+function planCoverage(weekStatus, capturesStatus) {
+  const weekOk = weekStatus === "ok";
+  const capturesOk = capturesStatus === "ok";
+  const weekBad = weekStatus === "unreadable";
+  const capturesBad = capturesStatus === "unreadable";
+  if ((weekOk && capturesBad) || (weekBad && capturesOk)) return "partial";
+  if (weekBad || (capturesBad && !weekOk)) return "unreadable";
+  if (weekOk || capturesOk) return "ok";
+  return "missing";
+}
+
 function canvasCoverage(loaded) {
   if (!loaded) return "missing";
   const items = loaded.work_surface?.items;
@@ -124,9 +141,7 @@ export function loadWorkInputs(userRoot) {
   const captures = foldCaptures(itemsFile);
   const freshness = readEvents(userRoot);
   const study = readJsonFile(path.join(userRoot, "study", "projection.json"));
-  let planStatus = "missing";
-  if (week.status === "unreadable" || captures.status === "unreadable") planStatus = "unreadable";
-  else if (week.status === "ok" || captures.status === "ok") planStatus = "ok";
+  const planStatus = planCoverage(week.status, captures.status);
   const planBytes = [
     week.status === "ok" ? stableStringify(week.value) : week.status,
     captures.status === "ok" ? stableStringify(captures.rows) : captures.status,
@@ -213,15 +228,24 @@ function joinPlanId(planId, byKind, byWorkId) {
   return { ids: [], ambiguous: false };
 }
 
+/**
+ * Quizzes stay quizzes. The reconciler stores every other planner type,
+ * including discussion_topic, as an assignment.
+ */
+function plannerKind(raw) {
+  return raw === "quiz" ? "quiz" : "assignment";
+}
+
 function eventTarget(event) {
   const key = String(event.key || "");
   const snap = /^snap-[a-z_]+:([^:]+):([^:]+)/.exec(key);
-  if (snap) return { course_id: snap[1], canvas_id: snap[2] };
+  // Snapshot diffs walk assignments only, so the key has no type of its own.
+  if (snap) return { course_id: snap[1], canvas_id: snap[2], kind: "assignment" };
   // Planner events carry a stable course/type/object id in their key. Activity
   // stream messages intentionally do not: matching those by title would join
   // the wrong assignment when a course repeats a name.
-  const planner = /^planner-(?:added|due):([^:]+):[a-z_]+:([^:]+)(?::|$)/.exec(key);
-  if (planner) return { course_id: planner[1], canvas_id: planner[2] };
+  const planner = /^planner-(?:added|due):([^:]+):([a-z_]+):([^:]+)(?::|$)/.exec(key);
+  if (planner) return { course_id: planner[1], canvas_id: planner[3], kind: plannerKind(planner[2]) };
   return null;
 }
 
@@ -229,9 +253,9 @@ function changeTargetIndex(items) {
   const byCanvas = new Map();
   const byUrl = new Map();
   for (const item of items) {
-    if (item.canvas_id != null && item.course_id) {
+    if (item.canvas_id != null && item.course_id && item.kind) {
       const course = String(item.course_id).split(":")[3] || "";
-      const key = `${course}\u0000${item.canvas_id}`;
+      const key = `${course}\u0000${item.kind}\u0000${item.canvas_id}`;
       const rows = byCanvas.get(key) || [];
       rows.push(item);
       byCanvas.set(key, rows);
@@ -295,12 +319,12 @@ function studyIndex(study) {
   const map = new Map();
   const items = studyRecords(study);
   for (const item of items) {
-    if (typeof item?.work_item_id === "string" && READINESS.has(item.readiness)) {
-      map.set(item.work_item_id, {
-        readiness: item.readiness,
-        exam_id: typeof item.exam_id === "string" ? item.exam_id : null,
-      });
-    }
+    const id = item?.work_item_id;
+    if (typeof id !== "string" || !WORK_ITEM_RE.test(id)) continue;
+    map.set(id, {
+      readiness: READINESS.has(item.readiness) ? item.readiness : "source_partial",
+      exam_id: typeof item.exam_id === "string" ? item.exam_id : null,
+    });
   }
   return map;
 }
@@ -478,10 +502,17 @@ export function reduceWorkState(inputs, { now, timezone } = {}) {
     const target = eventTarget(event);
     let hits = [];
     if (target) {
-      hits = changeTargets.byCanvas.get(`${target.course_id}\u0000${target.canvas_id}`) || [];
+      hits = changeTargets.byCanvas.get(`${target.course_id}\u0000${target.kind}\u0000${target.canvas_id}`) || [];
     }
     if (!hits.length && isHttpUrl(event.url)) {
-      hits = changeTargets.byUrl.get(event.url) || [];
+      const urlHits = changeTargets.byUrl.get(event.url) || [];
+      // One URL shared by two items is not an identity. Leave it unmatched
+      // rather than copying one change onto every row.
+      if (urlHits.length === 1) hits = urlHits;
+      else if (urlHits.length > 1) {
+        if (typeof event.key === "string") unmatched.push(event.key);
+        continue;
+      }
     }
     if (!hits.length) {
       if (typeof event.key === "string") unmatched.push(event.key);
@@ -501,13 +532,21 @@ export function reduceWorkState(inputs, { now, timezone } = {}) {
   const dueDays = new Map();
   for (const item of workItems) dueDays.set(item, dueDay(item.due_at, tz) || "");
   workItems.sort((a, b) => compareItems(a, b, tz, dueDays));
-  const seenDay = new Map();
+  // Array order stays the contract total order. `student.order` is a separate
+  // fact: id-ascending inside one planned day, because week.json stores no sequence.
+  const byDay = new Map();
   for (const item of workItems) {
     const day = item.student.planned_day;
     if (!day) continue;
-    const next = seenDay.get(day) || 0;
-    item.student.order = next;
-    seenDay.set(day, next + 1);
+    const list = byDay.get(day) || [];
+    list.push(item);
+    byDay.set(day, list);
+  }
+  for (const list of byDay.values()) {
+    const ranked = [...list].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    ranked.forEach((item, index) => {
+      item.student.order = index;
+    });
   }
 
   const courseList = [...courses.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -518,8 +557,9 @@ export function reduceWorkState(inputs, { now, timezone } = {}) {
     generated_at: now || null,
     source: {
       canvas_sync_id: inputs.canvasCoverage === "missing" ? null : syncId,
-      // Line count, not a durable offset: valid because events.jsonl is
-      // append-only and never compacted (see the durable-state registry).
+      // Count of events that parsed, not a physical line count and not a byte
+      // offset. Junk lines stay in health.skipped_lines and do not mint a
+      // generation. Valid because events.jsonl is append-only and never compacted.
       freshness_event_cursor: inputs.freshness?.events?.length || 0,
       plan_revision: inputs.planStatus === "missing" ? null : inputs.planRevision,
     },

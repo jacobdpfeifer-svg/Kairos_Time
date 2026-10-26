@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { readSemester, type SemesterSurface, type SemesterTick } from "../ipc";
+import { readSemester, type SemesterSurface, type SemesterTick, type WorkStateRead } from "../ipc";
+import { overlaySurface } from "../workState/snapshot";
 import { clusterTicks, kindLabel, loadRange, saveRange, tickHeightPx, type RangeId } from "../semesterTicks";
 import { friendlyWhen } from "../format";
 import { motionReduced, tokenMs } from "../motion";
@@ -18,10 +19,12 @@ const RANGES: { id: RangeId; label: string }[] = [
 
 export function SemesterLine({
   surface: surfaceProp,
+  work = null,
   synced = 0,
   onOpen,
 }: {
   surface?: SemesterSurface;
+  work?: WorkStateRead | null;
   synced?: number;
   onOpen: (tick: SemesterTick) => void;
 }) {
@@ -83,7 +86,7 @@ export function SemesterLine({
     return () => ro.disconnect();
   }, [loaded]);
 
-  const surface = loaded;
+  const surface = loaded ? overlaySurface(loaded, work) : loaded;
   if (!surface || surface.courses.length === 0) return null;
   const todayMs = Date.parse(surface.today);
 

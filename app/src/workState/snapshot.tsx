@@ -93,12 +93,22 @@ export function overlayTicks(ticks: SemesterTick[], items: WorkItem[]): Semester
 function withinWindow(due: string | null, start: string, end: string): boolean {
   if (!due) return true;
   const t = Date.parse(due);
-  if (!Number.isFinite(t)) return true;
+  if (!Number.isFinite(t)) return false;
   const a = Date.parse(start);
   const b = Date.parse(end);
   if (Number.isFinite(a) && t < a) return false;
   if (Number.isFinite(b) && t > b) return false;
   return true;
+}
+
+function compareDue(a: string | null, b: string | null): number {
+  const ad = a ? Date.parse(a) : NaN;
+  const bd = b ? Date.parse(b) : NaN;
+  const aOk = Number.isFinite(ad);
+  const bOk = Number.isFinite(bd);
+  if (aOk !== bOk) return aOk ? -1 : 1;
+  if (aOk && ad !== bd) return ad - bd;
+  return 0;
 }
 
 /**
@@ -114,7 +124,7 @@ export function overlaySurface(surface: SemesterSurface, read: WorkStateRead | n
       ...course,
       ticks: overlayTicks(course.ticks, items)
         .filter((tick) => withinWindow(tick.due_at, surface.window_start, surface.window_end))
-        .sort((a, b) => String(a.due_at ?? "9").localeCompare(String(b.due_at ?? "9"))),
+        .sort((a, b) => compareDue(a.due_at, b.due_at)),
     })),
   };
 }

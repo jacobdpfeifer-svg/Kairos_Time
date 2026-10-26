@@ -13,6 +13,9 @@
  * drift apart; --expect is not required here.
  */
 import { runRsvpCli, shellQuote } from "./campusgroups-session.mjs";
+import { refuseDirectCampusGroups } from "./require-school.mjs";
+
+refuseDirectCampusGroups(import.meta.url);
 
 function parseArgs(argv) {
   const args = { event: null, verify: true, name: "", log: false, confirm: false, expect: null };

@@ -195,8 +195,9 @@ mutation-tested: the defect was reintroduced and the named test had to fail.
   fixture keeps it runtime-free; one test still asserts the spawn shape.
 - `completed_at` was Unix seconds as a string. It is RFC 3339 like every other
   durable timestamp, with its own date-math tests.
-- `freshness_event_cursor` is documented as the line count it is, valid only
-  while the event log stays append-only.
+- `freshness_event_cursor` is the count of events that parsed, not a physical
+  line count. Junk lines stay in `health.skipped_lines` and do not mint a
+  generation. The cursor is valid only while the event log stays append-only.
 - `workItemIdFor` did two linear scans per brief candidate; it is indexed once.
 - `planKey` collisions silently took the first row; a contested key is now left
   un-overlaid rather than matched to the wrong course.
@@ -220,3 +221,38 @@ One behaviour change needs an owner decision, recorded rather than buried: a
 *submitted but late* item is now uniformly "not done" everywhere, following the
 canonical overdue bucket. Today and Week previously showed it as done while
 `week.md` showed it as open. Live checks in the program remain unrun.
+
+## Third implementation audit — 2026-10-25
+
+A line-level pass over `465fbdc` found defects the second audit did not. Fixed
+here:
+
+- Freshness changes and brief links are indexed by course, object type, and
+  Canvas id. A planner `discussion_topic` joins the assignment row the
+  reconciler stores; snapshot keys stay assignment-only. A URL that matches
+  more than one item is left unmatched.
+- `student.order` within one planned day is id-ascending. The work-item array
+  order is unchanged.
+- `coverage.plan` is `partial` when exactly one of `week.json` and
+  `items.jsonl` is usable, and `unreadable` only when no plan file can be applied.
+- A study item that names a schema-valid `work_item_id` joins even when it has
+  no readiness field (`source_partial`, or the copied value when it is already
+  one of the readiness set). A bare `canvas:` prefix is rejected. Resume records
+  the id when the first start omitted it. The Study screen still does not send
+  one; packet items are not Canvas assignments.
+- Today's semester strip overlays the work-state read it already has. It keeps
+  its own range. An unparseable due is dropped, matching `read_semester`.
+  Missing dates sort after real instants. Quiz ticks use the same effective-date
+  helper as assignments.
+- CampusGroups uses the curated school slug when `SCHOOL_SLUG` is unset, so a
+  host slug such as `canvas-colorado-edu` for `canvas.colorado.edu` is allowed.
+  An explicit `SCHOOL_SLUG` still decides by itself. Shim spawn failures exit 1.
+  Running a plugin CLI directly hits the same gate. `campusgroups-session.mjs`
+  stays a library.
+
+Reviewed and left: the plan rebuild stays detached, because the overlay does
+not read `student.planned_day` and awaiting Node would put the rebuild back on
+a keyboard action. `submission_state: "unknown"` is the reconciler's own
+sentinel. A failed onboarding checkpoint write does not reopen first run when
+the local flag is already set. `LEGACY_SUBMITTED` remains the lossy fallback
+for an old generation. Courses still reads semester ticks without the overlay.

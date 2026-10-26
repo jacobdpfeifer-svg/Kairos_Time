@@ -29,6 +29,7 @@ from .model import (
     parse_instant,
     require_choice,
     require_id,
+    valid_work_item_id,
 )
 from .packets import (
     commit_packet,
@@ -466,9 +467,13 @@ class StudyService:
             raise StudyError("unsupported", "this item is withdrawn or not registered")
         if mode == "learn" and item.get("example") is None:
             raise StudyError("unsupported", "this item has no example for learn mode")
+        linked = valid_work_item_id(work_item_id)
         existing = self._open_attempt(item_id)
         if existing is not None and existing["status"] != "submitted":
             # Resume: same attempt id, original start, exposure history intact.
+            # A work-item id that arrives only on the second start is still recorded.
+            if linked and not state.work_item_id:
+                self._append("work_item_linked", {"item_id": item_id, "work_item_id": linked})
             return self._attempt_view(packet, item, self.projection.attempts[existing["attempt_id"]], minutes, resumed=True)
         attempt_id = str(uuid.uuid4())
         if self.clock_status != "trusted":
@@ -483,7 +488,7 @@ class StudyService:
                 "clock_status": self.clock_status,
                 "packet_version": packet["version"],
                 "minutes": minutes,
-                **({"work_item_id": work_item_id} if isinstance(work_item_id, str) and work_item_id.startswith("canvas:") else {}),
+                **({"work_item_id": linked} if linked else {}),
             },
         )
         if mode == "learn":
