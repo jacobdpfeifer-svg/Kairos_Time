@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { advisorWrites, aiStudy, listProfiles, runtimeInfo, setProfile, study, type AiStatus } from "../study/api";
 import type { RuntimeInfo, Status } from "../study/types";
 import { THEMES, useTheme } from "../theme";
-import { DEFAULT_APP_PREFS, readExtensionStatus, checkCanvasSession, exportCanvas, isTauri, openCanvasSso, saveLearningProfile, syncCanvas, type LearningProfileAnswers } from "../ipc";
+import { DEFAULT_APP_PREFS, readExtensionStatus, checkCanvasSession, exportCanvas, isTauri, openCanvasSso, saveAims, saveLearningProfile, syncCanvas, type LearningProfileAnswers } from "../ipc";
 import { savePrefs, usePrefs } from "../prefs";
 import { MOD } from "../nav";
 import { AskedFor } from "./AskedFor";
@@ -187,6 +187,7 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
       <>
       <h2>Profile</h2>
       <ProgramForm />
+      <AimsForm />
       <LearningForm />
       {profiles && (
         <details className="disclosure">
@@ -392,6 +393,77 @@ export function SettingsView({ initialGroup }: { initialGroup?: string } = {}) {
         </ConfirmSheet>
       )}
     </section>
+  );
+}
+
+function filledLines(values: string[]): string[] {
+  return values.map((value) => value.trim()).filter(Boolean);
+}
+
+function courseLines(raw: string): string[] {
+  return raw
+    .split("\n")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+/** Career priorities, interests, and course weights. Saving writes only the lines filled in. */
+export function AimsForm() {
+  const [aims, setAims] = useState(["", "", ""]);
+  const [interests, setInterests] = useState(["", "", ""]);
+  const [worth, setWorth] = useState("");
+  const [light, setLight] = useState("");
+  const [note, setNote] = useState("");
+  const setAt = (list: string[], index: number, value: string) => list.map((item, i) => (i === index ? value : item));
+  return (
+    <form
+      className="settings-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setNote("");
+        const payload = {
+          career: filledLines(aims),
+          interest: filledLines(interests),
+          worth: courseLines(worth),
+          light: courseLines(light),
+        };
+        if (!payload.career.length && !payload.interest.length && !payload.worth.length && !payload.light.length) return;
+        void saveAims(payload)
+          .then(() => setNote("Saved. Your week uses it right away."))
+          .catch((err: unknown) => setNote(err instanceof Error ? err.message : "That didn't save."));
+      }}
+    >
+      <h3>What to weigh</h3>
+      <p className="muted">Used when Kairos ranks your week. Saving writes the lines you filled.</p>
+      {["First aim", "Second aim", "Third aim"].map((label, index) => (
+        <label key={label}>
+          {label}
+          <input value={aims[index]} onChange={(e) => setAims((current) => setAt(current, index, e.target.value))} />
+        </label>
+      ))}
+      {["First interest", "Second interest", "Third interest"].map((label, index) => (
+        <label key={label}>
+          {label}
+          <input
+            value={interests[index]}
+            placeholder="Optional"
+            onChange={(e) => setInterests((current) => setAt(current, index, e.target.value))}
+          />
+        </label>
+      ))}
+      <label>
+        Courses to put first
+        <textarea rows={3} value={worth} placeholder="One course per line" onChange={(e) => setWorth(e.target.value)} />
+      </label>
+      <label>
+        Courses to keep light
+        <textarea rows={3} value={light} placeholder="One course per line" onChange={(e) => setLight(e.target.value)} />
+      </label>
+      <div className="row">
+        <button type="submit">Save</button>
+        {note && <span role="status">{note}</span>}
+      </div>
+    </form>
   );
 }
 

@@ -1,4 +1,7 @@
-// Purpose: routes the main student screens
+/* Reviewer: the shell. It owns the sidebar (Today · Week · Courses · Study ·
+   Advisor, plus Settings), which view is mounted, ⌘K, the Ask sheet and the
+   voice sheet; routes come from nav.ts and deep links arrive as one event.
+   Views own their own data — nothing here talks to Canvas. */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FirstRun } from "./components/FirstRun";
 import { SettingsView } from "./views/SettingsView";

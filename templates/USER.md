@@ -1,17 +1,17 @@
 # USER.md — student identity (Hermes-compatible)
 
-Written during onboarding; the agent updates as it learns.
+School is written when you choose it. Program, aims, and which courses to weigh are filled in Settings. The agent updates the rest as it learns.
 
 ## Identity
 
 - **Student:** (name)
 - **Institution:** (from school registry)
 - **School slug:** cu-boulder
-- **Goals:** (career priorities ranked during onboarding)
+- **Goals:** (add in Settings)
 
 ## Program
 
-- **Declared major(s):** (fill during onboarding)
+- **Declared major(s):** (add in Settings)
 - **Minor(s) / certificate(s):** (optional)
 - **Catalog year:** (student-stated — from Buff Portal; not inferred from Canvas)
 - **Target grad term:** (e.g. Spring 2028)
@@ -19,7 +19,7 @@ Written during onboarding; the agent updates as it learns.
 
 ## Interests (ranked)
 
-1. (topics / career threads beyond the job title)
+1. (add in Settings)
 2.
 3.
 
@@ -33,13 +33,13 @@ Student-supplied targets only — not official eligibility rulings. Confirm scho
 
 ## Career priorities (ranked)
 
-1. (fill during onboarding)
+1. (add in Settings)
 2.
 3.
 
 ## Values about college
 
-- (multi-select from onboarding)
+- (not set)
 
 ## Transfer / credit notes
 
@@ -51,7 +51,7 @@ Student-supplied targets only — not official eligibility rulings. Confirm scho
 
 ## Throwaway / low-attention courses
 
-- (named during onboarding)
+- (add in Settings)
 
 ## Learning profile
 

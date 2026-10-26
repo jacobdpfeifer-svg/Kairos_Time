@@ -8,6 +8,7 @@
 //! See docs/handoff/mission-control-assignment-briefs-architecture-2026-10-15.md.
 
 use crate::calendar;
+use crate::userfile::write_atomic;
 use crate::canvas::valid_course_id;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -335,20 +336,6 @@ fn selection_for(user_root: &Path, today: &str) -> Value {
     }
 }
 
-fn write_atomic(target: &Path, body: &str) -> Result<(), String> {
-    if let Some(dir) = target.parent() {
-        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    let tmp = target.with_extension("json.tmp");
-    fs::write(&tmp, body).map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600));
-    }
-    fs::rename(&tmp, target).map_err(|e| e.to_string())
-}
-
 /// `selected` is an island's `assignment_id`; None clears it (all collapsed).
 pub fn set_selection(user_root: &Path, today: &str, selected: Option<&str>) -> Result<(), String> {
     if !valid_day(today) {
@@ -360,7 +347,7 @@ pub fn set_selection(user_root: &Path, today: &str, selected: Option<&str>) -> R
         }
     }
     let sel = DaySelection { day: today.to_string(), assignment_id: selected.map(str::to_string) };
-    write_atomic(&selection_path(user_root), &serde_json::to_string(&sel).map_err(|e| e.to_string())?)
+    write_atomic(&selection_path(user_root), serde_json::to_string(&sel).map_err(|e| e.to_string())?.as_bytes())
 }
 
 pub fn read_surface(user_root: &Path, today: &str) -> Value {
@@ -630,7 +617,7 @@ pub fn write_prefs(user_root: &Path, mut next: BriefPrefs, now_iso: &str) -> Res
         None
     };
     next.updated_at = bound(now_iso, 64);
-    write_atomic(&prefs_path(user_root), &serde_json::to_string_pretty(&next).map_err(|e| e.to_string())?)?;
+    write_atomic(&prefs_path(user_root), serde_json::to_string_pretty(&next).map_err(|e| e.to_string())?.as_bytes())?;
     Ok(next)
 }
 

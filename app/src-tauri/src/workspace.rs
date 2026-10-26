@@ -8,6 +8,7 @@
 //! shared webview storage.
 
 use serde::Deserialize;
+use crate::userfile::{ensure_dir, write_atomic};
 use serde_json::{Map, Value};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
@@ -308,37 +309,6 @@ fn clip(value: &str) -> String {
 
 fn known(list: &[&str], value: &str) -> bool {
     list.contains(&value)
-}
-
-fn ensure_dir(path: &Path) -> Result<(), String> {
-    fs::create_dir_all(path).map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-fn write_atomic(target: &Path, body: &[u8]) -> Result<(), String> {
-    if let Some(dir) = target.parent() {
-        ensure_dir(dir)?;
-    }
-    let name = target.file_name().and_then(|s| s.to_str()).ok_or_else(|| "workspace path".to_string())?;
-    let tmp = target.with_file_name(format!("{name}.tmp-{}", std::process::id()));
-    fs::write(&tmp, body).map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Err(e) = fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600)) {
-            let _ = fs::remove_file(&tmp);
-            return Err(e.to_string());
-        }
-    }
-    fs::rename(&tmp, target).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        e.to_string()
-    })
 }
 
 fn prop_type_ok(kind: &str, value: &Value) -> bool {

@@ -22,6 +22,7 @@
     "allow-read-school-profile",
     "allow-save-onboarding",
     "allow-save-learning-profile",
+    "allow-save-aims",
     "allow-read-due-reviews",
     "allow-record-review-outcome",
     "allow-study",

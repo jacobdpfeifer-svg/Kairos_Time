@@ -13,9 +13,10 @@ during onboarding" but only "## Learning profile" and a flat
 from __future__ import annotations
 
 import re
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from .private_files import write_private_text
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _USER_MD_TEMPLATE = _REPO_ROOT / "templates" / "USER.md"
@@ -27,6 +28,9 @@ _CALIBRATION_TEMPLATES = (
 )
 
 _MIN_RANKED_LINES = 3
+_MAX_AIM_ITEMS = 12
+_MAX_AIM_CHARS = 120
+_ADD_IN_SETTINGS = "(add in Settings)"
 _YEARS_AT_SCHOOL_RE = re.compile(
     r"-\s*\*\*Years at school \(goal\):\*\*\s*(.+)",
     re.IGNORECASE,
@@ -58,9 +62,10 @@ def _seed_user_md_if_missing(user_md: Path) -> None:
         return
     user_md.parent.mkdir(parents=True, exist_ok=True)
     if _USER_MD_TEMPLATE.is_file():
-        user_md.write_text(_USER_MD_TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+        body = _USER_MD_TEMPLATE.read_text(encoding="utf-8")
     else:
-        user_md.write_text("# USER.md\n\n## Identity\n\n", encoding="utf-8")
+        body = "# USER.md\n\n## Identity\n\n"
+    write_private_text(user_md, body)
 
 
 def _seed_calibration_files(user_root: Path) -> None:
@@ -72,7 +77,7 @@ def _seed_calibration_files(user_root: Path) -> None:
         source = _REPO_ROOT / "templates" / "calibration" / name
         if target.exists() or not source.is_file():
             continue
-        shutil.copyfile(source, target)
+        write_private_text(target, source.read_text(encoding="utf-8"))
 
 
 def _replace_section(text: str, heading: str, block: str) -> str:
@@ -152,13 +157,13 @@ def apply_onboarding_identity(user_root: Path, identity: OnboardingIdentity) -> 
         f"- **Student:** {identity.name.strip() or '(name)'}\n"
         f"- **Institution:** {institution or '(from school registry)'}\n"
         f"- **School slug:** {identity.school_slug.strip() or '(unset)'}\n"
-        f"- **Goals:** {goals or '(career priorities ranked during onboarding)'}\n"
+        f"- **Goals:** {goals or _ADD_IN_SETTINGS}\n"
     )
     text = _replace_section(text, "## Identity", identity_block)
 
     program_block = (
         "## Program\n\n"
-        f"- **Declared major(s):** {identity.major.strip() or '(fill during onboarding)'}\n"
+        f"- **Declared major(s):** {identity.major.strip() or _ADD_IN_SETTINGS}\n"
         f"- **Minor(s) / certificate(s):** {identity.minor.strip() or '(optional)'}\n"
         "- **Catalog year:** "
         f"{identity.catalog_year.strip() or '(student-stated — from Buff Portal; not inferred from Canvas)'}\n"
@@ -204,7 +209,152 @@ def apply_onboarding_identity(user_root: Path, identity: OnboardingIdentity) -> 
         transfer_block = "## Transfer / credit notes\n\n" + "\n".join(notes) + "\n"
         text = _replace_section(text, "## Transfer / credit notes", transfer_block)
 
-    user_md.write_text(text, encoding="utf-8")
+    write_private_text(user_md, text)
+    return user_md
+
+
+def _clean_items(items: list[str] | None) -> list[str] | None:
+    """None means the caller did not send this list. A sent list drops blanks."""
+    if items is None:
+        return None
+    cleaned: list[str] = []
+    for raw in items:
+        text = " ".join(str(raw).split())
+        text = text.replace("**", "").replace(";", ",").lstrip("#").strip()
+        if not text:
+            continue
+        cleaned.append(text[:_MAX_AIM_CHARS])
+        if len(cleaned) >= _MAX_AIM_ITEMS:
+            break
+    return cleaned
+
+
+def _set_bold_line(text: str, label: str, value: str) -> str:
+    """Replace one `- **Label:**` line, or insert it under `## Identity`."""
+    pattern = re.compile(
+        rf"^([ \t]*-[ \t]*\*\*{re.escape(label)}:\*\*[ \t]*)(.*)$",
+        re.MULTILINE,
+    )
+    match = pattern.search(text)
+    if match:
+        return text[: match.start(2)] + value + text[match.end(2) :]
+    line = f"- **{label}:** {value}\n"
+    heading = "## Identity"
+    idx = text.find(heading)
+    if idx == -1:
+        sep = "" if text.endswith("\n") else "\n"
+        return f"{text}{sep}\n{heading}\n\n{line}"
+    next_idx = text.find("\n## ", idx + len(heading))
+    if next_idx == -1:
+        sep = "" if text.endswith("\n") else "\n"
+        return f"{text}{sep}{line}"
+    return text[:next_idx] + "\n" + line + text[next_idx:]
+
+
+def _set_plain_line(text: str, label: str, value: str) -> str:
+    """Replace `- Label:` in the priority rubric, appending the line if it is new."""
+    pattern = re.compile(
+        rf"^([ \t]*-[ \t]*{re.escape(label)}:[ \t]*)(.*)$",
+        re.MULTILINE,
+    )
+    match = pattern.search(text)
+    if match:
+        return text[: match.start(2)] + value + text[match.end(2) :]
+    line = f"- {label}: {value}\n"
+    heading = "## Student overrides"
+    idx = text.find(heading)
+    if idx == -1:
+        sep = "" if text.endswith("\n") else "\n"
+        return f"{text}{sep}\n{heading}\n\n{line}"
+    next_idx = text.find("\n## ", idx + len(heading))
+    if next_idx == -1:
+        sep = "" if text.endswith("\n") else "\n"
+        return f"{text}{sep}{line}"
+    return text[:next_idx] + "\n" + line + text[next_idx:]
+
+
+def _bullet_block(heading: str, items: list[str]) -> str:
+    lines = [heading, ""]
+    lines.extend(f"- {item}" for item in items)
+    return "\n".join(lines) + "\n"
+
+
+def stamp_school(user_root: Path, school_slug: str) -> Path:
+    """Seed USER.md and calibration, then set Institution and School slug only.
+
+    Choosing a school must not rewrite Program, aims, or course weights the
+    student already saved. A blank institution leaves that line as it is.
+    """
+    user_md = Path(user_root) / "USER.md"
+    _seed_user_md_if_missing(user_md)
+    _seed_calibration_files(user_root)
+    text = user_md.read_text(encoding="utf-8", errors="replace")
+    slug = school_slug.strip()
+    if slug:
+        text = _set_bold_line(text, "School slug", slug)
+        institution = _institution_for(OnboardingIdentity(school_slug=slug), Path(user_root))
+        if institution:
+            text = _set_bold_line(text, "Institution", institution)
+    write_private_text(user_md, text)
+    return user_md
+
+
+def save_aims(
+    user_root: Path,
+    *,
+    career: list[str] | None = None,
+    interests: list[str] | None = None,
+    worth: list[str] | None = None,
+    light: list[str] | None = None,
+) -> Path:
+    """Write the Settings "What to weigh" answers.
+
+    A list that was not sent is left alone, so saving aims does not wipe the
+    major or a section the form did not include. Light courses are written to
+    both the priority rubric and USER.md's throwaway section.
+    """
+    user_md = Path(user_root) / "USER.md"
+    career_items = _clean_items(career)
+    interest_items = _clean_items(interests)
+    worth_items = _clean_items(worth)
+    light_items = _clean_items(light)
+    if not any((career_items, interest_items, worth_items, light_items)):
+        return user_md
+    _seed_user_md_if_missing(user_md)
+    _seed_calibration_files(user_root)
+    text = user_md.read_text(encoding="utf-8", errors="replace")
+    if career_items:
+        text = _set_bold_line(text, "Goals", ", ".join(career_items))
+        text = _replace_section(
+            text,
+            "## Career priorities (ranked)",
+            _ranked_block("## Career priorities (ranked)", career_items),
+        )
+    if interest_items:
+        text = _replace_section(
+            text,
+            "## Interests (ranked)",
+            _ranked_block("## Interests (ranked)", interest_items),
+        )
+    if light_items:
+        text = _replace_section(
+            text,
+            "## Throwaway / low-attention courses",
+            _bullet_block("## Throwaway / low-attention courses", light_items),
+        )
+    write_private_text(user_md, text)
+    if worth_items or light_items:
+        rubric = Path(user_root) / "calibration" / "priority-rubric.md"
+        rubric_text = rubric.read_text(encoding="utf-8", errors="replace") if rubric.is_file() else ""
+        if worth_items:
+            rubric_text = _set_plain_line(
+                rubric_text, "Worth-by-default courses", "; ".join(worth_items)
+            )
+        if light_items:
+            rubric_text = _set_plain_line(
+                rubric_text, "Throwaway / low-attention courses", "; ".join(light_items)
+            )
+        write_private_text(rubric, rubric_text)
     return user_md
 
 
@@ -254,27 +404,47 @@ def main(argv: list[str] | None = None) -> int:
     save.add_argument("--values", action="append", default=[])
     save.add_argument("--transfer-notes", default="")
 
+    stamp = sub.add_parser("stamp", help="Write the chosen school into USER.md")
+    stamp.add_argument("--school-slug", default="")
+
+    aims = sub.add_parser("aims", help="Write Settings answers for what to weigh")
+    aims.add_argument("--career-priority", action="append", default=None, dest="career_priorities")
+    aims.add_argument("--interest", action="append", default=None, dest="interests")
+    aims.add_argument("--worth", action="append", default=None)
+    aims.add_argument("--light", action="append", default=None)
+
     args = parser.parse_args(argv)
     root = args.user_root
     if root is None:
         root = resolve_user_root("dev", create=True)
 
-    identity = OnboardingIdentity(
-        name=args.name,
-        institution=args.institution,
-        school_slug=args.school_slug,
-        major=args.major,
-        minor=args.minor,
-        catalog_year=args.catalog_year,
-        target_grad_term=args.target_grad_term,
-        interests=list(args.interests),
-        good_standing_gpa=args.good_standing_gpa,
-        scholarship_min_gpa=args.scholarship_min_gpa,
-        career_priorities=list(args.career_priorities),
-        values=list(args.values),
-        transfer_notes=args.transfer_notes,
-    )
-    path = apply_onboarding_identity(root, identity)
+    if args.cmd == "stamp":
+        path = stamp_school(root, args.school_slug)
+    elif args.cmd == "aims":
+        path = save_aims(
+            root,
+            career=args.career_priorities,
+            interests=args.interests,
+            worth=args.worth,
+            light=args.light,
+        )
+    else:
+        identity = OnboardingIdentity(
+            name=args.name,
+            institution=args.institution,
+            school_slug=args.school_slug,
+            major=args.major,
+            minor=args.minor,
+            catalog_year=args.catalog_year,
+            target_grad_term=args.target_grad_term,
+            interests=list(args.interests),
+            good_standing_gpa=args.good_standing_gpa,
+            scholarship_min_gpa=args.scholarship_min_gpa,
+            career_priorities=list(args.career_priorities),
+            values=list(args.values),
+            transfer_notes=args.transfer_notes,
+        )
+        path = apply_onboarding_identity(root, identity)
 
     if args.json:
         print(json.dumps({"ok": True, "path": str(path)}))

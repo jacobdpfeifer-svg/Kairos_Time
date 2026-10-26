@@ -16,6 +16,7 @@ mod prefs;
 mod runtime;
 mod semester;
 mod shortcut;
+mod userfile;
 mod voice_bridge;
 mod workspace;
 
@@ -121,6 +122,7 @@ fn main() {
             commands::read_school_profile,
             commands::save_onboarding,
             commands::save_learning_profile,
+            commands::save_aims,
             commands::read_due_reviews,
             commands::record_review_outcome,
             commands::study,

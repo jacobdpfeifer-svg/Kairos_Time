@@ -1,7 +1,7 @@
 # Priority rubric
 
-Student-owned ranking defaults used by task brief and week plan. Edit these
-lines during onboarding; they are preferences, not Canvas facts.
+Student-owned ranking defaults used by task brief and week plan. The student
+overrides are filled in Settings. These are preferences, not Canvas facts.
 
 ## P1 — do first
 
@@ -22,6 +22,6 @@ lines during onboarding; they are preferences, not Canvas facts.
 
 ## Student overrides
 
-- Worth-by-default courses: (fill during onboarding)
-- Throwaway / low-attention courses: (fill during onboarding)
-- Time constraints: (fill during onboarding)
+- Worth-by-default courses: (add in Settings)
+- Throwaway / low-attention courses: (add in Settings)
+- Time constraints: (not set)

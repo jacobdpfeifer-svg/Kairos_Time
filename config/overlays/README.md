@@ -21,6 +21,7 @@ cat config/overlays/public.env >> .env
 ## Implementation status (current)
 - **Sandboxing**: **not present.** The caller-supplied-TypeScript execution tool these `TS_SANDBOX_*` variables guarded is gone from this tree (see `CHANGELOG.md`), and nothing reads them: `grep -r ENABLE_TS_SANDBOX src/` returns nothing. They are kept in the overlays only as a record of what a future execution tool would have to re-establish before it ships. Treat them as documentation, not as a control.
 - **MCP bind settings**: the server uses stdio transport, so `MCP_BIND_HOST`/`MCP_BIND_PORT` are ignored today.
+- **Course agent policy**: **not present.** `COURSE_AGENT_POLICY_ENABLED` / `COURSE_AGENT_POLICY_DEFAULT` named a per-course syllabus write policy from the upstream educator-era write path. Nothing reads them — `core/course_policy.py` now holds only `assert_no_identity_override`, and Canvas submit, comment and discussion-post tools are preview-only with no execute branch, so there is nothing to gate. Like the `TS_SANDBOX_*` block, they are documentation, not a control.
 - **Placeholders**: token storage backends, MCP client auth, audit/access logging, and SIEM forwarding are documented but not enforced yet.
 
 ## Release gating pointers

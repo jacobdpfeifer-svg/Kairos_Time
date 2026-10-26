@@ -11,6 +11,7 @@ fn main() {
             "read_school_profile",
             "save_onboarding",
             "save_learning_profile",
+            "save_aims",
             "read_due_reviews",
             "record_review_outcome",
             "study",

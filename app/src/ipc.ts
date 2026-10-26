@@ -228,6 +228,22 @@ export type ScoredReview = DueReview & {
   stability_delta?: string | null;
 };
 
+export type AimsInput = {
+  career: string[];
+  interest: string[];
+  worth: string[];
+  light: string[];
+};
+
+/** Settings "What to weigh". Empty lists leave those sections on disk alone. */
+export async function saveAims(aims: AimsInput): Promise<void> {
+  if (!isTauri()) {
+    localStorage.setItem("pn_aims", JSON.stringify(aims));
+    return;
+  }
+  await invoke("save_aims", aims);
+}
+
 export async function saveLearningProfile(
   answers: LearningProfileAnswers
 ): Promise<void> {

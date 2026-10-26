@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
+use crate::userfile::write_atomic;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalendarEvent {
@@ -154,27 +155,7 @@ pub fn remove_event(user_root: &Path, id: &str) -> Result<(), String> {
         out.push_str(trimmed);
         out.push('\n');
     }
-    write_atomic(&path, &out)
-}
-
-/// Every rewrite of a student-owned file goes through a temp file and a rename,
-/// so a crash or a full disk cannot leave a truncated calendar behind.
-fn write_atomic(target: &Path, body: &str) -> Result<(), String> {
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let name = target.file_name().and_then(|n| n.to_str()).unwrap_or("calendar");
-    let tmp = target.with_file_name(format!("{name}.tmp-{}", std::process::id()));
-    fs::write(&tmp, body).map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600));
-    }
-    fs::rename(&tmp, target).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        e.to_string()
-    })
+    write_atomic(&path, out.as_bytes())
 }
 
 pub fn dismiss_suggestion(user_root: &Path, source_message_id: &str) -> Result<(), String> {
@@ -186,7 +167,7 @@ pub fn dismiss_suggestion(user_root: &Path, source_message_id: &str) -> Result<(
     if !ids.iter().any(|id| id == source_message_id) {
         ids.push(source_message_id.to_string());
     }
-    write_atomic(&path, &serde_json::to_string_pretty(&ids).map_err(|e| e.to_string())?)
+    write_atomic(&path, serde_json::to_string_pretty(&ids).map_err(|e| e.to_string())?.as_bytes())
 }
 
 pub fn restore_suggestion(user_root: &Path, source_message_id: &str) -> Result<(), String> {
@@ -196,7 +177,7 @@ pub fn restore_suggestion(user_root: &Path, source_message_id: &str) -> Result<(
     let path = dismissed_path(user_root);
     let mut ids = read_dismissed(&path);
     ids.retain(|id| id != source_message_id);
-    write_atomic(&path, &serde_json::to_string_pretty(&ids).map_err(|e| e.to_string())?)
+    write_atomic(&path, serde_json::to_string_pretty(&ids).map_err(|e| e.to_string())?.as_bytes())
 }
 
 #[cfg(test)]

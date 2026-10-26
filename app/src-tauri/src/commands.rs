@@ -150,15 +150,33 @@ pub fn read_school_profile(rt: Rt<'_>) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-pub fn save_onboarding(rt: Rt<'_>, school_slug: String) -> Result<(), String> {
-    let slug = school_slug.trim();
+pub async fn save_onboarding(rt: Rt<'_>, school_slug: String) -> Result<(), String> {
+    let slug = school_slug.trim().to_string();
     if slug.is_empty() {
         return Err("school slug is required".into());
     }
-    inbox::save_school_slug(&rt.user_root, slug)?;
-    // Honor school for subsequent sync shells in this process.
-    std::env::set_var("SCHOOL_SLUG", slug);
-    Ok(())
+    let rt = Arc::clone(&rt);
+    blocking(move || {
+        inbox::save_school_slug(&rt.user_root, &slug)?;
+        // Honor school for subsequent sync shells in this process.
+        std::env::set_var("SCHOOL_SLUG", &slug);
+        // Seed USER.md and stamp this school. Other sections stay as they are.
+        daemon::run_stamp_school(&rt, &slug)
+    })
+    .await
+}
+
+/// Settings answers for what the brief should weigh. Empty lists are ignored.
+#[tauri::command]
+pub async fn save_aims(
+    rt: Rt<'_>,
+    career: Vec<String>,
+    interest: Vec<String>,
+    worth: Vec<String>,
+    light: Vec<String>,
+) -> Result<(), String> {
+    let rt = Arc::clone(&rt);
+    blocking(move || daemon::run_save_aims(&rt, &career, &interest, &worth, &light)).await
 }
 
 /// Save the onboarding learning-profile games' answers (see docs/design/learning-profile.md).

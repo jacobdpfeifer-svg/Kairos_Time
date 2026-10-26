@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from .model import StudyError
+from .model import StudyError, write_private_text
 
 MAX_SECTION_CHARS = 20_000
 MAX_LINES = 300
@@ -150,9 +150,5 @@ def update_profile_fields(user_root: Path, params: dict[str, Any]) -> dict[str, 
         changed[key] = value
     if not changed:
         raise StudyError("validation", "Nothing to save.")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=".tmp-", dir=str(path.parent))
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines).rstrip("\n") + "\n")
-    os.replace(tmp, path)
+    write_private_text(path, "\n".join(lines).rstrip("\n") + "\n")
     return {"saved": changed}

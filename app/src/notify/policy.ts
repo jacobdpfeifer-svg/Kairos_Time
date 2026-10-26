@@ -1,12 +1,11 @@
-import type { FreshnessChange, SemesterTick, SyncHealth } from "../ipc";
-import { friendlyWhen, friendlyRelative } from "../format";
-
 /*
  * Rare, relevant notifications (MASTER §06 notifications, Flighty's rule).
  * Three triggers only: a due date moved, high-stakes work within 48 hours that
  * isn't done, and a broken Canvas sign-in. Quiet at night and during class,
  * at most three a day, each sent once. Never "you haven't opened Kairos".
  */
+import type { FreshnessChange, SemesterTick, SyncHealth } from "../ipc";
+import { friendlyWhen, friendlyRelative } from "../format";
 
 export type Note = { key: string; title: string; body: string };
 

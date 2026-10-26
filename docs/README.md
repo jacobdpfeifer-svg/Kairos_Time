@@ -16,5 +16,7 @@ Product notes for Kairos. The public entry is the root [`README.md`](../README.m
 | [`schools/`](schools/) | Per-school notes for curated overlays |
 | [`architecture/school-personalization.md`](architecture/school-personalization.md) | How the student's school is discovered and what personalization does |
 | [`handoff/architect-brief.md`](handoff/architect-brief.md) | Architect handback status |
+| [`VOICE.md`](VOICE.md) | Optional voice goal capture: models, the three local-append tools, and where transcripts stay |
+| [`audits/`](audits/) | Dated audit reports plus the paste prompts the `audit` and pass-9 sweeps run from |
 
 Agent guide: [`../AGENTS.md`](../AGENTS.md) · Install: [`../README.md`](../README.md) · User template: [`../templates/USER.md`](../templates/USER.md)

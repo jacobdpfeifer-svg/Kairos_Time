@@ -287,6 +287,83 @@ pub fn run_save_learning_profile(
     }
 }
 
+fn python_ok(output: std::process::Output, module: &str) -> Result<(), String> {
+    if output.status.success() {
+        Ok(())
+    } else {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if err.is_empty() {
+            format!("{module} exited {}", output.status)
+        } else {
+            err
+        })
+    }
+}
+
+/// One aim or course line. Empty lines are dropped. A line break is rejected
+/// so one field stays one argument.
+fn aim_lines(values: &[String]) -> Result<Vec<String>, String> {
+    if values.len() > 12 {
+        return Err("too many lines".into());
+    }
+    let mut out = Vec::new();
+    for raw in values {
+        let text = raw.trim();
+        if text.is_empty() {
+            continue;
+        }
+        if text.len() > 200 || text.contains(['\n', '\r', '\0']) {
+            return Err("a line is too long".into());
+        }
+        out.push(text.to_string());
+    }
+    Ok(out)
+}
+
+fn aim_flags(flag: &str, values: &[String]) -> Result<Vec<String>, String> {
+    Ok(aim_lines(values)?
+        .into_iter()
+        .map(|value| format!("{flag}={value}"))
+        .collect())
+}
+
+/// Seed USER.md from the template and set the school the student just chose.
+pub fn run_stamp_school(rt: &Runtime, school_slug: &str) -> Result<(), String> {
+    tick_log("stamp-school");
+    let slug = format!("--school-slug={school_slug}");
+    let output = rt
+        .python_module("canvas_mcp.core.user_profile", &["--json", "stamp", slug.as_str()])
+        .output()
+        .map_err(|e| format!("failed to spawn user_profile: {e}"))?;
+    python_ok(output, "user_profile")
+}
+
+/// Settings "What to weigh". An empty list is not sent, so that section stays.
+pub fn run_save_aims(
+    rt: &Runtime,
+    career: &[String],
+    interest: &[String],
+    worth: &[String],
+    light: &[String],
+) -> Result<(), String> {
+    tick_log("save-aims");
+    let mut owned = Vec::new();
+    owned.extend(aim_flags("--career-priority", career)?);
+    owned.extend(aim_flags("--interest", interest)?);
+    owned.extend(aim_flags("--worth", worth)?);
+    owned.extend(aim_flags("--light", light)?);
+    if owned.is_empty() {
+        return Ok(());
+    }
+    let mut argv: Vec<&str> = vec!["--json", "aims"];
+    argv.extend(owned.iter().map(String::as_str));
+    let output = rt
+        .python_module("canvas_mcp.core.user_profile", &argv)
+        .output()
+        .map_err(|e| format!("failed to spawn user_profile: {e}"))?;
+    python_ok(output, "user_profile")
+}
+
 /// What one freshness tick reported. `briefs_changed` is set when the brief
 /// projection's stable signature changed, even if no Canvas delta arrived.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
