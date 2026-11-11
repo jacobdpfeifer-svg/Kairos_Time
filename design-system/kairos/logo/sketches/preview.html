@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>K mark sketch</title>
+<style>
+  body { margin: 0; background: #e7e5e0; color: #1d1d1f; font: 500 15px/1.35 ui-sans-serif, system-ui, sans-serif; }
+  main { padding: 36px 48px 48px; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.02em; }
+  p.lead { margin: 0 0 36px; color: #66666b; max-width: 560px; }
+  .pair { display: flex; gap: 48px; align-items: flex-start; }
+  figure { margin: 0; }
+  img.dock { width: 200px; height: 200px; display: block; }
+  figcaption { margin-top: 12px; font-size: 15px; font-weight: 650; }
+  figcaption span { display: block; margin-top: 4px; font-weight: 500; font-size: 13px; color: #66666b; max-width: 220px; }
+  .bar-wrap { margin-top: 28px; }
+  .bar-wrap p { margin: 0 0 10px; font-size: 13px; color: #66666b; }
+  .bars { display: flex; gap: 16px; align-items: center; }
+  .bar { display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px; }
+  .bar.light { background: rgba(255,255,255,.78); box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+  .bar.dark { background: #2a2a2c; }
+  .bar img { width: 18px; height: 18px; display: block; }
+  .bar.dark img { filter: invert(1); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lowercase k, from the wordmark</h1>
+  <p class="lead">The name is set in lowercase, so this is that k, not a capital. Same yellow either way. The menu bar drops the yellow and keeps the letter as a black silhouette.</p>
+  <div class="pair">
+    <figure>
+      <img class="dock" src="mark-k-stem.svg" alt="Vertical highlighter behind the stem"/>
+      <figcaption>Down the stem<span>Yellow runs the height of the letter, wider than the stem so it shows on both sides.</span></figcaption>
+    </figure>
+    <figure>
+      <img class="dock" src="mark-k-swipe.svg" alt="Horizontal highlighter across the stem"/>
+      <figcaption>Across the letter<span>A horizontal swipe through the middle, the same gesture as the wordmark.</span></figcaption>
+    </figure>
+  </div>
+  <div class="bar-wrap">
+    <p>Menu bar, both versions</p>
+    <div class="bars">
+      <div class="bar light"><img src="mark-k-tray.svg" alt="Menu bar icon on a light bar"/></div>
+      <div class="bar dark"><img src="mark-k-tray.svg" alt="Menu bar icon on a dark bar"/></div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

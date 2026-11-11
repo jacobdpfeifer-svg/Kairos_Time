@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="design-system/kairos/logo/kairos-wordmark.png" alt="Kairos" width="320">
+  <img src="design-system/kairos/logo/kairos-wordmark.png" alt="Kairos" width="112">
 </p>
 
 # Kairos
@@ -14,7 +14,7 @@ Site: [kairostime-landing.vercel.app](https://kairostime-landing.vercel.app) · 
 
 | Path | Why it exists |
 |------|----------------|
-| [`app/`](app/) | Mac app (Tauri + React) and the Chrome extension that reads your Canvas session |
+| [`app/`](app/) | Mac app (Tauri + React); also the parked Chrome extension (`app/extension-chrome/README.md` § Status) |
 | [`browser/`](browser/) | School login, then Canvas `/api/v1` into a local inbox |
 | [`landing/`](landing/) | The public site. Static files, deployed from this folder on Vercel |
 | [`skills/`](skills/) | Playbooks the agent follows. The index is [`AGENTS.md`](AGENTS.md) |
