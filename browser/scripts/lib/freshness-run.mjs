@@ -15,6 +15,7 @@ import { loadCurrentProjections } from "./canvas-project.mjs";
 import { writeBriefProjection } from "./briefs/project.mjs";
 import {
   appendEvents,
+  appendFeedsWatch,
   freshnessPaths,
   listDeltaFiles,
   markFunnel,
@@ -101,11 +102,13 @@ export async function runFreshnessTick({ userRoot, now = Date.now(), fetchImpl =
   }
 
   let polled = [];
+  let feedEventCount = 0;
   const secret = feeds ? readFeedsSecret(userRoot) : null;
   if (secret) {
     const result = await pollFeeds({ feeds: secret, state: state.feeds, now, fetchImpl, force: forceFeeds });
     state.feeds = result.state;
     events.push(...result.events);
+    feedEventCount = result.events.length;
     polled = result.polled;
     if (polled.length) {
       state.status.last_feed_poll_at = new Date(now).toISOString();
@@ -116,6 +119,36 @@ export async function runFreshnessTick({ userRoot, now = Date.now(), fetchImpl =
   const added = appendEvents(userRoot, state, events, { now });
   writeState(userRoot, state);
   const { briefsChanged } = rebuildDashboard(userRoot, { now, state });
+  const feedBytes = polled.reduce((n, row) => n + (row.bytes || 0), 0);
+  const feedMs = polled.reduce((n, row) => n + (row.ms || 0), 0);
+  if (polled.length) {
+    // Measurement only; never let it fail a tick.
+    try {
+      appendFeedsWatch(
+        userRoot,
+        {
+          feeds_polled: polled.length,
+          feed_errors: polled.filter((row) => !row.ok).length,
+          feed_bytes: feedBytes,
+          feed_ms: feedMs,
+          feed_events: feedEventCount,
+          deltas_processed: deltasProcessed,
+          by_class: polled.reduce((acc, row) => {
+            const k = row.cls;
+            acc[k] = acc[k] || { polled: 0, bytes: 0, ms: 0, errors: 0 };
+            acc[k].polled += 1;
+            acc[k].bytes += row.bytes || 0;
+            acc[k].ms += row.ms || 0;
+            if (!row.ok) acc[k].errors += 1;
+            return acc;
+          }, {}),
+        },
+        { now },
+      );
+    } catch {
+      /* the log is not product state */
+    }
+  }
   return {
     ok: true,
     new_events: added.length,
@@ -124,6 +157,8 @@ export async function runFreshnessTick({ userRoot, now = Date.now(), fetchImpl =
     deltas_rejected: deltasRejected,
     feeds_polled: polled.length,
     feed_errors: polled.filter((row) => !row.ok).length,
+    feed_bytes: feedBytes,
+    feed_ms: feedMs,
   };
 }
 

@@ -141,6 +141,15 @@ Hosted brain: defer. Build the event → triage → card pipeline so it can run
 locally now and move to a server later without a rewrite. Revisit after the
 beta shows whether the desktop install is the drop-off point.
 
+## Amended 2026-10-26 — the extension is parked
+
+Signed decision 1 below stands as a decision; the extension is **not in the
+v1 install path**. It cannot ship without a Chrome Web Store listing, and
+layer 2 (tokenized feeds) plus the canonical sync cover every change kind it
+detects except grades and instructor comments, where they trade 5-minute
+latency for up to 2 hours. Decisions 2 and 3 are untouched. Status, thaw gate,
+and what was deleted: `app/extension-chrome/README.md` § Status.
+
 ## Signed decisions
 
 1. **The extension is a product surface** that makes read-only Canvas API

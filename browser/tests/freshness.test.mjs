@@ -17,7 +17,7 @@ import { diffGenerations } from "../scripts/lib/canvas-changes.mjs";
 import { computeSkipCosts } from "../scripts/lib/skip-cost.mjs";
 import { buildDashboard, pickNextStep } from "../scripts/lib/freshness-dashboard.mjs";
 import { afterCanonicalSync, runFreshnessTick, validDelta } from "../scripts/lib/freshness-run.mjs";
-import { freshnessPaths, readEvents, writeFeedsSecret } from "../scripts/lib/freshness-store.mjs";
+import { appendFeedsWatch, freshnessPaths, readEvents, readFeedsWatch, writeFeedsSecret } from "../scripts/lib/freshness-store.mjs";
 
 const NOW = Date.parse("2026-09-29T18:00:00Z");
 const HOUR = 60 * 60 * 1000;
@@ -368,6 +368,62 @@ function gen({ assignments, courseId = 12, groups } = {}) {
     ],
   };
 }
+
+describe("feeds-only measurement", () => {
+  const feed = {
+    captured_at: isoAt(NOW - DAY),
+    base: "https://canvas.example.edu/",
+    courses: { 12: { name: "APPM 1235", announcements: "https://canvas.example.edu/feeds/announcements/enrollment_S.atom" } },
+  };
+
+  it("records bytes and wall time per poll, because feeds have no conditional GET", async () => {
+    const body = "<feed xmlns=\"http://www.w3.org/2005/Atom\"></feed>";
+    const fetchImpl = async () => ({ ok: true, status: 200, headers: { get: () => String(body.length) }, text: async () => body });
+    const { polled } = await pollFeeds({ feeds: feed, state: {}, now: NOW, fetchImpl, force: true });
+    assert.equal(polled.length, 1);
+    assert.equal(polled[0].bytes, body.length);
+    assert.equal(typeof polled[0].ms, "number");
+    assert.ok(polled[0].ms >= 0);
+  });
+
+  it("counts a failed poll as zero bytes rather than dropping the row", async () => {
+    const fetchImpl = async () => ({ ok: false, status: 500, text: async () => "" });
+    const { polled } = await pollFeeds({ feeds: feed, state: {}, now: NOW, fetchImpl, force: true });
+    assert.equal(polled[0].ok, false);
+    assert.equal(polled[0].bytes, 0);
+  });
+
+  it("logs one watch row per tick that polled, and the tick reports the totals", async () => {
+    const root = tmpRoot();
+    writeFeedsSecret(root, feed);
+    const body = "<feed xmlns=\"http://www.w3.org/2005/Atom\"></feed>";
+    const fetchImpl = async () => ({ ok: true, status: 200, headers: { get: () => String(body.length) }, text: async () => body });
+    const tick = await runFreshnessTick({ userRoot: root, now: NOW, fetchImpl, forceFeeds: true });
+    assert.equal(tick.feed_bytes, body.length);
+    assert.equal(typeof tick.feed_ms, "number");
+    const rows = readFeedsWatch(root);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].feeds_polled, 1);
+    assert.equal(rows[0].feed_bytes, body.length);
+    assert.deepEqual(Object.keys(rows[0].by_class), ["announcements"]);
+  });
+
+  it("writes no watch row when there are no feeds to poll", async () => {
+    const root = tmpRoot();
+    const tick = await runFreshnessTick({ userRoot: root, now: NOW, fetchImpl: async () => ({ ok: false, status: 404, text: async () => "" }) });
+    assert.equal(tick.feeds_polled, 0);
+    assert.deepEqual(readFeedsWatch(root), []);
+  });
+
+  it("trims the watch log to 30 days so it can be left running", () => {
+    const root = tmpRoot();
+    appendFeedsWatch(root, { feeds_polled: 1 }, { now: NOW - 40 * DAY });
+    appendFeedsWatch(root, { feeds_polled: 2 }, { now: NOW - 10 * DAY });
+    appendFeedsWatch(root, { feeds_polled: 3 }, { now: NOW });
+    const rows = readFeedsWatch(root);
+    assert.deepEqual(rows.map((r) => r.feeds_polled), [2, 3]);
+  });
+});
 
 describe("snapshot diff", () => {
   const base = { id: 101, name: "HW 5", due_at: "2026-10-03T05:59:00Z", points_possible: 10, description: "<p>Do problems 1-5.</p>", published: true, assignment_group_id: 1 };

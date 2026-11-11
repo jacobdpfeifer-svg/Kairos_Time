@@ -220,13 +220,16 @@ function icsEvents(items, seen, { baselined, detectedAt }) {
 async function fetchFeed(fetchImpl, url) {
   // Never follow a bearer-feed redirect to an unexpected host. The feed is
   // already origin-validated by feedList; a redirect must remain a failure.
+  // `bytes`/`ms` are measurement only: these feeds support no conditional GET,
+  // so every poll is a full download and the cost has to be observable.
+  const started = Date.now();
   const res = await fetchImpl(url, { redirect: "manual", headers: { Accept: "application/atom+xml, text/calendar, */*" } });
-  if (!res.ok) return { ok: false, status: res.status, text: "" };
+  if (!res.ok) return { ok: false, status: res.status, text: "", bytes: 0, ms: Date.now() - started };
   const declared = Number(res.headers?.get?.("content-length") || 0);
-  if (declared > MAX_FEED_BYTES) return { ok: false, status: 413, text: "" };
+  if (declared > MAX_FEED_BYTES) return { ok: false, status: 413, text: "", bytes: declared, ms: Date.now() - started };
   const text = await res.text();
-  if (text.length > MAX_FEED_BYTES) return { ok: false, status: 413, text: "" };
-  return { ok: true, status: res.status, text };
+  if (text.length > MAX_FEED_BYTES) return { ok: false, status: 413, text: "", bytes: text.length, ms: Date.now() - started };
+  return { ok: true, status: res.status, text, bytes: text.length, ms: Date.now() - started };
 }
 
 /**
@@ -251,10 +254,17 @@ export async function pollFeeds({ feeds, state = {}, now = Date.now(), fetchImpl
     try {
       res = await fetchFeed(fetchImpl, feed.url);
     } catch (e) {
-      res = { ok: false, status: 0, text: "", error: String(e?.message || e).slice(0, 120) };
+      res = { ok: false, status: 0, text: "", bytes: 0, ms: 0, error: String(e?.message || e).slice(0, 120) };
     }
     s.last_polled = detectedAt;
-    polled.push({ cls: feed.cls, course_id: feed.course_id, status: res.status, ok: res.ok });
+    polled.push({
+      cls: feed.cls,
+      course_id: feed.course_id,
+      status: res.status,
+      ok: res.ok,
+      bytes: res.bytes || 0,
+      ms: res.ms || 0,
+    });
     if (!res.ok) {
       s.error = { status: res.status, at: detectedAt };
       next[h] = s;

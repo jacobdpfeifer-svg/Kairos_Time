@@ -27,6 +27,7 @@ export function freshnessPaths(userRoot) {
     dashboard: path.join(dir, "dashboard.json"),
     skipCosts: path.join(dir, "skip-costs.json"),
     funnel: path.join(dir, "funnel.json"),
+    feedsWatch: path.join(dir, "feeds-watch.jsonl"),
     feedsSecret: path.join(userRoot, "auth", "feeds.json"),
   };
 }
@@ -60,6 +61,54 @@ export function writeState(userRoot, state) {
  * Append events whose key has not been seen. Mutates `state.seen`.
  * @returns {object[]} the events actually written
  */
+const FEEDS_WATCH_RETAIN_DAYS = 30;
+
+/**
+ * One measurement row per tick that actually polled feeds: what the feed path
+ * costs and what it caught. This is the evidence the feeds-only decision needs
+ * (`docs/handoff/feeds-only-freshness-protocol-2026-10-26.md`), not product state — nothing reads it
+ * at runtime. Self-trimming to 30 days so it can be left on.
+ */
+export function appendFeedsWatch(userRoot, row, { now = Date.now() } = {}) {
+  const p = freshnessPaths(userRoot);
+  fs.mkdirSync(p.dir, { recursive: true, mode: 0o700 });
+  const line = JSON.stringify({ at: new Date(now).toISOString(), ...row });
+  let kept = [];
+  try {
+    const cutoff = now - FEEDS_WATCH_RETAIN_DAYS * 24 * 60 * 60 * 1000;
+    kept = fs
+      .readFileSync(p.feedsWatch, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .filter((l) => {
+        const at = Date.parse(JSON.parse(l)?.at || "");
+        return Number.isFinite(at) && at >= cutoff;
+      });
+  } catch {
+    kept = [];
+  }
+  fs.writeFileSync(p.feedsWatch, [...kept, line].join("\n") + "\n", { mode: 0o600 });
+}
+
+export function readFeedsWatch(userRoot) {
+  try {
+    return fs
+      .readFileSync(freshnessPaths(userRoot).feedsWatch, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => {
+        try {
+          return JSON.parse(l);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export function appendEvents(userRoot, state, events, { now = Date.now() } = {}) {
   const p = freshnessPaths(userRoot);
   const added = [];

@@ -26,7 +26,8 @@
     "export-bundle": "node scripts/export-bundle.mjs",
     "export-portable": "node scripts/export-portable.mjs",
     "voice": "node scripts/voice-server.mjs",
-    "voice-models": "node scripts/voice-models.mjs"
+    "voice-models": "node scripts/voice-models.mjs",
+    "feeds-report": "node scripts/feeds-report.mjs"
   },
   "_comment_cu_plugin": "sync-dinners/sync-ai-labs/rsvp-* are CU Boulder CampusGroups plugin CLIs (plugins/cu-boulder-campusgroups/), not core product sync. RSVP requires --confirm.",
   "devDependencies": {
